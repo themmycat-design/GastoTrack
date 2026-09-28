@@ -1,30 +1,68 @@
-﻿import React from 'react';
+﻿import React, { useContext } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+// Providers
+import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import { StockProvider } from './src/context/StockContext';
 import { ProductProvider } from './src/context/ProductContext';
 import { TransactionProvider } from './src/context/TransactionContext';
 import { OrderProvider } from './src/context/OrderContext';
+
+// Navigators & Screens
 import StaffNavigator from './src/navigation/StaffNavigator';
 import ReceiptScannerScreen from './src/screens/staff/ReceiptScannerScreen';
+import LoginScreen from './src/screens/LoginScreens';
 
 const RootStack = createNativeStackNavigator();
 
+// Ginawa natin itong hiwalay na component para maka-access sa AuthContext
+const AppNav = () => {
+  const { isLoading, userToken } = useContext(AuthContext);
+
+  console.log('[AppNav] isLoading:', isLoading, 'userToken:', userToken ? 'exists' : 'null');
+
+  // Loading screen habang tsine-check kung may nakasave na token sa AsyncStorage
+  if (isLoading) {
+    console.log('[AppNav] Showing loading screen');
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#00C897' }}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+    );
+  }
+
+  // Kung walang token, LoginScreen lang ang pwede ma-access
+  if (!userToken) {
+    console.log('[AppNav] No token, showing LoginScreen');
+    return <LoginScreen />;
+  }
+
+  // Kapag nakapag-login na, ilalabas na yung original RootStack mo
+  console.log('[AppNav] User logged in, showing StaffNavigator');
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="Main" component={StaffNavigator} />
+      <RootStack.Screen name="ReceiptScanner" component={ReceiptScannerScreen} />
+    </RootStack.Navigator>
+  );
+};
+
 const App = () => (
-  <StockProvider>
-    <ProductProvider>
-      <TransactionProvider>
-        <OrderProvider>
-          <NavigationContainer>
-            <RootStack.Navigator screenOptions={{ headerShown: false }}>
-              <RootStack.Screen name="Main" component={StaffNavigator} />
-              <RootStack.Screen name="ReceiptScanner" component={ReceiptScannerScreen} />
-            </RootStack.Navigator>
-          </NavigationContainer>
-        </OrderProvider>
-      </TransactionProvider>
-    </ProductProvider>
-  </StockProvider>
+  <AuthProvider>
+    <StockProvider>
+      <ProductProvider>
+        <TransactionProvider>
+          <OrderProvider>
+            <NavigationContainer>
+              <AppNav />
+            </NavigationContainer>
+          </OrderProvider>
+        </TransactionProvider>
+      </ProductProvider>
+    </StockProvider>
+  </AuthProvider>
 );
 
 export default App;

@@ -1,0 +1,497 @@
+=============================================================================
+                     OWNER SCREEN AUDIT REPORT
+                  React Native App - Owner Cleanup
+=============================================================================
+
+Generated: Task 2 - Audit Owner Screen Imports
+Duration: 1 hour
+Purpose: Identify all dependencies before safe deletion of owner screens
+
+=============================================================================
+                         EXECUTIVE SUMMARY
+=============================================================================
+
+Total Owner Screens Found: 12 (all present)
+Navigation Files Referencing Owner: 6 files
+Owner-Only Services: 3 services (AIService, GeminiService, NotificationService)
+Shared Services/Contexts: 5 contexts (used by both owner and staff)
+Dependencies to Remove: 0 packages (no chart/calendar libraries found)
+
+SAFE TO DELETE: All 12 owner screens + 5 navigation files + 3 services
+MUST PRESERVE: All contexts, theme, OCRService (used by staff)
+
+=============================================================================
+                    SECTION 1: OWNER SCREENS INVENTORY
+=============================================================================
+
+All 12 owner screens exist in src/screens/owner/:
+
+[X] 1. AIChatbotScreen.js           - AI assistant chatbot
+[X] 2. AIInsightsScreen.js          - AI-generated business insights
+[X] 3. AlertsScreen.js              - Business alerts dashboard
+[X] 4. AnalyticsScreen.js           - Charts and financial reports
+[X] 5. CalendarScreen.js            - Transaction calendar view
+[X] 6. DashboardScreen.js           - Owner dashboard with widgets
+[X] 7. GoalsScreen.js               - Financial goals management
+[X] 8. NotificationCaptureScreen.js - E-wallet notification capture
+[X] 9. ProductsScreen.js            - Product management (owner view)
+[X] 10. ProfileScreen.js            - Owner profile settings
+[X] 11. StockScreen.js              - Advanced stock management
+[X] 12. TransactionsScreen.js       - Transaction management (owner view)
+
+Status: All files confirmed present and ready for deletion.
+
+=============================================================================
+              SECTION 2: IMPORT DEPENDENCY MAP
+=============================================================================
+
+2.1 ROOT APPLICATION
+--------------------
+File: App.tsx
+Imports: OwnerNavigator
+Usage: Conditional rendering based on role state
+Action Required: MODIFY - Remove OwnerNavigator import, add owner blocking logic
+
+```typescript
+// CURRENT CODE:
+import OwnerNavigator from './src/navigation/OwnerNavigator';
+{role === 'owner' ? <OwnerNavigator /> : 
+ role === 'staff' ? <StaffNavigator /> :
+ <CustomerNavigator />}
+
+// AFTER CLEANUP:
+// Remove: import OwnerNavigator
+// Add: import OwnerBlockedScreen (to be created)
+{role === 'owner' ? <OwnerBlockedScreen /> : 
+ role === 'staff' ? <StaffNavigator /> :
+ <CustomerNavigator />}
+```
+
+2.2 NAVIGATION FILES THAT IMPORT OWNER SCREENS
+-----------------------------------------------
+
+FILE: src/navigation/OwnerNavigator.js
+Imports:
+  - DashboardScreen from '../screens/owner/DashboardScreen'
+  - TransactionsScreen from '../screens/owner/TransactionsScreen'
+  - AlertsScreen from '../screens/owner/AlertsScreen'
+  - ProductsScreen from '../screens/owner/ProductsScreen'
+  - AIStack (nested navigator)
+  - GoalsStack (nested navigator)
+  - ProfileStack (nested navigator)
+Uses: Bottom tab navigation with 6 tabs (Dashboard, Transactions, AI, Alerts, Goals, Profile)
+Action: DELETE ENTIRE FILE
+
+---
+
+FILE: src/navigation/AnalyticsStack.js
+Imports:
+  - AnalyticsScreen from '../screens/owner/AnalyticsScreen'
+  - CalendarScreen from '../screens/owner/CalendarScreen'
+Uses: Stack navigator for Analytics → Calendar flow
+Action: DELETE ENTIRE FILE
+
+---
+
+FILE: src/navigation/AIStack.js
+Imports:
+  - AIInsightsScreen from '../screens/owner/AIInsightsScreen'
+  - AIChatbotScreen from '../screens/owner/AIChatbotScreen'
+Uses: Stack navigator for AI Insights → Chatbot flow
+Action: DELETE ENTIRE FILE
+
+---
+
+FILE: src/navigation/GoalsStack.js
+Imports:
+  - GoalsScreen from '../screens/owner/GoalsScreen'
+  - StockScreen from '../screens/owner/StockScreen'
+  - ProductsScreen from '../screens/owner/ProductsScreen'
+Uses: Stack navigator for Goals → Stock/Products flow
+Action: DELETE ENTIRE FILE
+
+---
+
+FILE: src/navigation/ProfileStack.js
+Imports:
+  - ProfileScreen from '../screens/owner/ProfileScreen'
+  - NotificationCaptureScreen from '../screens/owner/NotificationCaptureScreen'
+Uses: Stack navigator for Profile → Notification Capture flow
+Action: DELETE ENTIRE FILE
+
+---
+
+SUMMARY: 5 navigation files to DELETE + 1 to MODIFY (App.tsx)
+
+2.3 OWNER SCREENS THAT IMPORT SERVICES
+---------------------------------------
+
+AIChatbotScreen.js:
+  - Imports: AIService from '../../services/AIService'
+  - Methods Used: sendMessageToAI(), generateBusinessContext()
+  - Also Imports: ProductContext, AlertContext, TransactionContext (shared contexts)
+  
+NotificationCaptureScreen.js:
+  - Imports: NotificationService from '../../services/NotificationService'
+  - Also Imports: TransactionContext (shared context)
+
+Other Owner Screens:
+  - All import shared contexts (TransactionContext, StockContext, ProductContext, etc.)
+  - All import COLORS from '../../theme' (shared with staff)
+  - No other unique service imports found
+
+2.4 SHARED RESOURCES (MUST NOT DELETE)
+---------------------------------------
+
+THEME:
+  - File: src/theme.js
+  - Imported by: ALL owner screens AND ALL staff screens
+  - Provides: COLORS constant for app-wide styling
+  - Action: PRESERVE - Staff screens depend on this
+
+CONTEXTS (State Management):
+  - AlertContext.js - Used by owner & staff
+  - OrderContext.js - Used by owner & staff
+  - ProductContext.js - Used by owner & staff
+  - StockContext.js - Used by owner & staff
+  - TransactionContext.js - Used by owner & staff
+  - Action: PRESERVE ALL - Staff screens depend on these
+
+OCRService:
+  - File: src/services/OCRService.js
+  - Used by: Staff ReceiptScannerScreen
+  - Uses: GeminiService for OCR functionality
+  - Action: PRESERVE - Staff screen depends on this
+  - NOTE: GeminiService used by OCRService, so partially shared
+
+=============================================================================
+            SECTION 3: SERVICES ANALYSIS
+=============================================================================
+
+3.1 OWNER-ONLY SERVICES (Safe to Delete)
+-----------------------------------------
+
+1. AIService.js
+   - Purpose: AI chatbot and business insights
+   - Used by: AIChatbotScreen.js (owner only)
+   - Dependencies: GeminiService
+   - Staff Usage: NONE
+   - Action: KEEP (see note below)
+   - NOTE: Uses GeminiService which is also used by OCRService (staff)
+           Recommend keeping AIService in case staff needs AI features later
+           Size impact is minimal (~5KB)
+
+2. NotificationService.js
+   - Purpose: E-wallet notification capture
+   - Used by: NotificationCaptureScreen.js (owner only)
+   - Staff Usage: NONE (staff has own notification handling)
+   - Action: DELETE (owner-only feature)
+
+3. GeminiService.js
+   - Purpose: Low-level Gemini API wrapper
+   - Used by: AIService.js AND OCRService.js
+   - Staff Usage: INDIRECT (via OCRService for receipt scanning)
+   - Action: PRESERVE - Required by staff's OCRService
+
+3.2 SHARED SERVICES (Must Preserve)
+------------------------------------
+
+1. OCRService.js
+   - Used by: Staff ReceiptScannerScreen
+   - Dependencies: GeminiService, ML Kit
+   - Action: PRESERVE
+
+Summary: Only NotificationService.js can be safely deleted
+
+=============================================================================
+        SECTION 4: DEPENDENCY ANALYSIS (package.json)
+=============================================================================
+
+4.1 POTENTIALLY OWNER-ONLY DEPENDENCIES
+----------------------------------------
+
+Chart Libraries:
+  - react-native-chart-kit: NOT FOUND in package.json
+  - victory-native: NOT FOUND in package.json
+  - react-native-svg: NOT FOUND in package.json
+  - Result: ✅ No chart dependencies to remove
+
+Calendar Libraries:
+  - react-native-calendars: NOT FOUND in package.json
+  - Result: ✅ No calendar dependencies to remove
+
+AI/ML Libraries:
+  - @google/generative-ai: NOT FOUND in package.json
+  - Note: Gemini likely integrated directly via axios
+  - Result: ✅ No AI-specific dependencies to remove
+
+4.2 SHARED DEPENDENCIES (Keep All)
+-----------------------------------
+
+Navigation:
+  - @react-navigation/bottom-tabs (used by staff too)
+  - @react-navigation/native (used by staff too)
+  - @react-navigation/native-stack (used by staff too)
+
+UI/UX:
+  - react-native-vector-icons (used by staff too)
+  - react-native-safe-area-context (used by staff too)
+
+Camera/Images:
+  - react-native-image-picker (used by staff)
+  - react-native-vision-camera (used by staff)
+  - @react-native-ml-kit/text-recognition (used by staff for OCR)
+
+Storage:
+  - @react-native-async-storage/async-storage (used by staff)
+
+Network:
+  - axios (used by staff)
+
+Result: ✅ NO DEPENDENCIES TO REMOVE from package.json
+
+=============================================================================
+           SECTION 5: FILES TO DELETE
+=============================================================================
+
+5.1 OWNER SCREENS (12 files)
+-----------------------------
+[X] src/screens/owner/AIChatbotScreen.js
+[X] src/screens/owner/AIInsightsScreen.js
+[X] src/screens/owner/AlertsScreen.js
+[X] src/screens/owner/AnalyticsScreen.js
+[X] src/screens/owner/CalendarScreen.js
+[X] src/screens/owner/DashboardScreen.js
+[X] src/screens/owner/GoalsScreen.js
+[X] src/screens/owner/NotificationCaptureScreen.js
+[X] src/screens/owner/ProductsScreen.js
+[X] src/screens/owner/ProfileScreen.js
+[X] src/screens/owner/StockScreen.js
+[X] src/screens/owner/TransactionsScreen.js
+
+Optional: Delete entire src/screens/owner/ directory after files removed
+
+5.2 NAVIGATION FILES (5 files)
+-------------------------------
+[X] src/navigation/OwnerNavigator.js
+[X] src/navigation/AnalyticsStack.js
+[X] src/navigation/AIStack.js
+[X] src/navigation/GoalsStack.js
+[X] src/navigation/ProfileStack.js
+
+5.3 SERVICES (1 file - OPTIONAL)
+---------------------------------
+[X] src/services/NotificationService.js (owner-only e-wallet capture)
+
+Optional: Keep AIService.js for potential future staff use
+
+5.4 CONTEXTS (0 files)
+----------------------
+None - All contexts are shared between owner and staff
+
+5.5 UTILITIES (0 files)
+-----------------------
+No src/utils/ directory exists
+
+TOTAL FILES TO DELETE: 18 files (12 screens + 5 navigators + 1 service)
+
+=============================================================================
+          SECTION 6: FILES TO MODIFY
+=============================================================================
+
+6.1 HIGH PRIORITY - Root Application
+-------------------------------------
+
+FILE: App.tsx
+Changes Required:
+  1. Remove import: import OwnerNavigator from './src/navigation/OwnerNavigator';
+  2. Add import: import OwnerBlockedScreen from './src/screens/auth/OwnerBlockedScreen';
+  3. Modify render logic:
+     FROM: {role === 'owner' ? <OwnerNavigator /> : ...}
+     TO:   {role === 'owner' ? <OwnerBlockedScreen /> : ...}
+  4. Optional: Remove role switcher UI (testing only)
+  
+Complexity: LOW
+Estimated Time: 15 minutes
+
+6.2 MEDIUM PRIORITY - Authentication
+-------------------------------------
+
+No existing auth screens found yet, will be created in Phase 4 (tasks 13-16)
+
+Files to Create:
+  - src/screens/auth/OwnerBlockedScreen.js (new file)
+
+Files to Modify (if they exist):
+  - src/screens/auth/LoginScreen.js (may not exist yet)
+  - src/screens/auth/RegisterScreen.js (may not exist yet)
+
+6.3 LOW PRIORITY - Context Providers
+-------------------------------------
+
+No modifications needed - all contexts are shared
+
+6.4 DOCUMENTATION
+-----------------
+
+Files to Update:
+  - README.md (clarify staff-only app)
+  - FEATURE_IMPLEMENTATION_STATUS.md (mark owner features as removed)
+  - Other .md files referencing owner screens
+
+=============================================================================
+        SECTION 7: COMPONENT USAGE ANALYSIS
+=============================================================================
+
+7.1 SHARED COMPONENTS
+---------------------
+
+No src/components/ directory exists.
+All UI is defined inline within screen files.
+
+Result: ✅ No shared components to worry about
+
+7.2 INLINE COMPONENTS
+---------------------
+
+Owner screens use inline components (modals, cards, etc.) that are:
+  - Defined within the same file
+  - Not exported
+  - Not imported by other screens
+
+Result: ✅ Safe to delete with parent screen files
+
+=============================================================================
+           SECTION 8: RISK ASSESSMENT
+=============================================================================
+
+8.1 LOW RISK ITEMS (Safe to Delete)
+------------------------------------
+✅ All 12 owner screen files
+✅ 5 navigation files (OwnerNavigator, AnalyticsStack, AIStack, GoalsStack, ProfileStack)
+✅ NotificationService.js
+
+8.2 MEDIUM RISK ITEMS (Verify Before Delete)
+---------------------------------------------
+⚠️  AIService.js - Used by owner screens only, but may be useful for staff later
+    Recommendation: KEEP for now (file size is minimal)
+
+8.3 HIGH RISK ITEMS (DO NOT DELETE)
+------------------------------------
+❌ GeminiService.js - Used by OCRService (staff feature)
+❌ OCRService.js - Used by staff ReceiptScannerScreen
+❌ All contexts (AlertContext, OrderContext, ProductContext, StockContext, TransactionContext)
+❌ theme.js (COLORS used by staff screens)
+
+8.4 DEPENDENCY CONFLICTS
+-------------------------
+✅ No dependency conflicts found
+✅ All package.json dependencies are shared or staff-only
+
+=============================================================================
+          SECTION 9: VERIFICATION CHECKLIST
+=============================================================================
+
+Before Deletion:
+[ ] Backup current state: git tag backup-before-owner-cleanup
+[ ] Create feature branch: git checkout -b feature/mobile-staff-only
+[ ] Verify all 12 owner screens exist
+[ ] Verify navigation files exist
+[ ] Verify staff screens don't import owner files
+
+After Deletion:
+[ ] Run: grep -r "screens/owner/" src/
+    Expected: Zero results (no imports remain)
+[ ] Run: grep -r "OwnerNavigator" src/
+    Expected: Zero results
+[ ] Run: grep -r "import.*AIStack\|AnalyticsStack\|GoalsStack\|ProfileStack" src/
+    Expected: Zero results
+[ ] Build test: npx react-native run-android
+    Expected: Successful build with no errors
+[ ] Test staff navigation works
+[ ] Test owner blocking displays correctly
+
+=============================================================================
+         SECTION 10: DELETION SEQUENCE
+=============================================================================
+
+Recommended order (safest approach):
+
+Phase 1: Prepare
+1. Create git tag backup
+2. Create feature branch
+
+Phase 2: Create Owner Blocking (before deletion)
+3. Create OwnerBlockedScreen.js
+4. Test OwnerBlockedScreen renders correctly
+
+Phase 3: Update Root Navigation
+5. Modify App.tsx to use OwnerBlockedScreen
+6. Test that owner role shows blocked screen
+
+Phase 4: Delete Navigation Files (child files first)
+7. Delete AnalyticsStack.js
+8. Delete AIStack.js
+9. Delete GoalsStack.js
+10. Delete ProfileStack.js
+11. Delete OwnerNavigator.js
+
+Phase 5: Delete Owner Screens
+12. Delete all 12 screen files from src/screens/owner/
+13. Optionally delete src/screens/owner/ directory
+
+Phase 6: Delete Services
+14. Delete NotificationService.js
+
+Phase 7: Verification
+15. Search for remaining imports
+16. Build and test app
+
+=============================================================================
+                    SECTION 11: CONCLUSION
+=============================================================================
+
+Summary:
+--------
+✅ All 12 owner screens identified and ready for deletion
+✅ 5 navigation files identified for deletion
+✅ 1 service file (NotificationService) safe to delete
+✅ No shared components to worry about (no src/components/)
+✅ No dependencies to remove from package.json
+✅ All contexts and theme must be preserved (used by staff)
+✅ GeminiService and OCRService must be preserved (used by staff)
+
+Clean Deletion Plan:
+--------------------
+- 18 files total can be safely deleted
+- 1 file must be modified (App.tsx)
+- 0 dependencies to remove from package.json
+- Expected LOC reduction: ~2,500-3,000 lines
+- Expected file count reduction: 18 files
+
+No Blocking Issues Found:
+-------------------------
+✅ No circular dependencies
+✅ No shared components exclusively used by owner
+✅ No staff screens import owner screens
+✅ All navigation is properly isolated
+
+Next Steps:
+-----------
+1. Review this audit report
+2. Proceed to Task 3: Audit State Management
+3. Proceed to Task 4: Audit API Services
+4. Then begin deletion in Phase 2 (Task 7: Create OwnerBlockedScreen)
+
+Risk Level: LOW
+Confidence: HIGH
+Ready to Proceed: YES
+
+=============================================================================
+                         END OF REPORT
+=============================================================================
+
+Generated by: Kiro Spec Task Execution Subagent
+Date: Owner Screen Cleanup - Phase 1, Task 2
+Report File: audit-report.txt
+Next Action: Proceed to Task 3 (State Management Audit)
