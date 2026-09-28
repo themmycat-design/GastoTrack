@@ -2,52 +2,26 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StockMovement extends Model
 {
-    use HasFactory;
+    public $timestamps = false;
 
     protected $fillable = [
-        'stock_item_id',
-        'user_id',
-        'type',
-        'quantity',
-        'previous_quantity',
-        'new_quantity',
-        'reason',
-        'order_id',
+        'stock_id', 'business_id', 'type', 'quantity',
+        'quantity_before', 'quantity_after', 'reason',
+        'order_id', 'user_id'
     ];
 
-    protected $casts = [
-        'quantity' => 'decimal:2',
-        'previous_quantity' => 'decimal:2',
-        'new_quantity' => 'decimal:2',
-    ];
+    const CREATED_AT = 'created_at';
+    const UPDATED_AT = null;
 
-    /**
-     * Get the stock item
-     */
-    public function stockItem(): BelongsTo
+    protected static function boot()
     {
-        return $this->belongsTo(StockItem::class);
-    }
-
-    /**
-     * Get the user who created this movement
-     */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    /**
-     * Get the related order (if any)
-     */
-    public function order(): BelongsTo
-    {
-        return $this->belongsTo(Order::class);
+        parent::boot();
+        static::creating(function ($model) {
+            $model->created_at = now();
+        });
     }
 }

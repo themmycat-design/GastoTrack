@@ -2,81 +2,37 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'business_id', 'phone'])]
-#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, Notifiable;
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
-    }
+    protected $fillable = [
+        'name', 'email', 'password', 'role', 'business_id', 'phone', 'status'
+    ];
 
-    /**
-     * Check if user is an owner
-     */
-    public function isOwner(): bool
-    {
-        return $this->role === 'owner';
-    }
+    protected $hidden = ['password', 'remember_token'];
 
-    /**
-     * Check if user is staff
-     */
-    public function isStaff(): bool
-    {
-        return $this->role === 'staff';
-    }
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password'          => 'hashed',
+    ];
 
-    /**
-     * Get the business this user belongs to
-     */
-    public function business(): BelongsTo
+    public function business()
     {
         return $this->belongsTo(Business::class);
     }
 
-    /**
-     * Get transactions created by this user
-     */
-    public function transactions(): HasMany
+    public function isOwner()
     {
-        return $this->hasMany(Transaction::class);
+        return $this->role === 'owner';
     }
 
-    /**
-     * Get orders created by this user
-     */
-    public function orders(): HasMany
+    public function isStaff()
     {
-        return $this->hasMany(Order::class);
-    }
-
-    /**
-     * Get stock movements created by this user
-     */
-    public function stockMovements(): HasMany
-    {
-        return $this->hasMany(StockMovement::class);
+        return $this->role === 'staff';
     }
 }

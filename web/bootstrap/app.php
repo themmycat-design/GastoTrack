@@ -14,6 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'owner' => \App\Http\Middleware\EnsureUserIsOwner::class,
+            'set.database' => \App\Http\Middleware\SetDatabaseConnection::class,
+        ]);
+        
+        // Apply database connection middleware to API routes
+        $middleware->api(append: [
+            \App\Http\Middleware\SetDatabaseConnection::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
