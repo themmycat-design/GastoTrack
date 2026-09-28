@@ -1,45 +1,30 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+﻿import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StockProvider } from './src/context/StockContext';
+import { ProductProvider } from './src/context/ProductContext';
+import { TransactionProvider } from './src/context/TransactionContext';
+import { OrderProvider } from './src/context/OrderContext';
+import StaffNavigator from './src/navigation/StaffNavigator';
+import ReceiptScannerScreen from './src/screens/staff/ReceiptScannerScreen';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+const RootStack = createNativeStackNavigator();
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+const App = () => (
+  <StockProvider>
+    <ProductProvider>
+      <TransactionProvider>
+        <OrderProvider>
+          <NavigationContainer>
+            <RootStack.Navigator screenOptions={{ headerShown: false }}>
+              <RootStack.Screen name="Main" component={StaffNavigator} />
+              <RootStack.Screen name="ReceiptScanner" component={ReceiptScannerScreen} />
+            </RootStack.Navigator>
+          </NavigationContainer>
+        </OrderProvider>
+      </TransactionProvider>
+    </ProductProvider>
+  </StockProvider>
+);
 
 export default App;
