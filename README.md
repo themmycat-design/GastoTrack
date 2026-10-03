@@ -1,4 +1,4 @@
-# GastoTrack Mobile App (Staff Edition)
+# GastoTrack Mobile App 
 
 GastoTrack Mobile is the staff-facing companion for day-to-day business operations. It provides staff access to the dashboard, transactions, receipt scanning, order queue, stock, and profile screens.
 
