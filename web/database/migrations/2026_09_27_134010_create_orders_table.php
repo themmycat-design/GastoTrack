@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('customer_phone')->nullable();
             $table->enum('payment_type', ['cash', 'cashless'])->default('cash');
             $table->enum('payment_method', ['cash', 'gcash', 'maya', 'bank'])->nullable();
-            $table->enum('status', ['pending', 'preparing', 'completed', 'cancelled'])->default('pending');
+            $table->enum('status', ['pending', 'preparing', 'ready', 'completed', 'cancelled'])->default('pending');
             $table->decimal('subtotal', 10, 2);
             $table->decimal('total', 10, 2);
             $table->text('notes')->nullable();

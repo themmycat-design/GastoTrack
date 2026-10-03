@@ -3,17 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class StockItem extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
-        'business_id', 'name', 'quantity', 'unit',
-        'threshold', 'cost_per_unit', 'supplier'
+        'business_id', 'name', 'unit', 'current_quantity',
+        'minimum_quantity', 'unit_cost', 'active', 'client_id'
     ];
 
     protected $casts = [
-        'quantity'  => 'decimal:2',
-        'threshold' => 'decimal:2',
+        'current_quantity'  => 'decimal:2',
+        'minimum_quantity' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
+        'active' => 'boolean',
     ];
 
     public function business()
@@ -23,11 +27,16 @@ class StockItem extends Model
 
     public function ingredients()
     {
-        return $this->hasMany(ProductIngredient::class, 'stock_id');
+        return $this->hasMany(ProductIngredient::class);
     }
 
     public function movements()
     {
-        return $this->hasMany(StockMovement::class, 'stock_id');
+        return $this->hasMany(StockMovement::class, 'stock_item_id');
+    }
+
+    public function isLowStock(): bool
+    {
+        return $this->current_quantity <= $this->minimum_quantity;
     }
 }

@@ -1,107 +1,73 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { AuthContext } from '../context/AuthContext';
-import axios from 'axios';
+import React, {useContext, useState} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {AuthContext} from '../context/AuthContext';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('staff1@gastotrack.com');
   const [password, setPassword] = useState('password');
   const [loading, setLoading] = useState(false);
-  const [testResult, setTestResult] = useState('');
-  const { login, userToken } = useContext(AuthContext);
-
-  // Direct API test (bypass context)
-  const testDirectAPI = async () => {
-    setLoading(true);
-    setTestResult('Testing...');
-    
-    try {
-      const response = await axios.post('http://192.168.0.11:8000/api/login', {
-        email,
-        password
-      }, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 10000
-      });
-      
-      setTestResult(`✓ API works! Token: ${response.data.token.substring(0,20)}...`);
-      Alert.alert('API Test Success', 'Direct API call works!');
-    } catch (error) {
-      const errorMsg = error.message || 'Unknown error';
-      setTestResult(`✗ API failed: ${errorMsg}`);
-      Alert.alert('API Test Failed', errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {login} = useContext(AuthContext);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields.');
+    if (!email.trim() || !password) {
+      Alert.alert('Missing details', 'Enter your email and password.');
       return;
     }
 
     setLoading(true);
-    setTestResult('Logging in via context...');
-    
-    const result = await login(email, password);
-    
+    const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
-    setTestResult(result.success ? '✓ Login success' : `✗ ${result.message}`);
 
     if (!result.success) {
-      Alert.alert('Login Failed', result.message);
+      Alert.alert('Login failed', result.message);
     }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>GastoTrack</Text>
-      
-      {userToken && (
-        <Text style={styles.tokenText}>Logged in! Token: {userToken.substring(0,30)}...</Text>
-      )}
-      
+      <Text style={styles.subtitle}>Staff workspace</Text>
+
       <View style={styles.card}>
         <Text style={styles.label}>Email</Text>
-        <TextInput 
+        <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
+          editable={!loading}
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput 
+        <TextInput
           style={styles.input}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
+          editable={!loading}
         />
 
-        {testResult ? (
-          <Text style={styles.testResult}>{testResult}</Text>
-        ) : null}
-
-        <TouchableOpacity 
-          style={[styles.button, styles.buttonPrimary]} 
-          onPress={handleLogin} 
-          disabled={loading}
-        >
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.buttonText}>Log In</Text>
+            <Text style={styles.buttonText}>Log in</Text>
           )}
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.button, styles.buttonSecondary]} 
-          onPress={testDirectAPI} 
-          disabled={loading}
-        >
-          <Text style={[styles.buttonText, {color: '#00C897'}]}>Test API Direct</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -109,17 +75,54 @@ const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#00C897', justifyContent: 'center', padding: 20 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#FFF', textAlign: 'center', marginBottom: 40 },
-  tokenText: { fontSize: 12, color: '#FFF', textAlign: 'center', marginBottom: 10 },
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, elevation: 5 },
-  label: { fontSize: 14, color: '#888', marginBottom: 5 },
-  input: { backgroundColor: '#F5F5F5', borderRadius: 8, padding: 12, marginBottom: 15, color: '#0A2E2A' },
-  button: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
-  buttonPrimary: { backgroundColor: '#00C897' },
-  buttonSecondary: { backgroundColor: '#FFF', borderWidth: 2, borderColor: '#00C897' },
-  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  testResult: { fontSize: 12, color: '#666', marginBottom: 10, padding: 10, backgroundColor: '#F5F5F5', borderRadius: 5 }
+  container: {
+    flex: 1,
+    backgroundColor: '#00C897',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 32,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 5,
+  },
+  label: {
+    fontSize: 14,
+    color: '#52605E',
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#F5F7F7',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+    color: '#0A2E2A',
+  },
+  button: {
+    backgroundColor: '#00C897',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  buttonDisabled: {opacity: 0.65},
+  buttonText: {color: '#FFFFFF', fontWeight: '700', fontSize: 16},
 });
 
 export default LoginScreen;

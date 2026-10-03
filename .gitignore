@@ -41,6 +41,19 @@ node_modules/
 npm-debug.log
 yarn-error.log
 
+# Local configuration and secrets
+# Keep example templates, never commit real environment files.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local agent and emulator diagnostics
+.continue/
+android/bugreport-*.zip
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the

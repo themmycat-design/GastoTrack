@@ -16,12 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'owner' => \App\Http\Middleware\EnsureUserIsOwner::class,
             'set.database' => \App\Http\Middleware\SetDatabaseConnection::class,
+            'super_admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
+            'business.active' => \App\Http\Middleware\EnsureBusinessIsActive::class,
         ]);
         
-        // Apply database connection middleware to API routes
-        $middleware->api(append: [
-            \App\Http\Middleware\SetDatabaseConnection::class,
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

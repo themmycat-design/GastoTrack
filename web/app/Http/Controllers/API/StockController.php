@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\StockItem;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use App\Services\NotificationService;
 
 class StockController extends Controller
 {
@@ -13,35 +15,41 @@ class StockController extends Controller
     public function index(Request $request)
     {
         $stock = StockItem::where('business_id', $request->user()->business_id)
+            ->when($request->boolean('low_stock'), fn ($query) => $query->whereColumn('current_quantity', '<=', 'minimum_quantity'))
             ->orderBy('name')
-            ->get()
-            ->map(function ($item) {
-                $item->status = $this->getStatus($item->quantity, $item->threshold);
-                return $item;
-            });
+            ->paginate(min($request->integer('per_page', 20), 100));
 
-        return response()->json(['stock' => $stock]);
+        $stock->getCollection()->transform(function ($item) {
+            $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
+            return $item;
+        });
+
+        return response()->json(['stock' => $stock->items(), 'meta' => ['current_page' => $stock->currentPage(), 'last_page' => $stock->lastPage(), 'total' => $stock->total()]]);
     }
 
     // POST /api/stock
     public function store(Request $request)
     {
+        abort_unless($request->user()->isOwner(), 403, 'Only owners can create stock items.');
         $request->validate([
             'name'      => 'required|string|max:255',
-            'quantity'  => 'required|numeric|min:0',
+            'current_quantity' => 'required|numeric|min:0',
             'unit'      => 'required|string',
-            'threshold' => 'required|numeric|min:0',
+            'minimum_quantity' => 'required|numeric|min:0',
+            'unit_cost' => 'required|numeric|min:0',
         ]);
 
         $item = StockItem::create([
             'business_id' => $request->user()->business_id,
             'name'        => $request->name,
-            'quantity'    => $request->quantity,
+            'current_quantity' => $request->current_quantity,
             'unit'        => $request->unit,
-            'threshold'   => $request->threshold,
+            'minimum_quantity' => $request->minimum_quantity,
+            'unit_cost'   => $request->unit_cost,
+            'active'      => true,
         ]);
 
-        $item->status = $this->getStatus($item->quantity, $item->threshold);
+        $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 
         return response()->json([
             'message' => 'Stock item saved',
@@ -55,7 +63,7 @@ class StockController extends Controller
         $item = StockItem::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
-        $item->status = $this->getStatus($item->quantity, $item->threshold);
+        $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 
         return response()->json(['item' => $item]);
     }
@@ -63,14 +71,18 @@ class StockController extends Controller
     // PUT /api/stock/{id}
     public function update(Request $request, $id)
     {
+        abort_unless($request->user()->isOwner(), 403, 'Only owners can update stock item details.');
         $item = StockItem::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
-        $item->update($request->only([
-            'name', 'quantity', 'unit', 'threshold'
-        ]));
+        $data = $request->validate([
+            'name' => 'sometimes|string|max:255', 'unit' => 'sometimes|string|max:50',
+            'minimum_quantity' => 'sometimes|numeric|min:0', 'unit_cost' => 'sometimes|numeric|min:0',
+            'active' => 'sometimes|boolean',
+        ]);
+        $item->update($data);
 
-        $item->status = $this->getStatus($item->quantity, $item->threshold);
+        $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 
         return response()->json([
             'message' => 'Stock item updated',
@@ -81,6 +93,7 @@ class StockController extends Controller
     // DELETE /api/stock/{id}
     public function destroy(Request $request, $id)
     {
+        abort_unless($request->user()->isOwner(), 403, 'Only owners can delete stock items.');
         $item = StockItem::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
@@ -89,41 +102,52 @@ class StockController extends Controller
         return response()->json(['message' => 'Stock item deleted']);
     }
 
+    public function movements(Request $request, $id)
+    {
+        $item = StockItem::where('business_id', $request->user()->business_id)->findOrFail($id);
+        return response()->json($item->movements()->latest()->paginate(min($request->integer('per_page', 20), 100)));
+    }
+
     // POST /api/stock/{id}/adjust
     public function adjust(Request $request, $id)
     {
         $request->validate([
             'type'     => 'required|in:add,deduct',
             'quantity' => 'required|numeric|min:0.01',
-            'reason'   => 'nullable|string',
+            'reason'   => 'nullable|string|max:500',
         ]);
 
-        $item = StockItem::where('business_id', $request->user()->business_id)
-            ->findOrFail($id);
+        $item = DB::transaction(function () use ($request, $id) {
+            $item = StockItem::where('business_id', $request->user()->business_id)
+                ->lockForUpdate()
+                ->findOrFail($id);
+            $before = (float) $item->current_quantity;
+            $quantity = (float) $request->quantity;
 
-        $before = $item->quantity;
+            if ($request->type === 'add') {
+                $item->current_quantity = $before + $quantity;
+            } else {
+                abort_if($quantity > $before, 422, 'Adjustment would make stock negative.');
+                $item->current_quantity = $before - $quantity;
+            }
 
-        if ($request->type === 'add') {
-            $item->quantity += $request->quantity;
-        } else {
-            $item->quantity = max(0, $item->quantity - $request->quantity);
-        }
+            $item->save();
+            StockMovement::create([
+                'stock_item_id'   => $item->id,
+                'type'            => $request->type === 'add' ? 'in' : 'out',
+                'quantity'        => $quantity,
+                'previous_quantity' => $before,
+                'new_quantity'     => $item->current_quantity,
+                'reason'          => $request->reason ?? 'Manual adjustment',
+                'user_id'         => $request->user()->id,
+            ]);
 
-        $item->save();
+            return $item;
+        });
 
-        // Log the movement
-        StockMovement::create([
-            'stock_id'        => $item->id,
-            'business_id'     => $request->user()->business_id,
-            'type'            => $request->type === 'add' ? 'in' : 'out',
-            'quantity'        => $request->quantity,
-            'quantity_before' => $before,
-            'quantity_after'  => $item->quantity,
-            'reason'          => $request->reason ?? 'Manual adjustment',
-            'user_id'         => $request->user()->id,
-        ]);
+        app(NotificationService::class)->notifyLowStock($item);
 
-        $item->status = $this->getStatus($item->quantity, $item->threshold);
+        $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 
         return response()->json([
             'message' => 'Stock adjusted',

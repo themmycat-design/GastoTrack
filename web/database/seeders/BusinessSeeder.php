@@ -35,6 +35,8 @@ class BusinessSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
+        $business->update(['owner_id' => $owner->id, 'status' => 'active']);
+
         // Create staff users
         $staff1 = User::create([
             'name' => 'Maria Santos',

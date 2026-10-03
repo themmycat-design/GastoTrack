@@ -6,15 +6,21 @@ import {
   ScrollView,
   TouchableOpacity,
   AppState,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import {
   isNotificationAccessGranted,
   openNotificationSettings,
 } from '../../modules/NotificationModule';
 import { COLORS } from '../../theme';
+import { useAuth } from '../../context/AuthContext';
+import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 
 const ProfileScreen = () => {
+  const { user, userRole, business, logout } = useAuth();
   // null = still checking, true/false = result
   const [permissionGranted, setPermissionGranted] = useState(null);
 
@@ -41,16 +47,31 @@ const ProfileScreen = () => {
     await openNotificationSettings();
   };
 
+  const handleLogout = () => {
+    Alert.alert('Sign out?', 'You will need to sign in again to continue.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: logout },
+    ]);
+  };
+
+  const initial = user?.name?.trim()?.charAt(0)?.toUpperCase() || 'S';
+
   return (
-    <ScrollView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={[]}>
+    <StaffScreenHeader
+      title="Profile"
+      subtitle="Account and app settings"
+      icon="account-outline"
+    />
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>S</Text>
+          <Text style={styles.avatarText}>{initial}</Text>
         </View>
-        <Text style={styles.name}>Staff User</Text>
-        <Text style={styles.role}>Staff / Cashier</Text>
+        <Text style={styles.name}>{user?.name || 'Staff User'}</Text>
+        <Text style={styles.role}>{userRole === 'staff' ? 'Staff / Cashier' : userRole || 'Staff'}</Text>
       </View>
 
       {/* Notification Access Setting */}
@@ -59,7 +80,10 @@ const ProfileScreen = () => {
 
         <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Notification Access</Text>
+            <View style={styles.settingTitleRow}>
+              <Icon name="bell-ring-outline" size={20} color={COLORS.accentDark} />
+              <Text style={styles.settingLabel}>Notification access</Text>
+            </View>
             <Text style={styles.settingDesc}>
               Required to capture GCash, Maya, GrabPay, and ShopeePay transactions automatically.
             </Text>
@@ -95,8 +119,8 @@ const ProfileScreen = () => {
               permissionGranted ? styles.statusTextGranted : styles.statusTextDenied,
             ]}>
               {permissionGranted
-                ? '✅ Notification access is active. Transactions will be captured automatically.'
-                : '⚠️ Notification access is not granted. Tap Grant to enable automatic transaction capture.'}
+                ? 'Notification access is active. E-wallet payments can be captured automatically.'
+                : 'Notification access is off. Enable it to capture supported e-wallet payments.'}
             </Text>
           </View>
         )}
@@ -107,32 +131,43 @@ const ProfileScreen = () => {
         <Text style={styles.sectionTitle}>Account</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Role</Text>
-          <Text style={styles.infoValue}>Staff / Cashier</Text>
+          <Text style={styles.infoValue}>{userRole || 'staff'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Business</Text>
-          <Text style={styles.infoValue}>—</Text>
+          <Text style={styles.infoValue}>{business?.name || 'Not available'}</Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Linked Since</Text>
-          <Text style={styles.infoValue}>—</Text>
+          <Text style={styles.infoLabel}>Email</Text>
+          <Text style={styles.infoValue} numberOfLines={1}>{user?.email || 'Not available'}</Text>
         </View>
       </View>
 
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Icon name="logout" size={20} color={COLORS.danger} />
+        <Text style={styles.logoutText}>Sign out</Text>
+      </TouchableOpacity>
+
     </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: COLORS.background,
   },
-  header: {
-    backgroundColor: COLORS.bgDark,
+  content: {
+    paddingBottom: 28,
+  },
+  profileCard: {
+    backgroundColor: COLORS.textDark,
     alignItems: 'center',
-    paddingVertical: 32,
-    paddingTop: 48,
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 28,
+    borderRadius: 16,
   },
   avatar: {
     width: 72,
@@ -151,18 +186,18 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.textDark,
+    color: COLORS.textWhite,
   },
   role: {
     fontSize: 13,
-    color: 'rgba(0,0,0,0.5)',
+    color: 'rgba(255,255,255,0.8)',
     marginTop: 4,
   },
   section: {
     backgroundColor: '#FFFFFF',
     marginTop: 16,
-    marginHorizontal: 16,
-    borderRadius: 12,
+    marginHorizontal: 20,
+    borderRadius: 16,
     padding: 16,
     elevation: 1,
   },
@@ -187,6 +222,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     color: '#1A1A1A',
+  },
+  settingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   settingDesc: {
     fontSize: 12,
@@ -263,6 +303,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1A1A1A',
     fontWeight: '500',
+    maxWidth: '62%',
+    textAlign: 'right',
+    textTransform: 'capitalize',
+  },
+  logoutButton: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#F1C6C6',
+    backgroundColor: '#FFF7F7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  logoutText: {
+    color: COLORS.danger,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

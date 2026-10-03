@@ -32,6 +32,41 @@ export const COLORS = {
   // Nav
   navActive: '#00C897',
   navInactive: '#BBBBBB',
+
+  // Semantic surfaces
+  background: '#F4F8F7',
+  surface: '#FFFFFF',
+  surfaceMuted: '#ECF7F3',
+  border: '#DDE9E5',
+  warning: '#F59E0B',
+  danger: '#DC4C4C',
+  success: '#138A68',
+};
+
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+};
+
+export const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 18,
+  pill: 999,
+};
+
+export const SHADOWS = {
+  card: {
+    shadowColor: '#0A2E2A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
 };
 
 // Font configuration

@@ -28,6 +28,37 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // Redirect based on user role
+        $user = auth()->user();
+
+        if ($user->isStaff()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()
+                ->withErrors(['email' => 'Staff accounts sign in through the GastoTrack mobile app.'])
+                ->onlyInput('email');
+        }
+
+        if ($user->isSuperAdmin()) {
+            return redirect()->intended(route('super-admin.dashboard', absolute: false));
+        }
+
+        if ($user->status !== 'active') {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()
+                ->withErrors(['email' => 'This owner account is inactive. Contact the platform administrator.'])
+                ->onlyInput('email');
+        }
+
+        if (!$user->business || !$user->business->active || !$user->business->isActive()) {
+            return redirect()->route('business.status');
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

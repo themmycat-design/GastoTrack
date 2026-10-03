@@ -9,9 +9,13 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  Platform,
+  PermissionsAndroid,
+  Alert,
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { scanReceipt, parseReceiptData, formatForTransaction } from '../../services/OCRService';
+import { useTransactions } from '../../context/TransactionContext';
 import { COLORS } from '../../theme';
 
 const INCOME_CATEGORIES = ['Sales', 'Delivery', 'Catering', 'Others'];
@@ -22,11 +26,13 @@ const EXPENSE_CATEGORIES = [
 const SOURCES = ['Cash', 'GCash', 'Maya', 'GrabPay', 'ShopeePay'];
 
 const ReceiptScannerScreen = ({ navigation }) => {
+  const { addTransaction } = useTransactions();
   const [imageUri, setImageUri] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [ocrResult, setOcrResult] = useState(null);
   const [parsedData, setParsedData] = useState(null);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form state for review/edit
   const [amount, setAmount] = useState('');
@@ -38,12 +44,63 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
   const categories = type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
+  // Request camera permission on Android
+  const requestCameraPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'GastoTrack needs access to your camera to scan receipts.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true; // iOS handles permissions automatically
+  };
+
   const handleTakePhoto = async () => {
+    // Request permission first
+    const hasPermission = await requestCameraPermission();
+
+    if (!hasPermission) {
+      Alert.alert(
+        'Camera Permission Required',
+        'Please enable camera permission in your device settings to scan receipts.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     const result = await launchCamera({
       mediaType: 'photo',
       quality: 0.8,
       saveToPhotos: false,
+      cameraType: 'back',
     });
+
+    if (result.didCancel) {
+      console.log('User cancelled camera');
+      return;
+    }
+
+    if (result.errorCode) {
+      console.error('Camera Error:', result.errorCode, result.errorMessage);
+      Alert.alert(
+        'Camera Error',
+        result.errorMessage || 'Failed to open camera. Please try again.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
     if (result.assets && result.assets[0]) {
       const uri = result.assets[0].uri;
@@ -57,6 +114,21 @@ const ReceiptScannerScreen = ({ navigation }) => {
       mediaType: 'photo',
       quality: 0.8,
     });
+
+    if (result.didCancel) {
+      console.log('User cancelled image picker');
+      return;
+    }
+
+    if (result.errorCode) {
+      console.error('Image Picker Error:', result.errorCode, result.errorMessage);
+      Alert.alert(
+        'Error',
+        result.errorMessage || 'Failed to pick image. Please try again.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
     if (result.assets && result.assets[0]) {
       const uri = result.assets[0].uri;
@@ -75,7 +147,11 @@ const ReceiptScannerScreen = ({ navigation }) => {
       const ocrResponse = await scanReceipt(uri);
       
       if (!ocrResponse.success) {
-        alert('Failed to scan receipt. Please try again.');
+        Alert.alert(
+          'Scan Failed',
+          'Failed to scan receipt. Please ensure the image is clear and try again.',
+          [{ text: 'OK' }]
+        );
         setScanning(false);
         return;
       }
@@ -102,28 +178,73 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
     } catch (error) {
       console.error('Processing error:', error);
-      alert('Error processing receipt. Please try again.');
+      Alert.alert(
+        'Processing Error',
+        'Error processing receipt. Please try again.',
+        [{ text: 'OK' }]
+      );
       setScanning(false);
     }
   };
 
-  const handleSaveTransaction = () => {
-    // Validate
-    if (!amount || isNaN(parseFloat(amount))) {
-      alert('Please enter a valid amount.');
+  const handleSaveTransaction = async () => {
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid amount.', [{ text: 'OK' }]);
       return;
     }
     if (!category) {
-      alert('Please select a category.');
+      Alert.alert('Validation Error', 'Please select a category.', [{ text: 'OK' }]);
       return;
     }
 
-    // TODO: Save to TransactionContext
-    // For now, just show success and navigate back
-    alert('✅ Transaction saved successfully!');
-    setReviewModalVisible(false);
-    resetScanner();
-    navigation.goBack();
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    const [year, month, day] = date.split('-').map(Number);
+    const parsedDate = new Date(`${date}T00:00:00`);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const isRealDate = parsedDate.getFullYear() === year
+      && parsedDate.getMonth() === month - 1
+      && parsedDate.getDate() === day;
+    if (!datePattern.test(date) || Number.isNaN(parsedDate.getTime()) || !isRealDate || parsedDate > today) {
+      Alert.alert('Validation Error', 'Enter a valid date in YYYY-MM-DD format that is not in the future.');
+      return;
+    }
+
+    setIsSaving(true);
+    const result = await addTransaction({
+      amount: numericAmount,
+      type,
+      source,
+      category,
+      date,
+      notes,
+      entryMethod: 'ocr',
+      metadata: {
+        ocr_confidence: parsedData?.confidence ?? null,
+        ocr_provider: ocrResult?.provider || ocrResult?.method || 'device_ocr',
+      },
+    });
+    setIsSaving(false);
+
+    if (!result.success) {
+      const responseData = result.error?.response?.data;
+      const validationMessage = Object.values(responseData?.errors || {}).flat().join('\n');
+      Alert.alert(
+        'Could not save transaction',
+        validationMessage || responseData?.message || 'Please check your connection and try again.',
+      );
+      return;
+    }
+
+    Alert.alert('Transaction saved', 'The receipt was added to Transactions.', [{
+      text: 'OK',
+      onPress: () => {
+        setReviewModalVisible(false);
+        resetScanner();
+        navigation.goBack();
+      },
+    }]);
   };
 
   const resetScanner = () => {
@@ -397,9 +518,12 @@ const ReceiptScannerScreen = ({ navigation }) => {
               />
 
               <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleSaveTransaction}>
-                <Text style={styles.saveButtonText}>💾 Save Transaction</Text>
+                style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+                onPress={handleSaveTransaction}
+                disabled={isSaving}>
+                {isSaving
+                  ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={styles.saveButtonText}>Save Transaction</Text>}
               </TouchableOpacity>
 
             </ScrollView>
@@ -728,6 +852,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
 });
 

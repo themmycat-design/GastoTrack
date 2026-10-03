@@ -19,6 +19,12 @@ class EnsureUserIsOwner
             abort(403, 'Access denied. Owner privileges required.');
         }
 
+        $business = $request->user()->business;
+
+        if ($request->user()->status !== 'active' || !$business || !$business->active || !$business->isActive()) {
+            return redirect()->route('business.status');
+        }
+
         return $next($request);
     }
 }

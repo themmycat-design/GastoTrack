@@ -1,7 +1,8 @@
 ﻿import React, { useContext } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Providers
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
@@ -14,12 +15,14 @@ import { OrderProvider } from './src/context/OrderContext';
 import StaffNavigator from './src/navigation/StaffNavigator';
 import ReceiptScannerScreen from './src/screens/staff/ReceiptScannerScreen';
 import LoginScreen from './src/screens/LoginScreens';
+import OwnerBlockedScreen from './src/screens/auth/OwnerBlockedScreen';
+import { COLORS } from './src/theme';
 
 const RootStack = createNativeStackNavigator();
 
 // Ginawa natin itong hiwalay na component para maka-access sa AuthContext
 const AppNav = () => {
-  const { isLoading, userToken } = useContext(AuthContext);
+  const { isLoading, userToken, userRole, logout } = useContext(AuthContext);
 
   console.log('[AppNav] isLoading:', isLoading, 'userToken:', userToken ? 'exists' : 'null');
 
@@ -27,7 +30,7 @@ const AppNav = () => {
   if (isLoading) {
     console.log('[AppNav] Showing loading screen');
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#00C897' }}>
+      <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
@@ -37,6 +40,10 @@ const AppNav = () => {
   if (!userToken) {
     console.log('[AppNav] No token, showing LoginScreen');
     return <LoginScreen />;
+  }
+
+  if (userRole === 'owner') {
+    return <OwnerBlockedScreen onLogout={logout} />;
   }
 
   // Kapag nakapag-login na, ilalabas na yung original RootStack mo
@@ -50,19 +57,30 @@ const AppNav = () => {
 };
 
 const App = () => (
-  <AuthProvider>
-    <StockProvider>
-      <ProductProvider>
-        <TransactionProvider>
-          <OrderProvider>
-            <NavigationContainer>
-              <AppNav />
-            </NavigationContainer>
-          </OrderProvider>
-        </TransactionProvider>
-      </ProductProvider>
-    </StockProvider>
-  </AuthProvider>
+  <SafeAreaProvider>
+    <AuthProvider>
+      <StockProvider>
+        <ProductProvider>
+          <TransactionProvider>
+            <OrderProvider>
+              <NavigationContainer>
+                <AppNav />
+              </NavigationContainer>
+            </OrderProvider>
+          </TransactionProvider>
+        </ProductProvider>
+      </StockProvider>
+    </AuthProvider>
+  </SafeAreaProvider>
 );
 
 export default App;
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.accent,
+  },
+});

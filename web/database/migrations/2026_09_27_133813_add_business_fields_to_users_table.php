@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->enum('role', ['owner', 'staff'])->default('staff')->after('email');
+            // Keep roles portable across MySQL and SQLite. Authorization and
+            // request validation enforce the supported values in the app.
+            $table->string('role', 32)->default('staff')->after('email');
             $table->foreignId('business_id')->nullable()->after('role')->constrained()->onDelete('cascade');
             $table->string('phone')->nullable()->after('email');
         });

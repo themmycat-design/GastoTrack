@@ -22,17 +22,19 @@ class OrderController extends Controller
             DB::beginTransaction();
 
             $product = Product::findOrFail($request->product_id);
+            abort_unless($product->business_id === $request->user()->business_id, 403);
             $totalAmount = $product->price * $request->quantity;
 
             // 1. I-record ang Income Transaction
             $transaction = Transaction::create([
                 'user_id' => $request->user()->id,
+                'business_id' => $request->user()->business_id,
                 'amount' => $totalAmount,
                 'type' => 'income',
                 'category' => 'Sales',
                 'source' => 'Cash', // Default to cash muna for direct orders
-                'date' => now()->toDateString(),
-                'notes' => "Order: " . $request->quantity . "x " . $product->name,
+                'transaction_date' => now()->toDateString(),
+                'description' => "Order: " . $request->quantity . "x " . $product->name,
             ]);
 
             // 2. I-deduct ang ingredients sa Stock
@@ -45,7 +47,8 @@ class OrderController extends Controller
                 $totalDeduction = $ingredient->quantity * $request->quantity;
                 
                 StockItem::where('id', $ingredient->stock_item_id)
-                         ->decrement('quantity', $totalDeduction);
+                         ->where('business_id', $request->user()->business_id)
+                         ->decrement('current_quantity', $totalDeduction);
             }
 
             DB::commit();

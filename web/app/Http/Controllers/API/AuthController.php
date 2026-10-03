@@ -8,6 +8,7 @@ use App\Models\Business;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -19,30 +20,16 @@ class AuthController extends Controller
         $request->validate([
             'name'          => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
-            'password'      => 'required|string|min:6|confirmed',
+            'password'      => 'required|string|min:8|confirmed',
             'business_name' => 'required|string|max:255',
-            'role'          => 'sometimes|in:owner,staff',
         ]);
 
-        // Create business first
-        $business = Business::create([
-            'owner_id' => 0, // temp, updated below
-            'name'     => $request->business_name,
-            'location' => 'Calasiao, Pangasinan',
-            'status'   => 'active',
-        ]);
-
-        // Create user
-        $user = User::create([
-            'name'        => $request->name,
-            'email'       => $request->email,
-            'password'    => Hash::make($request->password),
-            'role'        => $request->role ?? 'staff',
-            'business_id' => $business->id,
-        ]);
-
-        // Update business owner
-        $business->update(['owner_id' => $user->id]);
+        [$user, $business] = DB::transaction(function () use ($request) {
+            $business = Business::create(['name' => $request->business_name, 'status' => 'pending', 'active' => false]);
+            $user = User::create(['name' => $request->name, 'email' => $request->email, 'password' => Hash::make($request->password), 'role' => 'owner', 'business_id' => $business->id, 'status' => 'active']);
+            $business->update(['owner_id' => $user->id]);
+            return [$user, $business];
+        });
 
         $token = $user->createToken('gastotrack-mobile')->plainTextToken;
 
@@ -71,6 +58,24 @@ class AuthController extends Controller
                 'email' => ['Email o password ay mali.'],
             ]);
         }
+
+        abort_if($user->status !== 'active', 403, 'This account is inactive. Contact your business owner.');
+        abort_if($user->isSuperAdmin(), 403, 'Super Administrators sign in through the desktop web portal.');
+
+        $business = $user->business;
+        abort_if(!$business, 403, 'This staff account is not assigned to a business.');
+
+        if ($business->isPending()) {
+            abort(403, 'Your staff account is active, but the business is awaiting Super Admin approval.');
+        }
+
+        if ($business->isSuspended()) {
+            abort(403, $business->suspension_reason
+                ? 'This business is suspended: '.$business->suspension_reason
+                : 'This business is suspended. Contact support.');
+        }
+
+        abort_if($business->isInactive() || !$business->active, 403, 'This business is inactive.');
 
         // Delete old tokens and create new one
         $user->tokens()->delete();
@@ -103,6 +108,20 @@ class AuthController extends Controller
             'user'     => $this->formatUser($request->user()),
             'business' => $request->user()->business,
         ]);
+    }
+
+    public function refresh(Request $request)
+    {
+        $request->user()->currentAccessToken()?->delete();
+        return response()->json(['token' => $request->user()->createToken('gastotrack-mobile')->plainTextToken]);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $data = $request->validate(['current_password' => 'required|current_password', 'password' => 'required|string|min:8|confirmed']);
+        $request->user()->update(['password' => Hash::make($data['password'])]);
+        $request->user()->tokens()->delete();
+        return response()->json(['message' => 'Password changed', 'token' => $request->user()->createToken('gastotrack-mobile')->plainTextToken]);
     }
 
     // ----------------------------------------------------------------

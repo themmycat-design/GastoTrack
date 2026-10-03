@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,18 @@ import {
   TextInput,
   FlatList,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useProducts } from '../../context/ProductContext';
 import { useOrders } from '../../context/OrderContext';
-import { useTransactions } from '../../context/TransactionContext';
 import { subscribeToNotifications } from '../../modules/NotificationModule';
 import { COLORS } from '../../theme';
+import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 
-const OrderQueueScreen = () => {
+const OrderQueueScreen = ({route}) => {
   const { products } = useProducts();
   const { createOrder } = useOrders();
-  const { addTransaction } = useTransactions();
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [paymentTypeModalVisible, setPaymentTypeModalVisible] = useState(false);
@@ -41,12 +42,28 @@ const OrderQueueScreen = () => {
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  const categories = ['All', ...new Set(products.map(p => p.category))];
+  const availableProducts = useMemo(
+    () => products.filter(product => product.is_available !== false),
+    [products],
+  );
+  const categories = useMemo(
+    () => ['All', ...new Set(availableProducts.map(product => product.category).filter(Boolean))],
+    [availableProducts],
+  );
   const EWALLETS = ['GCash', 'Maya'];
 
   const filteredProducts = selectedCategory === 'All'
-    ? products
-    : products.filter(p => p.category === selectedCategory);
+    ? availableProducts
+    : availableProducts.filter(product => product.category === selectedCategory);
+
+  useEffect(() => {
+    const requestedCategory = route?.params?.category;
+    if (requestedCategory && categories.includes(requestedCategory)) {
+      setSelectedCategory(requestedCategory);
+    } else if (!categories.includes(selectedCategory)) {
+      setSelectedCategory('All');
+    }
+  }, [categories, route?.params?.category, selectedCategory]);
 
   // Listen for e-wallet notifications when QR payment modal is open
   useEffect(() => {
@@ -79,6 +96,8 @@ const OrderQueueScreen = () => {
     });
 
     return () => unsubscribe();
+    // The subscription is intentionally recreated only when the payment listener changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qrPaymentModalVisible, selectedEwallet]);
 
   // Step 1: Open payment type selection
@@ -176,8 +195,8 @@ const OrderQueueScreen = () => {
     }
   };
 
-  // Place order and create transaction
-  const handlePlaceOrder = () => {
+  // Place an order. The backend creates income only after completion.
+  const handlePlaceOrder = async () => {
     const subtotal = getCartSubtotal();
     const paymentMethod = paymentType === 'cash' ? 'Cash' : selectedEwallet;
     
@@ -195,38 +214,23 @@ const OrderQueueScreen = () => {
       paymentMethod,
     };
 
-    const order = createOrder(orderData);
-
-    // Build transaction notes with product names
-    const productNames = cart
-      .map(item => `${item.quantity}x ${item.product.name}`)
-      .join(', ');
-
-    // Create transaction (Income)
-    const transaction = {
-      type: 'Income',
-      amount: subtotal,
-      source: paymentMethod,
-      category: 'Sales',
-      date: new Date().toISOString().split('T')[0],
-      notes: productNames,
-      entryMethod: 'Manual',
-      recordedBy: 'Staff User',
-    };
-
-    addTransaction(transaction);
+    try {
+      const order = await createOrder(orderData);
 
     // Reset form
-    setCart([]);
-    setCustomerName('');
-    setCustomerPhone('');
-    setPaymentType(null);
-    setNotes('');
-    setPaymentReceived(false);
-    setReceivedAmount(0);
-    setQrPaymentModalVisible(false);
+      setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setPaymentType(null);
+      setNotes('');
+      setPaymentReceived(false);
+      setReceivedAmount(0);
+      setQrPaymentModalVisible(false);
 
-    alert(`✅ Order #${order.orderNumber} placed successfully!\nTransaction recorded: ₱${subtotal.toFixed(2)}`);
+      alert(`Order #${order.orderNumber} completed and added to Transactions.`);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Unable to place the order.');
+    }
   };
 
   // Render product card
@@ -236,7 +240,9 @@ const OrderQueueScreen = () => {
       onPress={() => handleOpenProduct(product)}
       activeOpacity={0.8}>
       <View style={styles.productEmoji}>
-        <Text style={styles.productEmojiText}>{product.emoji}</Text>
+        {product.image
+          ? <Image source={{uri: product.image}} style={styles.productImage} />
+          : <Icon name="image-outline" size={42} color={COLORS.textMuted} />}
       </View>
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{product.name}</Text>
@@ -249,11 +255,15 @@ const OrderQueueScreen = () => {
   return (
     <View style={styles.container}>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Order</Text>
-        <Text style={styles.headerSub}>Select products to create order</Text>
-      </View>
+      <StaffScreenHeader
+        title="New order"
+        subtitle="Choose items, then review the cart"
+        icon="point-of-sale"
+        actionIcon="cart-outline"
+        actionLabel="Open cart"
+        onActionPress={cart.length > 0 ? handleOpenCheckout : undefined}
+        centered
+      />
 
       {/* Cart Badge */}
       {cart.length > 0 && (
@@ -322,7 +332,9 @@ const OrderQueueScreen = () => {
             
             {selectedProduct && (
               <View style={styles.paymentTypeProductInfo}>
-                <Text style={styles.paymentTypeEmoji}>{selectedProduct.emoji}</Text>
+                {selectedProduct.image
+                  ? <Image source={{uri: selectedProduct.image}} style={styles.paymentProductImage} />
+                  : <Icon name="image-outline" size={42} color={COLORS.textMuted} />}
                 <Text style={styles.paymentTypeProductName}>{selectedProduct.name}</Text>
                 <Text style={styles.paymentTypeProductPrice}>₱{selectedProduct.price.toFixed(2)}</Text>
               </View>
@@ -378,7 +390,9 @@ const OrderQueueScreen = () => {
 
                   {/* Product Emoji */}
                   <View style={styles.productDetailEmoji}>
-                    <Text style={styles.productDetailEmojiText}>{selectedProduct.emoji}</Text>
+                    {selectedProduct.image
+                      ? <Image source={{uri: selectedProduct.image}} style={styles.productDetailImage} />
+                      : <Icon name="image-outline" size={56} color={COLORS.textMuted} />}
                   </View>
 
                   {/* Category & Price */}
@@ -485,7 +499,9 @@ const OrderQueueScreen = () => {
                 <Text style={styles.detailSectionTitle}>Order Items</Text>
                 {cart.map((item, idx) => (
                   <View key={idx} style={styles.cartItemRow}>
-                    <Text style={styles.cartItemEmoji}>{item.product.emoji}</Text>
+                    {item.product.image
+                      ? <Image source={{uri: item.product.image}} style={styles.cartItemImage} />
+                      : <Icon name="image-outline" size={28} color={COLORS.textMuted} style={styles.cartItemEmoji} />}
                     <View style={styles.cartItemInfo}>
                       <Text style={styles.cartItemName}>{item.product.name}</Text>
                       <Text style={styles.cartItemQty}>Qty: {item.quantity}</Text>
@@ -651,28 +667,12 @@ const OrderQueueScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    backgroundColor: COLORS.bgDark,
-    padding: 20,
-    paddingTop: 48,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.textDark,
-    textAlign: 'center',
-  },
-  headerSub: {
-    fontSize: 13,
-    color: 'rgba(0,0,0,0.5)',
-    marginTop: 4,
-    textAlign: 'center',
+    backgroundColor: COLORS.background,
   },
   cartBadge: {
     backgroundColor: COLORS.accent,
-    margin: 16,
+    marginHorizontal: 20,
+    marginTop: 20,
     marginBottom: 8,
     padding: 12,
     borderRadius: 12,
@@ -685,21 +685,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   categorySection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
   },
   categoryRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 8,
   },
   categoryChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
@@ -717,8 +715,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   productsList: {
-    padding: 12,
-    paddingBottom: 140,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 28,
   },
   productRow: {
     justifyContent: 'space-between',
@@ -726,26 +725,25 @@ const styles = StyleSheet.create({
   },
   productCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: COLORS.border,
     elevation: 1,
   },
   productEmoji: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.miniCardBg,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+    overflow: 'hidden',
   },
-  productEmojiText: {
-    fontSize: 48,
-  },
+  productImage: {width: '100%', height: '100%', resizeMode: 'cover'},
   productInfo: {
     alignItems: 'center',
   },
@@ -810,10 +808,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9',
     borderRadius: 12,
   },
-  paymentTypeEmoji: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
+  paymentProductImage: {width: 96, height: 96, borderRadius: 12, resizeMode: 'cover', marginBottom: 10},
   paymentTypeProductName: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -902,12 +897,15 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   productDetailEmoji: {
+    height: 220,
+    borderRadius: 14,
+    backgroundColor: COLORS.miniCardBg,
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
+    overflow: 'hidden',
   },
-  productDetailEmojiText: {
-    fontSize: 72,
-  },
+  productDetailImage: {width: '100%', height: '100%', resizeMode: 'cover'},
   productDetailHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1002,9 +1000,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cartItemEmoji: {
-    fontSize: 28,
     marginRight: 10,
   },
+  cartItemImage: {width: 42, height: 42, borderRadius: 9, resizeMode: 'cover', marginRight: 10},
   cartItemInfo: {
     flex: 1,
   },

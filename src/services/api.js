@@ -1,9 +1,16 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Platform} from 'react-native';
 
-// PALITAN ITO NG IP ADDRESS NG COMPUTER MO
-// Halimbawa: http://192.168.1.15:8000/api
-const API_URL = 'http://192.168.0.11:8000/api';
+// Android emulators reach the host computer through 10.0.2.2.
+// For a physical phone, set EXPO_PUBLIC_API_URL to the computer's LAN address.
+const DEVELOPMENT_API_URL = Platform.select({
+  android: 'http://10.0.2.2:8000/api/v1',
+  ios: 'http://127.0.0.1:8000/api/v1',
+  default: 'http://127.0.0.1:8000/api/v1',
+});
+
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || DEVELOPMENT_API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
@@ -11,6 +18,7 @@ const api = axios.create({
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   },
+  timeout: 15000,
 });
 
 // Awtomatikong isama ang token kung nakapag-login na

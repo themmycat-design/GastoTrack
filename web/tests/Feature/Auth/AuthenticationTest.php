@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Business;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,7 +20,14 @@ class AuthenticationTest extends TestCase
 
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->owner()->create();
+        $business = Business::create([
+            'name' => 'Brew Haven Coffee',
+            'status' => 'active',
+            'active' => true,
+            'owner_id' => $user->id,
+        ]);
+        $user->update(['business_id' => $business->id]);
 
         $response = $this->post('/login', [
             'email' => $user->email,

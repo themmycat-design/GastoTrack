@@ -8,25 +8,28 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [user, setUser] = useState(null);
+  const [business, setBusiness] = useState(null);
 
   const login = async (email, password) => {
     try {
       console.log('[AuthContext] Attempting login with:', email);
       const response = await api.post('/login', { email, password });
-      console.log('[AuthContext] Login response:', JSON.stringify(response.data));
-      
       if (response.data.token) {
         const token = response.data.token;
         const role = response.data.user.role;
-        
-        console.log('[AuthContext] Setting token:', token.substring(0, 20) + '...');
-        console.log('[AuthContext] Setting role:', role);
-        
+
         setUserToken(token);
         setUserRole(role);
+        setUser(response.data.user);
+        setBusiness(response.data.business || null);
         
         await AsyncStorage.setItem('userToken', token);
         await AsyncStorage.setItem('userRole', role);
+        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+        if (response.data.business) {
+          await AsyncStorage.setItem('business', JSON.stringify(response.data.business));
+        }
         
         console.log('[AuthContext] Login successful, token saved');
         return { success: true };
@@ -36,9 +39,12 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message: 'Invalid response from server' };
     } catch (error) {
       console.log('[AuthContext] Login error:', error.response?.data || error.message);
+      const isNetworkError = !error.response;
       return { 
         success: false, 
-        message: error.response?.data?.message || error.message || 'Connection error'
+        message: isNetworkError
+          ? 'Cannot reach the GastoTrack server. Make sure Laravel is running and the mobile API URL is correct.'
+          : error.response?.data?.message || 'Login failed. Please check your credentials.'
       };
     }
   };
@@ -51,8 +57,9 @@ export const AuthProvider = ({ children }) => {
     }
     setUserToken(null);
     setUserRole(null);
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userRole');
+    setUser(null);
+    setBusiness(null);
+    await AsyncStorage.multiRemove(['userToken', 'userRole', 'user', 'business']);
   };
 
   const isLoggedIn = async () => {
@@ -60,9 +67,21 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       const token = await AsyncStorage.getItem('userToken');
       const role = await AsyncStorage.getItem('userRole');
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedBusiness = await AsyncStorage.getItem('business');
       if (token) {
         setUserToken(token);
         setUserRole(role);
+        setUser(storedUser ? JSON.parse(storedUser) : null);
+        setBusiness(storedBusiness ? JSON.parse(storedBusiness) : null);
+
+        try {
+          const response = await api.get('/user');
+          setUser(response.data.user);
+          setBusiness(response.data.business || null);
+        } catch (error) {
+          console.log('[AuthContext] Using saved profile while offline');
+        }
       }
     } catch (e) {
       console.log(`isLoggedIn error ${e}`);
@@ -76,7 +95,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ login, logout, isLoading, userToken, userRole }}>
+    <AuthContext.Provider value={{
+      login,
+      logout,
+      isLoading,
+      userToken,
+      userRole,
+      user,
+      business,
+    }}>
       {children}
     </AuthContext.Provider>
   );

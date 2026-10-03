@@ -1,202 +1,264 @@
-import React, { useState } from 'react';
+import React, {useMemo, useState} from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  ScrollView,
+  ActivityIndicator, Alert, FlatList, Image, Modal, RefreshControl, ScrollView,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { useStock } from '../../context/StockContext';
-import { COLORS } from '../../theme';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {launchImageLibrary} from 'react-native-image-picker';
+import {useStock} from '../../context/StockContext';
+import {useProducts} from '../../context/ProductContext';
+import {COLORS} from '../../theme';
+import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 
-const UNITS = ['kg', 'g', 'L', 'mL', 'pcs', 'bottles', 'packs', 'boxes'];
+const emptyProductForm = {
+  name: '', category: 'Coffee', price: '', emoji: '☕', description: '',
+  isAvailable: true, ingredients: [], image: null, imageAsset: null,
+};
+
+const productToForm = product => ({
+  name: product.name || '',
+  category: product.category || 'Coffee',
+  price: String(product.price ?? ''),
+  emoji: product.emoji || '☕',
+  description: product.description || '',
+  isAvailable: product.is_available !== false,
+  image: product.image || null,
+  imageAsset: null,
+  ingredients: (product.ingredients || []).map(ingredient => ({
+    stockId: Number(ingredient.stockId),
+    quantity: String(ingredient.quantity ?? ''),
+  })),
+});
 
 const StockScreen = () => {
   const {
-    stockItems,
-    getStatus,
-    addStockItem,
-    updateStockItem,
-    deleteStockItem,
-    deductIngredients,
+    stockItems, stockTotal, isLoading, isLoadingMore, hasMoreStock,
+    fetchStock, loadMoreStock, getStatus, adjustStock,
   } = useStock();
-
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [adjustValue, setAdjustValue] = useState('');
-  const [adjustType, setAdjustType] = useState('add');
+  const {
+    products, fetchProducts, createProduct, updateProduct, deleteProduct,
+    PRODUCT_CATEGORIES,
+  } = useProducts();
+  const [activeTab, setActiveTab] = useState('stock');
   const [search, setSearch] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [adjustType, setAdjustType] = useState('add');
+  const [adjustValue, setAdjustValue] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [isAdjusting, setIsAdjusting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [productEditorVisible, setProductEditorVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productForm, setProductForm] = useState(emptyProductForm);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
 
-  // Form state
-  const [name, setName] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unit, setUnit] = useState('kg');
-  const [threshold, setThreshold] = useState('');
-  const [errors, setErrors] = useState({});
+  const filteredItems = useMemo(() => {
+    const source = activeTab === 'stock' ? stockItems : products;
+    const term = search.trim().toLowerCase();
+    return term ? source.filter(item => item.name?.toLowerCase().includes(term)) : source;
+  }, [activeTab, products, search, stockItems]);
 
-  const filteredItems = stockItems.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const statusCounts = useMemo(() => stockItems.reduce((counts, item) => {
+    counts[getStatus(item.quantity, item.threshold)] += 1;
+    return counts;
+  }, {OK: 0, Low: 0, Out: 0}), [getStatus, stockItems]);
 
-  const okCount = stockItems.filter(
-    i => getStatus(i.quantity, i.threshold) === 'OK'
-  ).length;
-  const lowCount = stockItems.filter(
-    i => getStatus(i.quantity, i.threshold) === 'Low'
-  ).length;
-  const outCount = stockItems.filter(
-    i => getStatus(i.quantity, i.threshold) === 'Out'
-  ).length;
-
-  const getBadgeStyle = status => {
-    switch (status) {
-      case 'OK':
-        return { badge: styles.badgeOk, text: styles.badgeOkText };
-      case 'Low':
-        return { badge: styles.badgeLow, text: styles.badgeLowText };
-      case 'Out':
-        return { badge: styles.badgeOut, text: styles.badgeOutText };
-      default:
-        return { badge: styles.badgeOk, text: styles.badgeOkText };
-    }
+  const refresh = async () => {
+    setIsRefreshing(true);
+    try { await Promise.all([fetchStock(), fetchProducts()]); }
+    finally { setIsRefreshing(false); }
   };
 
-  const resetForm = () => {
-    setName('');
-    setQuantity('');
-    setUnit('kg');
-    setThreshold('');
-    setErrors({});
-  };
-
-  const validate = () => {
-    const newErrors = {};
-    if (!name.trim()) newErrors.name = 'Please enter an item name.';
-    if (!quantity || isNaN(parseFloat(quantity))) {
-      newErrors.quantity = 'Please enter a valid quantity.';
-    }
-    if (!threshold || isNaN(parseFloat(threshold))) {
-      newErrors.threshold = 'Please enter a low stock threshold.';
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // ----------------------------------------------------------------
-  // Add item
-  // ----------------------------------------------------------------
-  const handleAddItem = () => {
-    if (!validate()) return;
-    const newItem = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      quantity: parseFloat(quantity),
-      unit,
-      threshold: parseFloat(threshold),
-    };
-    addStockItem(newItem);
-    setAddModalVisible(false);
-    resetForm();
-  };
-
-  // ----------------------------------------------------------------
-  // Open detail
-  // ----------------------------------------------------------------
-  const handleOpenDetail = item => {
+  const openStock = item => {
     setSelectedItem(item);
-    setIsEditing(false);
-    setAdjustValue('');
     setAdjustType('add');
-    setDetailModalVisible(true);
-  };
-
-  // ----------------------------------------------------------------
-  // Adjust stock
-  // ----------------------------------------------------------------
-  const handleAdjust = () => {
-    const val = parseFloat(adjustValue);
-    if (isNaN(val) || val <= 0) return;
-
-    const newQty = adjustType === 'add'
-      ? selectedItem.quantity + val
-      : Math.max(0, selectedItem.quantity - val);
-
-    const updated = { ...selectedItem, quantity: newQty };
-    updateStockItem(updated);
-    setSelectedItem(updated);
     setAdjustValue('');
+    setAdjustReason('');
   };
 
-  // ----------------------------------------------------------------
-  // Start edit
-  // ----------------------------------------------------------------
-  const handleStartEdit = () => {
-    setName(selectedItem.name);
-    setQuantity(selectedItem.quantity.toString());
-    setUnit(selectedItem.unit);
-    setThreshold(selectedItem.threshold.toString());
-    setErrors({});
-    setIsEditing(true);
+  const handleAdjust = async () => {
+    const quantity = Number(adjustValue);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      Alert.alert('Invalid quantity', 'Enter an amount greater than zero.');
+      return;
+    }
+    if (adjustType === 'deduct' && quantity > selectedItem.quantity) {
+      Alert.alert('Not enough stock', `Only ${selectedItem.quantity} ${selectedItem.unit} is available.`);
+      return;
+    }
+    setIsAdjusting(true);
+    try {
+      const updated = await adjustStock(
+        selectedItem.id, adjustType, quantity,
+        adjustReason.trim() || 'Manual stock adjustment',
+      );
+      setSelectedItem(updated);
+      setAdjustValue('');
+      setAdjustReason('');
+      Alert.alert('Stock updated', `${updated.name} now has ${updated.quantity} ${updated.unit}.`);
+    } catch (error) {
+      const data = error.response?.data;
+      const details = Object.values(data?.errors || {}).flat().join('\n');
+      Alert.alert('Could not adjust stock', details || data?.message || 'Please try again.');
+    } finally { setIsAdjusting(false); }
   };
 
-  // ----------------------------------------------------------------
-  // Save edit
-  // ----------------------------------------------------------------
-  const handleUpdate = () => {
-    if (!validate()) return;
-    const updated = {
-      ...selectedItem,
-      name: name.trim(),
-      quantity: parseFloat(quantity),
-      unit,
-      threshold: parseFloat(threshold),
-    };
-    updateStockItem(updated);
-    setSelectedItem(updated);
-    setIsEditing(false);
-    resetForm();
+  const openCreateProduct = () => {
+    setEditingProduct(null);
+    setProductForm({...emptyProductForm, ingredients: []});
+    setProductEditorVisible(true);
   };
 
-  // ----------------------------------------------------------------
-  // Delete item
-  // ----------------------------------------------------------------
-  const handleDelete = () => {
-    deleteStockItem(selectedItem.id);
-    setDetailModalVisible(false);
-    setSelectedItem(null);
+  const openEditProduct = product => {
+    setEditingProduct(product);
+    setProductForm(productToForm(product));
+    setSelectedProduct(null);
+    setProductEditorVisible(true);
   };
 
-  // ----------------------------------------------------------------
-  // Render stock row
-  // ----------------------------------------------------------------
-  const renderItem = ({ item }) => {
+  const setProductField = (field, value) => {
+    setProductForm(current => ({...current, [field]: value}));
+  };
+
+  const pickProductImage = async () => {
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+      quality: 0.85,
+      maxWidth: 1600,
+      maxHeight: 1600,
+    });
+    if (result.didCancel) return;
+    if (result.errorCode) {
+      Alert.alert('Could not open photos', result.errorMessage || 'Please try again.');
+      return;
+    }
+    const asset = result.assets?.[0];
+    if (asset?.uri) {
+      setProductForm(current => ({...current, image: asset.uri, imageAsset: asset}));
+    }
+  };
+
+  const toggleIngredient = stockId => {
+    setProductForm(current => {
+      const selected = current.ingredients.some(item => item.stockId === stockId);
+      return {
+        ...current,
+        ingredients: selected
+          ? current.ingredients.filter(item => item.stockId !== stockId)
+          : [...current.ingredients, {stockId, quantity: '1'}],
+      };
+    });
+  };
+
+  const setIngredientQuantity = (stockId, quantity) => {
+    setProductForm(current => ({
+      ...current,
+      ingredients: current.ingredients.map(item => item.stockId === stockId ? {...item, quantity} : item),
+    }));
+  };
+
+  const apiErrorMessage = error => {
+    const data = error.response?.data;
+    return Object.values(data?.errors || {}).flat().join('\n') || data?.message || 'Please try again.';
+  };
+
+  const saveProduct = async () => {
+    const price = Number(productForm.price);
+    if (!productForm.name.trim() || !productForm.category || !Number.isFinite(price) || price < 0) {
+      Alert.alert('Check product details', 'Enter a product name, category, and valid price.');
+      return;
+    }
+    if (productForm.ingredients.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {
+      Alert.alert('Check recipe', 'Every selected ingredient needs a quantity greater than zero.');
+      return;
+    }
+
+    setIsSavingProduct(true);
+    try {
+      const saved = editingProduct
+        ? await updateProduct(editingProduct.id, productForm)
+        : await createProduct(productForm);
+      setProductEditorVisible(false);
+      setEditingProduct(null);
+      setSelectedProduct(saved);
+      Alert.alert('Product saved', `${saved.name} is ready in the product list.`);
+    } catch (error) {
+      Alert.alert('Could not save product', apiErrorMessage(error));
+    } finally {
+      setIsSavingProduct(false);
+    }
+  };
+
+  const toggleProductAvailability = async product => {
+    try {
+      const updated = await updateProduct(product.id, {
+        ...productToForm(product),
+        isAvailable: product.is_available === false,
+      });
+      setSelectedProduct(updated);
+    } catch (error) {
+      Alert.alert('Could not update product', apiErrorMessage(error));
+    }
+  };
+
+  const confirmDeleteProduct = product => {
+    Alert.alert(
+      'Delete product?',
+      `${product.name} will be removed from the ordering menu.`,
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteProduct(product.id);
+            setSelectedProduct(null);
+          } catch (error) {
+            Alert.alert('Could not delete product', apiErrorMessage(error));
+          }
+        }},
+      ],
+    );
+  };
+
+  const badgeStyles = status => ({
+    OK: [styles.badgeOk, styles.badgeOkText],
+    Low: [styles.badgeLow, styles.badgeLowText],
+    Out: [styles.badgeOut, styles.badgeOutText],
+  }[status]);
+
+  const renderStockItem = ({item}) => {
     const status = getStatus(item.quantity, item.threshold);
-    const { badge, text } = getBadgeStyle(status);
+    const [badge, badgeText] = badgeStyles(status);
     return (
-      <TouchableOpacity
-        style={styles.stockRow}
-        onPress={() => handleOpenDetail(item)}
-        activeOpacity={0.7}>
-        <View style={styles.stockLeft}>
-          <View style={[styles.statusIndicator, {
-            backgroundColor:
-              status === 'OK' ? COLORS.income :
-              status === 'Low' ? '#E65100' : COLORS.expense,
-          }]} />
-          <View>
-            <Text style={styles.stockName}>{item.name}</Text>
-            <Text style={styles.stockUnit}>
-              {item.quantity} {item.unit} remaining
-            </Text>
-          </View>
+      <TouchableOpacity style={styles.card} onPress={() => openStock(item)} activeOpacity={0.75}>
+        <View style={[styles.iconBox, status === 'OK' ? styles.iconOk : styles.iconWarning]}>
+          <Icon name="package-variant" size={24} color={status === 'OK' ? COLORS.accent : COLORS.expense} />
         </View>
-        <View style={[styles.badge, badge]}>
-          <Text style={[styles.badgeText, text]}>{status}</Text>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>{item.name}</Text>
+          <Text style={styles.cardSubtitle}>{item.quantity} {item.unit} remaining</Text>
+        </View>
+        <View style={[styles.badge, badge]}><Text style={[styles.badgeText, badgeText]}>{status}</Text></View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderProductItem = ({item}) => {
+    const available = item.is_available !== false;
+    return (
+      <TouchableOpacity style={styles.card} onPress={() => setSelectedProduct(item)} activeOpacity={0.75}>
+        <View style={styles.iconBox}>
+          {item.image
+            ? <Image source={{uri: item.image}} style={styles.productThumbnail} />
+            : <Icon name="image-outline" size={24} color={COLORS.textGray} />}
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>{item.name}</Text>
+          <Text style={styles.cardSubtitle}>{item.category || 'Uncategorized'} · ₱{Number(item.price || 0).toFixed(2)}</Text>
+        </View>
+        <View style={[styles.badge, available ? styles.badgeOk : styles.badgeOut]}>
+          <Text style={[styles.badgeText, available ? styles.badgeOkText : styles.badgeOutText]}>{available ? 'Available' : 'Unavailable'}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -204,575 +266,240 @@ const StockScreen = () => {
 
   return (
     <View style={styles.container}>
+      <StaffScreenHeader
+        title="Inventory"
+        subtitle={activeTab === 'stock' ? `${stockTotal || stockItems.length} stock items` : `${products.length} products`}
+        icon="package-variant-closed"
+        actionIcon={activeTab === 'products' ? 'plus' : 'refresh'}
+        actionLabel={activeTab === 'products' ? 'Add product' : 'Refresh inventory'}
+        onActionPress={activeTab === 'products' ? openCreateProduct : refresh}
+        centered
+      />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Stock</Text>
-        <Text style={styles.headerSub}>
-          {stockItems.length} items • {lowCount + outCount} need attention
-        </Text>
+      <View style={styles.tabs}>
+        {[
+          ['stock', 'package-variant', 'Stock Items'], ['products', 'food', 'Products'],
+        ].map(([key, icon, label]) => (
+          <TouchableOpacity key={key} style={[styles.tab, activeTab === key && styles.tabActive]} onPress={() => setActiveTab(key)}>
+            <Icon name={icon} size={20} color={activeTab === key ? COLORS.accent : COLORS.textGray} />
+            <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Status Summary */}
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryCount}>{okCount}</Text>
-          <Text style={[styles.summaryLabel, { color: COLORS.income }]}>OK</Text>
+      {activeTab === 'stock' && (
+        <View style={styles.summary}>
+          {[
+            ['OK', statusCounts.OK, COLORS.income], ['Low', statusCounts.Low, '#E65100'], ['Out', statusCounts.Out, COLORS.expense],
+          ].map(([label, count, color]) => (
+            <View key={label} style={styles.summaryItem}>
+              <Text style={styles.summaryCount}>{count}</Text><Text style={[styles.summaryLabel, {color}]}>{label}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryCount}>{lowCount}</Text>
-          <Text style={[styles.summaryLabel, { color: '#E65100' }]}>Low</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryCount}>{outCount}</Text>
-          <Text style={[styles.summaryLabel, { color: COLORS.expense }]}>Out</Text>
-        </View>
+      )}
+
+      <View style={styles.searchBox}>
+        <Icon name="magnify" size={21} color={COLORS.textGray} />
+        <TextInput style={styles.searchInput} placeholder={`Search ${activeTab === 'stock' ? 'stock items' : 'products'}...`} value={search} onChangeText={setSearch} />
       </View>
 
-      {/* Search */}
-      <View style={styles.searchWrap}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search stock items..."
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
-
-      {/* Stock List */}
-      {filteredItems.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No stock items found.</Text>
-          <Text style={styles.emptySubText}>
-            Tap + to add a new stock item.
-          </Text>
-        </View>
+      {isLoading && !isRefreshing && filteredItems.length === 0 ? (
+        <View style={styles.centerState}><ActivityIndicator color={COLORS.accent} size="large" /><Text style={styles.stateText}>Loading inventory...</Text></View>
       ) : (
         <FlatList
           data={filteredItems}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          keyExtractor={item => String(item.id)}
+          renderItem={activeTab === 'stock' ? renderStockItem : renderProductItem}
+          contentContainerStyle={filteredItems.length ? styles.list : styles.emptyList}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} colors={[COLORS.accent]} />}
+          ListEmptyComponent={<View style={styles.centerState}>
+            <Icon name={activeTab === 'stock' ? 'package-variant-closed' : 'food-off'} size={58} color="#C9CEC9" />
+            <Text style={styles.emptyTitle}>No {activeTab === 'stock' ? 'stock items' : 'products'} found</Text>
+            <Text style={styles.stateText}>{search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'The business owner can add stock items from the owner dashboard.'}</Text>
+          </View>}
+          ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
+          onEndReached={activeTab === 'stock' && hasMoreStock ? loadMoreStock : undefined}
+          onEndReachedThreshold={0.35}
         />
       )}
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setAddModalVisible(true)}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
-
-      {/* ============================================================
-          ADD ITEM MODAL
-      ============================================================ */}
-      <Modal
-        visible={addModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setAddModalVisible(false);
-          resetForm();
-        }}>
-        <View style={styles.slideOverlay}>
-          <View style={styles.slideContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add stock item</Text>
-              <TouchableOpacity onPress={() => {
-                setAddModalVisible(false);
-                resetForm();
-              }}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {renderForm()}
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleAddItem}>
-                <Text style={styles.saveButtonText}>Add item</Text>
-              </TouchableOpacity>
-            </ScrollView>
+      <Modal visible={Boolean(selectedItem)} transparent animationType="fade" onRequestClose={() => setSelectedItem(null)}>
+        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View><Text style={styles.modalTitle}>{selectedItem?.name}</Text><Text style={styles.modalSubtitle}>Adjust the physical stock count</Text></View>
+            <TouchableOpacity onPress={() => setSelectedItem(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
-        </View>
+          {selectedItem && <ScrollView keyboardShouldPersistTaps="handled">
+            <View style={styles.quantityPanel}>
+              <Text style={styles.quantityValue}>{selectedItem.quantity} {selectedItem.unit}</Text>
+              <Text style={styles.quantityHint}>Low-stock level: {selectedItem.threshold} {selectedItem.unit}</Text>
+            </View>
+            <Text style={styles.fieldLabel}>Adjustment</Text>
+            <View style={styles.adjustToggle}>{['add', 'deduct'].map(value => (
+              <TouchableOpacity key={value} style={[styles.toggleButton, adjustType === value && styles.toggleButtonActive]} onPress={() => setAdjustType(value)}>
+                <Text style={[styles.toggleText, adjustType === value && styles.toggleTextActive]}>{value === 'add' ? 'Add stock' : 'Deduct stock'}</Text>
+              </TouchableOpacity>
+            ))}</View>
+            <Text style={styles.fieldLabel}>Quantity ({selectedItem.unit})</Text>
+            <TextInput style={styles.input} keyboardType="decimal-pad" value={adjustValue} onChangeText={setAdjustValue} placeholder="0.00" />
+            <Text style={styles.fieldLabel}>Reason (optional)</Text>
+            <TextInput style={styles.input} value={adjustReason} onChangeText={setAdjustReason} placeholder="Delivery, wastage, stock count..." />
+            <TouchableOpacity style={[styles.primaryButton, isAdjusting && styles.disabledButton]} onPress={handleAdjust} disabled={isAdjusting}>
+              {isAdjusting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Apply adjustment</Text>}
+            </TouchableOpacity>
+            <Text style={styles.ownerNote}>Item details and deletions are managed by the business owner.</Text>
+          </ScrollView>}
+        </View></View>
       </Modal>
 
-      {/* ============================================================
-          DETAIL / EDIT MODAL
-      ============================================================ */}
-      <Modal
-        visible={detailModalVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => {
-          setDetailModalVisible(false);
-          setIsEditing(false);
-          resetForm();
-        }}>
-        <View style={styles.floatOverlay}>
-          <View style={styles.floatCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {isEditing ? 'Edit item' : selectedItem?.name}
-              </Text>
-              <TouchableOpacity onPress={() => {
-                setDetailModalVisible(false);
-                setIsEditing(false);
-                resetForm();
-              }}>
-                <Text style={styles.modalClose}>✕</Text>
+      <Modal visible={Boolean(selectedProduct)} transparent animationType="fade" onRequestClose={() => setSelectedProduct(null)}>
+        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{selectedProduct?.name}</Text>
+            <TouchableOpacity onPress={() => setSelectedProduct(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
+          </View>
+          {selectedProduct && <ScrollView>
+            <View style={styles.productHero}>
+              {selectedProduct.image
+                ? <Image source={{uri: selectedProduct.image}} style={styles.productHeroImage} />
+                : <View style={styles.noImage}><Icon name="image-outline" size={38} color={COLORS.textMuted} /><Text style={styles.noImageText}>No product photo</Text></View>}
+            </View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Price</Text><Text style={styles.detailValue}>₱{Number(selectedProduct.price || 0).toFixed(2)}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Category</Text><Text style={styles.detailValue}>{selectedProduct.category || 'Uncategorized'}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Status</Text><Text style={styles.detailValue}>{selectedProduct.is_available === false ? 'Unavailable' : 'Available'}</Text></View>
+            {selectedProduct.description ? <Text style={styles.description}>{selectedProduct.description}</Text> : null}
+            <Text style={styles.fieldLabel}>Recipe ingredients</Text>
+            {(selectedProduct.ingredients || []).length ? selectedProduct.ingredients.map((ingredient, index) => (
+              <View key={`${ingredient.stockId}-${index}`} style={styles.ingredientRow}>
+                <Text style={styles.ingredientName}>{ingredient.name || 'Stock item'}</Text><Text style={styles.ingredientQuantity}>{ingredient.quantity}</Text>
+              </View>
+            )) : <Text style={styles.ownerNote}>No recipe ingredients configured.</Text>}
+            <View style={styles.productActions}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => openEditProduct(selectedProduct)}>
+                <Icon name="pencil-outline" size={18} color={COLORS.accentDark} />
+                <Text style={styles.secondaryButtonText}>Edit product</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => toggleProductAvailability(selectedProduct)}>
+                <Icon name={selectedProduct.is_available === false ? 'eye-outline' : 'eye-off-outline'} size={18} color={COLORS.accentDark} />
+                <Text style={styles.secondaryButtonText}>{selectedProduct.is_available === false ? 'Make available' : 'Make unavailable'}</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {isEditing ? (
-                <>
-                  {renderForm()}
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={handleUpdate}>
-                    <Text style={styles.saveButtonText}>Update item</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => {
-                      setIsEditing(false);
-                      resetForm();
-                    }}>
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                selectedItem && (() => {
-                  const status = getStatus(
-                    selectedItem.quantity,
-                    selectedItem.threshold
-                  );
-                  const { badge, text } = getBadgeStyle(status);
-                  return (
-                    <>
-                      {/* Current stock */}
-                      <View style={styles.detailQtyRow}>
-                        <View>
-                          <Text style={styles.detailQty}>
-                            {selectedItem.quantity} {selectedItem.unit}
-                          </Text>
-                          <Text style={styles.detailThreshold}>
-                            Low stock at {selectedItem.threshold} {selectedItem.unit}
-                          </Text>
-                        </View>
-                        <View style={[styles.badge, badge]}>
-                          <Text style={[styles.badgeText, text]}>{status}</Text>
-                        </View>
-                      </View>
-
-                      {/* Progress bar */}
-                      <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, {
-                          width: `${Math.min(
-                            (selectedItem.quantity /
-                              Math.max(
-                                selectedItem.quantity,
-                                selectedItem.threshold * 3
-                              )
-                            ) * 100,
-                            100
-                          )}%`,
-                          backgroundColor:
-                            status === 'OK' ? COLORS.income :
-                            status === 'Low' ? '#E65100' : COLORS.expense,
-                        }]} />
-                      </View>
-
-                      {/* Alert banner */}
-                      {status !== 'OK' && (
-                        <View style={[
-                          styles.alertBanner,
-                          {
-                            backgroundColor:
-                              status === 'Out' ? '#FFEBEE' : '#FFF3E0',
-                          },
-                        ]}>
-                          <Text style={[
-                            styles.alertText,
-                            {
-                              color:
-                                status === 'Out' ? COLORS.expense : '#E65100',
-                            },
-                          ]}>
-                            {status === 'Out'
-                              ? '⚠️ Out of stock — restock immediately.'
-                              : '⚠️ Running low — consider restocking soon.'}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Adjustment section */}
-                      <Text style={styles.fieldLabel}>Adjust quantity</Text>
-                      <View style={styles.adjustTypeRow}>
-                        {['add', 'deduct'].map(t => (
-                          <TouchableOpacity
-                            key={t}
-                            style={[
-                              styles.toggleButton,
-                              adjustType === t && (t === 'add'
-                                ? styles.toggleActiveAdd
-                                : styles.toggleActiveDeduct),
-                            ]}
-                            onPress={() => setAdjustType(t)}>
-                            <Text style={[
-                              styles.toggleText,
-                              adjustType === t && styles.toggleTextActive,
-                            ]}>
-                              {t === 'add' ? '+ Add stock' : '- Deduct stock'}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                      <View style={styles.adjustRow}>
-                        <TextInput
-                          style={styles.adjustInput}
-                          placeholder={`Amount in ${selectedItem.unit}`}
-                          keyboardType="decimal-pad"
-                          value={adjustValue}
-                          onChangeText={setAdjustValue}
-                        />
-                        <TouchableOpacity
-                          style={styles.adjustButton}
-                          onPress={handleAdjust}>
-                          <Text style={styles.adjustButtonText}>Apply</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* Actions */}
-                      <View style={styles.actionRow}>
-                        <TouchableOpacity
-                          style={styles.editButton}
-                          onPress={handleStartEdit}>
-                          <Text style={styles.editButtonText}>✏️ Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.deleteButton}
-                          onPress={handleDelete}>
-                          <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  );
-                })()
-              )}
-            </ScrollView>
-          </View>
-        </View>
+            <TouchableOpacity style={styles.deleteButton} onPress={() => confirmDeleteProduct(selectedProduct)}>
+              <Icon name="trash-can-outline" size={18} color={COLORS.danger} />
+              <Text style={styles.deleteButtonText}>Delete product</Text>
+            </TouchableOpacity>
+          </ScrollView>}
+        </View></View>
       </Modal>
 
+      <Modal visible={productEditorVisible} transparent animationType="slide" onRequestClose={() => setProductEditorVisible(false)}>
+        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>{editingProduct ? 'Edit product' : 'Add product'}</Text>
+              <Text style={styles.modalSubtitle}>Set menu details and stock recipe</Text>
+            </View>
+            <TouchableOpacity onPress={() => setProductEditorVisible(false)} accessibilityLabel="Close product form">
+              <Icon name="close" size={24} color={COLORS.textGray} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.fieldLabel}>Product name</Text>
+            <TextInput style={styles.input} value={productForm.name} onChangeText={value => setProductField('name', value)} placeholder="e.g. Caramel Latte" />
+
+            <Text style={styles.fieldLabel}>Product photo</Text>
+            <TouchableOpacity style={styles.imagePicker} onPress={pickProductImage} activeOpacity={0.8}>
+              {productForm.image
+                ? <Image source={{uri: productForm.image}} style={styles.imagePreview} />
+                : <View style={styles.imagePlaceholder}><Icon name="image-plus" size={34} color={COLORS.accentDark} /><Text style={styles.imagePlaceholderTitle}>Upload product poster</Text><Text style={styles.imagePlaceholderHint}>JPG, PNG or WebP · Maximum 5 MB</Text></View>}
+              <View style={styles.imagePickerBadge}><Icon name="camera-outline" size={16} color="#FFFFFF" /><Text style={styles.imagePickerBadgeText}>{productForm.image ? 'Change photo' : 'Choose photo'}</Text></View>
+            </TouchableOpacity>
+
+            <Text style={styles.fieldLabel}>Price</Text>
+            <View style={styles.priceInputWrap}>
+              <Text style={styles.peso}>₱</Text>
+              <TextInput style={styles.priceInput} value={productForm.price} onChangeText={value => setProductField('price', value)} keyboardType="decimal-pad" placeholder="0.00" />
+            </View>
+
+            <Text style={styles.fieldLabel}>Category</Text>
+            <View style={styles.categoryOptions}>
+              {PRODUCT_CATEGORIES.map(category => (
+                <TouchableOpacity key={category} style={[styles.categoryOption, productForm.category === category && styles.categoryOptionActive]} onPress={() => setProductField('category', category)}>
+                  <Text style={[styles.categoryOptionText, productForm.category === category && styles.categoryOptionTextActive]}>{category}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Description (optional)</Text>
+            <TextInput style={[styles.input, styles.descriptionInput]} value={productForm.description} onChangeText={value => setProductField('description', value)} placeholder="Short product description" multiline />
+
+            <TouchableOpacity style={styles.availabilityRow} onPress={() => setProductField('isAvailable', !productForm.isAvailable)}>
+              <View><Text style={styles.availabilityTitle}>Available for ordering</Text><Text style={styles.availabilityHint}>Unavailable products stay saved but cannot be ordered.</Text></View>
+              <Icon name={productForm.isAvailable ? 'toggle-switch' : 'toggle-switch-off-outline'} size={38} color={productForm.isAvailable ? COLORS.accent : COLORS.textMuted} />
+            </TouchableOpacity>
+
+            <Text style={styles.fieldLabel}>Recipe ingredients</Text>
+            <Text style={styles.recipeHint}>Choose the stock used for one order and enter its quantity.</Text>
+            {stockItems.length ? stockItems.map(stock => {
+              const ingredient = productForm.ingredients.find(item => item.stockId === Number(stock.id));
+              return (
+                <View key={stock.id} style={[styles.recipeRow, ingredient && styles.recipeRowSelected]}>
+                  <TouchableOpacity style={styles.recipeSelector} onPress={() => toggleIngredient(Number(stock.id))}>
+                    <Icon name={ingredient ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} color={ingredient ? COLORS.accent : COLORS.textGray} />
+                    <View style={styles.recipeNameWrap}><Text style={styles.recipeName}>{stock.name}</Text><Text style={styles.recipeUnit}>per order ({stock.unit})</Text></View>
+                  </TouchableOpacity>
+                  {ingredient ? <TextInput style={styles.recipeQuantity} value={ingredient.quantity} onChangeText={value => setIngredientQuantity(Number(stock.id), value)} keyboardType="decimal-pad" placeholder="0" /> : null}
+                </View>
+              );
+            }) : <Text style={styles.ownerNote}>No stock items are available for a recipe yet.</Text>}
+
+            <TouchableOpacity style={[styles.primaryButton, isSavingProduct && styles.disabledButton]} onPress={saveProduct} disabled={isSavingProduct}>
+              {isSavingProduct ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{editingProduct ? 'Save changes' : 'Add product'}</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </View></View>
+      </Modal>
     </View>
   );
-
-  function renderForm() {
-    return (
-      <>
-        <Text style={styles.fieldLabel}>Item name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Fresh milk"
-          value={name}
-          onChangeText={setName}
-        />
-        {errors.name && (
-          <Text style={styles.errorText}>{errors.name}</Text>
-        )}
-
-        <Text style={styles.fieldLabel}>Quantity</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 5000"
-          keyboardType="decimal-pad"
-          value={quantity}
-          onChangeText={setQuantity}
-        />
-        {errors.quantity && (
-          <Text style={styles.errorText}>{errors.quantity}</Text>
-        )}
-
-        <Text style={styles.fieldLabel}>Unit</Text>
-        <View style={styles.chipRow}>
-          {UNITS.map(u => (
-            <TouchableOpacity
-              key={u}
-              style={[styles.chip, unit === u && styles.chipActive]}
-              onPress={() => setUnit(u)}>
-              <Text style={[
-                styles.chipText,
-                unit === u && styles.chipTextActive,
-              ]}>
-                {u}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.fieldLabel}>Low stock threshold</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 500 (shows Low badge below this)"
-          keyboardType="decimal-pad"
-          value={threshold}
-          onChangeText={setThreshold}
-        />
-        {errors.threshold && (
-          <Text style={styles.errorText}>{errors.threshold}</Text>
-        )}
-      </>
-    );
-  }
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  header: {
-    backgroundColor: COLORS.accent,
-    padding: 24,
-    paddingTop: 48,
-  },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#0A2E2A' },
-  headerSub: { fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 4 },
-  summaryRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E0E0E0',
-  },
-  summaryItem: { flex: 1, padding: 14, alignItems: 'center' },
-  summaryCount: { fontSize: 20, fontWeight: 'bold', color: '#0A2E2A' },
-  summaryLabel: { fontSize: 11, marginTop: 2, fontWeight: 'bold' },
-  summaryDivider: { width: 0.5, backgroundColor: '#E0E0E0' },
-  searchWrap: { padding: 12, paddingBottom: 8 },
-  searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 13,
-    borderWidth: 0.5,
-    borderColor: '#E0E0E0',
-  },
-  list: { padding: 12, paddingBottom: 100 },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyText: { fontSize: 15, fontWeight: 'bold', color: '#AAAAAA' },
-  emptySubText: { fontSize: 13, color: '#CCCCCC', marginTop: 6 },
-  stockRow: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 0.5,
-    borderColor: '#E0E0E0',
-  },
-  stockLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  statusIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-  },
-  stockName: { fontSize: 14, fontWeight: 'bold', color: '#0A2E2A' },
-  stockUnit: { fontSize: 12, color: '#888888', marginTop: 2 },
-  badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { fontSize: 12, fontWeight: 'bold' },
-  badgeOk: { backgroundColor: '#E8F5E9' },
-  badgeOkText: { color: '#2E7D32' },
-  badgeLow: { backgroundColor: '#FFF3E0' },
-  badgeLowText: { color: '#E65100' },
-  badgeOut: { backgroundColor: '#FFEBEE' },
-  badgeOutText: { color: '#C62828' },
-  fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-  },
-  fabText: { fontSize: 28, color: '#FFFFFF', lineHeight: 32 },
-  slideOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  slideContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '90%',
-  },
-  floatOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  floatCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    width: '100%',
-    maxHeight: '88%',
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#0A2E2A' },
-  modalClose: { fontSize: 18, color: '#888888' },
-  detailQtyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#F0F0F0',
-  },
-  detailQty: { fontSize: 28, fontWeight: 'bold', color: '#0A2E2A' },
-  detailThreshold: { fontSize: 12, color: '#888888', marginTop: 4 },
-  progressTrack: {
-    backgroundColor: '#F0F0F0',
-    borderRadius: 4,
-    height: 8,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  progressFill: { height: 8, borderRadius: 4 },
-  alertBanner: {
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-  },
-  alertText: { fontSize: 12, lineHeight: 18 },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#555555',
-    marginTop: 14,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  adjustTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  adjustRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  adjustInput: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  adjustButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 8,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adjustButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-  },
-  toggleActiveAdd: { backgroundColor: '#E8F5E9' },
-  toggleActiveDeduct: { backgroundColor: '#FFEBEE' },
-  toggleText: { fontSize: 13, color: '#888888', fontWeight: 'bold' },
-  toggleTextActive: { color: '#0A2E2A' },
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  editButton: {
-    flex: 1,
-    backgroundColor: '#E8FBF5',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  editButtonText: { fontSize: 14, fontWeight: 'bold', color: COLORS.accent },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: '#FFEBEE',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  deleteButtonText: { fontSize: 14, fontWeight: 'bold', color: COLORS.expense },
-  cancelButton: {
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 8,
-    backgroundColor: '#F5F5F5',
-  },
-  cancelButtonText: { fontSize: 14, color: '#888888' },
-  input: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0A2E2A',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#F0F0F0',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  chipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  chipText: { fontSize: 13, color: '#555555' },
-  chipTextActive: { color: '#FFFFFF', fontWeight: 'bold' },
-  errorText: { fontSize: 12, color: COLORS.expense, marginTop: 4 },
-  saveButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  saveButtonText: { fontSize: 15, fontWeight: 'bold', color: '#FFFFFF' },
+  container: {flex: 1, backgroundColor: COLORS.background},
+  tabs: {flexDirection: 'row', backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border},
+  tab: {flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderBottomWidth: 3, borderBottomColor: 'transparent'},
+  tabActive: {borderBottomColor: COLORS.accent}, tabText: {fontSize: 14, fontWeight: '600', color: COLORS.textGray}, tabTextActive: {color: COLORS.accent},
+  summary: {flexDirection: 'row', marginHorizontal: 20, marginTop: 20, marginBottom: 8, borderRadius: 16, backgroundColor: COLORS.surface, paddingVertical: 14, borderWidth: 1, borderColor: COLORS.border},
+  summaryItem: {flex: 1, alignItems: 'center'}, summaryCount: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, summaryLabel: {fontSize: 12, fontWeight: '600', marginTop: 2},
+  searchBox: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  searchInput: {flex: 1, paddingVertical: 11, paddingHorizontal: 8, color: COLORS.textDark}, list: {paddingHorizontal: 20, paddingBottom: 24}, emptyList: {flexGrow: 1},
+  card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border},
+  iconBox: {width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'}, iconOk: {backgroundColor: '#E8F5E9'}, iconWarning: {backgroundColor: '#FFF3E0'}, productThumbnail: {width: '100%', height: '100%', resizeMode: 'cover'},
+  cardBody: {flex: 1, marginHorizontal: 12}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 3},
+  badge: {paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12}, badgeText: {fontSize: 11, fontWeight: '700'}, badgeOk: {backgroundColor: '#E8F5E9'}, badgeOkText: {color: '#2E7D32'}, badgeLow: {backgroundColor: '#FFF3E0'}, badgeLowText: {color: '#E65100'}, badgeOut: {backgroundColor: '#FFEBEE'}, badgeOutText: {color: '#C62828'},
+  centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32}, emptyTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark, marginTop: 14}, stateText: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, textAlign: 'center', marginTop: 7}, footerLoader: {paddingVertical: 18},
+  modalOverlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'center', padding: 20}, modalCard: {backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, maxHeight: '88%'},
+  modalHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
+  quantityPanel: {backgroundColor: COLORS.surfaceMuted, borderRadius: 14, padding: 18, marginBottom: 8}, quantityValue: {fontSize: 28, fontWeight: '700', color: COLORS.textDark}, quantityHint: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
+  fieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 16, marginBottom: 7}, adjustToggle: {flexDirection: 'row', gap: 10},
+  toggleButton: {flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, toggleButtonActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, toggleText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray}, toggleTextActive: {color: '#FFFFFF'},
+  input: {backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 11, color: COLORS.textDark},
+  primaryButton: {backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 14, marginTop: 20}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 14, textAlign: 'center'},
+  productHero: {height: 190, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'}, productHeroImage: {width: '100%', height: '100%', resizeMode: 'cover'}, noImage: {alignItems: 'center'}, noImageText: {fontSize: 12, color: COLORS.textGray, marginTop: 6},
+  detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 14},
+  ingredientRow: {flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.surfaceMuted, borderRadius: 9, padding: 11, marginBottom: 7}, ingredientName: {fontSize: 13, color: COLORS.textDark}, ingredientQuantity: {fontSize: 13, fontWeight: '700', color: COLORS.accent},
+  productActions: {gap: 9, marginTop: 20},
+  secondaryButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
+  secondaryButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
+  deleteButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#F1C6C6', backgroundColor: '#FFF7F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 9},
+  deleteButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.danger},
+  imagePicker: {height: 190, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, overflow: 'hidden', alignItems: 'center', justifyContent: 'center'}, imagePreview: {width: '100%', height: '100%', resizeMode: 'cover'}, imagePlaceholder: {alignItems: 'center', paddingHorizontal: 20}, imagePlaceholderTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark, marginTop: 8}, imagePlaceholderHint: {fontSize: 11, color: COLORS.textGray, marginTop: 4}, imagePickerBadge: {position: 'absolute', right: 10, bottom: 10, minHeight: 34, borderRadius: 17, paddingHorizontal: 12, backgroundColor: COLORS.accent, flexDirection: 'row', alignItems: 'center', gap: 6}, imagePickerBadgeText: {fontSize: 12, fontWeight: '700', color: '#FFFFFF'},
+  priceInputWrap: {minHeight: 46, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12},
+  peso: {fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginRight: 5}, priceInput: {flex: 1, color: COLORS.textDark, paddingVertical: 10},
+  categoryOptions: {flexDirection: 'row', flexWrap: 'wrap', gap: 8}, categoryOption: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, categoryOptionActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, categoryOptionText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, categoryOptionTextActive: {color: '#FFFFFF'},
+  descriptionInput: {minHeight: 76, textAlignVertical: 'top'},
+  availabilityRow: {marginTop: 16, padding: 13, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}, availabilityTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark}, availabilityHint: {fontSize: 11, color: COLORS.textGray, marginTop: 3, maxWidth: 245},
+  recipeHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 9}, recipeRow: {minHeight: 52, borderRadius: 11, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, paddingHorizontal: 11, paddingVertical: 7, marginBottom: 8, flexDirection: 'row', alignItems: 'center'}, recipeRowSelected: {backgroundColor: COLORS.surfaceMuted, borderColor: COLORS.accent}, recipeSelector: {flex: 1, flexDirection: 'row', alignItems: 'center'}, recipeNameWrap: {marginLeft: 9}, recipeName: {fontSize: 13, fontWeight: '600', color: COLORS.textDark}, recipeUnit: {fontSize: 10, color: COLORS.textGray, marginTop: 2}, recipeQuantity: {width: 72, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.textDark, textAlign: 'center', paddingVertical: 7, paddingHorizontal: 6},
 });
 
 export default StockScreen;

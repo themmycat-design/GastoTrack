@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ProductIngredient extends Model
 {
     protected $fillable = [
-        'product_id', 'stock_id', 'quantity', 'unit'
+        'product_id', 'stock_item_id', 'quantity'
     ];
 
     protected $casts = [
@@ -16,7 +16,7 @@ class ProductIngredient extends Model
 
     public function stockItem()
     {
-        return $this->belongsTo(StockItem::class, 'stock_id');
+        return $this->belongsTo(StockItem::class);
     }
 
     public function product()
