@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
@@ -24,14 +26,26 @@ class TransactionController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('description', 'like', "%{$search}%")
+                  ->orWhere('category', 'like', "%{$search}%")
+                  ->orWhere('source', 'like', "%{$search}%")
                   ->orWhereHas('user', function($q) use ($search) {
                       $q->where('name', 'like', "%{$search}%");
                   });
             });
         }
-        
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
+
+        if ($request->filled('source')) {
+            $source = strtolower($request->source);
+            $sourceAliases = match ($source) {
+                'bank transfer' => ['bank transfer', 'bank'],
+                'credit card' => ['credit card', 'credit_card'],
+                default => [$source],
+            };
+            $query->whereIn(DB::raw('LOWER(source)'), $sourceAliases);
+        }
+
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
         }
         
         if ($request->filled('date_from')) {
@@ -42,34 +56,37 @@ class TransactionController extends Controller
             $query->whereDate('transaction_date', '<=', $request->date_to);
         }
         
+        $summaryQuery = clone $query;
+
         // Get transactions with pagination
         $transactions = $query->orderBy('transaction_date', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();
+        $this->addOrderedProductNames($transactions->getCollection(), $businessId);
+
+        $sourceOptions = ['Cash', 'Maya', 'GCash', 'Bank Transfer', 'Credit Card'];
+        $categoryOptions = collect();
+        if ($request->filled('source')) {
+            $source = strtolower($request->source);
+            $sourceAliases = match ($source) {
+                'bank transfer' => ['bank transfer', 'bank'],
+                'credit card' => ['credit card', 'credit_card'],
+                default => [$source],
+            };
+            $categoryOptions = Transaction::where('business_id', $businessId)
+                ->whereIn(DB::raw('LOWER(source)'), $sourceAliases)
+                ->whereNotNull('category')
+                ->distinct()
+                ->orderBy('category')
+                ->pluck('category');
+        }
         
         // Calculate totals for filtered results
-        $totalIncome = Transaction::where('business_id', $businessId)
-            ->where('type', 'income')
-            ->when($request->filled('date_from'), function($q) use ($request) {
-                $q->whereDate('transaction_date', '>=', $request->date_from);
-            })
-            ->when($request->filled('date_to'), function($q) use ($request) {
-                $q->whereDate('transaction_date', '<=', $request->date_to);
-            })
-            ->sum('amount');
-            
-        $totalExpense = Transaction::where('business_id', $businessId)
-            ->where('type', 'expense')
-            ->when($request->filled('date_from'), function($q) use ($request) {
-                $q->whereDate('transaction_date', '>=', $request->date_from);
-            })
-            ->when($request->filled('date_to'), function($q) use ($request) {
-                $q->whereDate('transaction_date', '<=', $request->date_to);
-            })
-            ->sum('amount');
+        $totalIncome = (clone $summaryQuery)->where('type', 'income')->sum('amount');
+        $totalExpense = (clone $summaryQuery)->where('type', 'expense')->sum('amount');
         
-        return view('transactions.index', compact('transactions', 'totalIncome', 'totalExpense'));
+        return view('transactions.index', compact('transactions', 'totalIncome', 'totalExpense', 'sourceOptions', 'categoryOptions'));
     }
 
     /**
@@ -135,5 +152,35 @@ class TransactionController extends Controller
         $transaction->delete();
         
         return response()->json(['success' => true]);
+    }
+
+    private function addOrderedProductNames($transactions, int $businessId): void
+    {
+        $orderIds = $transactions
+            ->filter(fn ($transaction) => $transaction->entry_method === 'order_system')
+            ->map(fn ($transaction) => data_get($transaction->metadata, 'order_id'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($orderIds->isEmpty()) return;
+
+        $orders = Order::where('business_id', $businessId)
+            ->whereIn('id', $orderIds)
+            ->with('items')
+            ->get()
+            ->keyBy('id');
+
+        $transactions->each(function ($transaction) use ($orders) {
+            if ($transaction->entry_method !== 'order_system') return;
+            $order = $orders->get(data_get($transaction->metadata, 'order_id'));
+            if (!$order) return;
+
+            $productNames = $order->items
+                ->map(fn ($item) => $item->quantity.'× '.$item->product_name)
+                ->implode(', ');
+
+            if ($productNames !== '') $transaction->description = $productNames;
+        });
     }
 }

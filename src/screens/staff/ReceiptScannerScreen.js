@@ -18,15 +18,13 @@ import { scanReceipt, parseReceiptData, formatForTransaction } from '../../servi
 import { useTransactions } from '../../context/TransactionContext';
 import { COLORS } from '../../theme';
 
-const INCOME_CATEGORIES = ['Sales', 'Delivery', 'Catering', 'Others'];
-const EXPENSE_CATEGORIES = [
-  'Ingredients', 'Packaging', 'Utilities',
-  'Rent', 'Salaries', 'Equipment', 'Supplies', 'Others',
-];
-const SOURCES = ['Cash', 'GCash', 'Maya', 'GrabPay', 'ShopeePay'];
-
 const ReceiptScannerScreen = ({ navigation }) => {
-  const { addTransaction } = useTransactions();
+  const {
+    addTransaction,
+    INCOME_CATEGORIES,
+    EXPENSE_CATEGORIES,
+    TRANSACTION_SOURCES,
+  } = useTransactions();
   const [imageUri, setImageUri] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [ocrResult, setOcrResult] = useState(null);
@@ -465,7 +463,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
               {/* Source */}
               <Text style={styles.fieldLabel}>Source</Text>
               <View style={styles.chipRow}>
-                {SOURCES.map(s => (
+                {TRANSACTION_SOURCES.map(s => (
                   <TouchableOpacity
                     key={s}
                     style={[styles.chip, source === s && styles.chipActive]}

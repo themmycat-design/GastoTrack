@@ -66,6 +66,21 @@ class BackendApiTest extends TestCase
         // Clear the previously resolved owner before switching Bearer tokens.
         $this->app['auth']->forgetGuards();
 
+        // Staff can manage reusable transaction categories and payment sources.
+        $this->postJson('/api/v1/transaction-options', [
+            'kind' => 'category', 'transaction_type' => 'expense', 'name' => 'Equipment Repair',
+        ], $staffHeaders)->assertCreated()->assertJsonPath('option.name', 'Equipment Repair');
+        $customSource = $this->postJson('/api/v1/transaction-options', [
+            'kind' => 'source', 'name' => 'GrabPay',
+        ], $staffHeaders)->assertCreated()->assertJsonPath('option.transaction_type', 'all')->json('option');
+        $this->putJson('/api/v1/transaction-options/'.$customSource['id'], [
+            'name' => 'GrabPay Wallet',
+        ], $staffHeaders)->assertOk()->assertJsonPath('option.name', 'GrabPay Wallet');
+        $this->getJson('/api/v1/transaction-options', $staffHeaders)->assertOk()
+            ->assertJsonFragment(['name' => 'Equipment Repair'])
+            ->assertJsonFragment(['name' => 'GrabPay Wallet']);
+        $this->deleteJson('/api/v1/transaction-options/'.$customSource['id'], [], $staffHeaders)->assertOk();
+
         // Staff maintain the ordering menu, including recipes and availability.
         $staffProduct = $this->withHeaders($staffHeaders)->post('/api/v1/products', [
             'name' => 'Staff Special', 'category' => 'Coffee', 'price' => 95,
@@ -94,12 +109,15 @@ class BackendApiTest extends TestCase
 
         $this->assertDatabaseHas('stock_items', ['id' => $stock['id'], 'current_quantity' => 600]);
         $this->assertDatabaseHas('transactions', ['business_id' => $register->json('business.id'), 'amount' => 240, 'type' => 'income']);
+        $this->getJson('/api/v1/transactions', $staffHeaders)->assertOk()
+            ->assertJsonPath('transactions.0.transaction_date', now()->toDateString())
+            ->assertJsonPath('transactions.0.description', '2× Latte');
 
-        // Staff can count and adjust stock, but item setup remains an owner responsibility.
+        // Staff can add stock items and adjust counts, while structural edits remain owner-controlled.
         $this->postJson('/api/v1/stock', [
-            'name' => 'Unauthorized Item', 'unit' => 'pcs', 'current_quantity' => 1,
-            'minimum_quantity' => 1, 'unit_cost' => 1,
-        ], $staffHeaders)->assertForbidden();
+            'name' => 'Paper Cups', 'unit' => 'pcs', 'current_quantity' => 100,
+            'minimum_quantity' => 20, 'unit_cost' => 2,
+        ], $staffHeaders)->assertCreated()->assertJsonPath('item.name', 'Paper Cups');
         $this->putJson('/api/v1/stock/'.$stock['id'], ['name' => 'Renamed by Staff'], $staffHeaders)->assertForbidden();
         $this->postJson('/api/v1/stock/'.$stock['id'].'/adjust', [
             'type' => 'add', 'quantity' => 50, 'reason' => 'Supplier delivery',

@@ -67,6 +67,14 @@ export const StockProvider = ({children}) => {
     return updated;
   };
 
+  const createStock = async stockData => {
+    const response = await api.post('/stock', stockData);
+    const created = normalize(response.data.item);
+    setStockItems(current => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setPagination(current => ({...current, total: current.total + 1}));
+    return created;
+  };
+
   return <StockContext.Provider value={{
     stockItems,
     stockTotal: pagination.total,
@@ -77,6 +85,7 @@ export const StockProvider = ({children}) => {
     loadMoreStock,
     getStatus,
     adjustStock,
+    createStock,
   }}>{children}</StockContext.Provider>;
 };
 

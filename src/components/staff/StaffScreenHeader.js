@@ -28,13 +28,13 @@ const StaffScreenHeader = ({
         </TouchableOpacity>
       ) : null}
       <View style={[styles.identity, centered && styles.centeredIdentity]}>
-        {!centered && (
+        {!centered && icon ? (
           <View style={styles.iconContainer}>
             <Icon name={icon} size={27} color={COLORS.textWhite} />
           </View>
-        )}
+        ) : null}
         <View style={[styles.copy, centered && styles.centeredCopy]}>
-          <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
           <Text style={[styles.title, centered && styles.centeredTitle]} numberOfLines={1}>{title}</Text>
         </View>
       </View>

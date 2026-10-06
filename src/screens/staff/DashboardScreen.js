@@ -155,7 +155,15 @@ const DashboardScreen = ({ navigation }) => {
         <View style={styles.productsSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Products</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Stock')}>
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate(
+                'Orders',
+                selectedCategory === 'All'
+                  ? undefined
+                  : {category: selectedCategory},
+              )
+            }>
               <Text style={styles.viewAllText}>View all &gt;</Text>
             </TouchableOpacity>
           </View>

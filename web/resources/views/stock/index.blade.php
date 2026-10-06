@@ -92,8 +92,8 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select name="active" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
                         <option value="">All</option>
-                        <option value="1" {{ request('active') === '1' ? 'selected' : '' }}>Active</option>
-                        <option value="0" {{ request('active') === '0' ? 'selected' : '' }}>Inactive</option>
+                        <option value="1" {{ request('active') === '1' ? 'selected' : '' }}>Available</option>
+                        <option value="0" {{ request('active') === '0' ? 'selected' : '' }}>UnAvailable</option>
                     </select>
                 </div>
 
@@ -154,9 +154,9 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             @if($item->active)
-                                <span class="px-3 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Active</span>
+                                <span class="px-3 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Available</span>
                             @else
-                                <span class="px-3 py-1 text-xs font-semibold text-gray-800 bg-gray-100 rounded-full">Inactive</span>
+                                <span class="px-3 py-1 text-xs font-semibold text-gray-800 bg-gray-100 rounded-full">UnAvailable</span>
                             @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">

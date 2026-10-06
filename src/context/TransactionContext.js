@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import { AuthContext } from './AuthContext'; 
 
@@ -9,11 +9,34 @@ export const INCOME_CATEGORIES = ['Sales', 'Tips', 'Other Income'];
 export const EXPENSE_CATEGORIES = ['Ingredients', 'Rent', 'Salaries', 'Utilities', 'Supplies', 'Other Expense'];
 export const TRANSACTION_SOURCES = ['Cash', 'GCash', 'Maya', 'Bank Transfer', 'Credit Card'];
 
+const mergeOptions = (defaults, custom) => {
+  const seen = new Set();
+  return [...defaults, ...custom].filter(value => {
+    const key = String(value).trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const titleCaseType = type => type?.toLowerCase() === 'income' ? 'Income' : 'Expense';
+const dateOnly = value => value ? String(value).split('T')[0] : value;
+const normalizeSource = source => {
+  const key = String(source || '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+  return {
+    cash: 'Cash',
+    gcash: 'GCash',
+    maya: 'Maya',
+    bank: 'Bank Transfer',
+    'bank transfer': 'Bank Transfer',
+    'credit card': 'Credit Card',
+  }[key] || source;
+};
 const normalizeTransaction = transaction => ({
   ...transaction,
   type: titleCaseType(transaction.type),
-  date: transaction.transaction_date || transaction.date,
+  source: normalizeSource(transaction.source),
+  date: dateOnly(transaction.transaction_date || transaction.date),
   notes: transaction.description || transaction.notes,
   entryMethod: transaction.entry_method || transaction.entryMethod,
 });
@@ -41,7 +64,66 @@ export const TransactionProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
+  const [transactionOptions, setTransactionOptions] = useState([]);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const { userToken } = useContext(AuthContext);
+
+  const incomeCategories = useMemo(() => optionsLoaded
+    ? mergeOptions([], transactionOptions.filter(option => option.kind === 'category' && option.transaction_type === 'income').map(option => option.name))
+    : INCOME_CATEGORIES, [optionsLoaded, transactionOptions]);
+  const expenseCategories = useMemo(() => optionsLoaded
+    ? mergeOptions([], transactionOptions.filter(option => option.kind === 'category' && option.transaction_type === 'expense').map(option => option.name))
+    : EXPENSE_CATEGORIES, [optionsLoaded, transactionOptions]);
+  const transactionSources = useMemo(() => optionsLoaded
+    ? mergeOptions([], transactionOptions.filter(option => option.kind === 'source').map(option => option.name))
+    : TRANSACTION_SOURCES, [optionsLoaded, transactionOptions]);
+
+  const fetchTransactionOptions = useCallback(async () => {
+    if (!userToken) return;
+    setOptionsLoading(true);
+    try {
+      const response = await api.get('/transaction-options');
+      setTransactionOptions(response.data?.options || []);
+      setOptionsLoaded(true);
+    } catch (error) {
+      console.log('Error fetching transaction options:', error.response?.data || error.message);
+    } finally {
+      setOptionsLoading(false);
+    }
+  }, [userToken]);
+
+  const addTransactionOption = async optionData => {
+    try {
+      const response = await api.post('/transaction-options', optionData);
+      const option = response.data?.option;
+      if (option) setTransactionOptions(current => [...current, option]);
+      return {success: true, option};
+    } catch (error) {
+      return {success: false, error};
+    }
+  };
+
+  const deleteTransactionOption = async optionId => {
+    try {
+      await api.delete(`/transaction-options/${optionId}`);
+      setTransactionOptions(current => current.filter(option => option.id !== optionId));
+      return {success: true};
+    } catch (error) {
+      return {success: false, error};
+    }
+  };
+
+  const updateTransactionOption = async (optionId, optionData) => {
+    try {
+      const response = await api.put(`/transaction-options/${optionId}`, optionData);
+      const option = response.data?.option;
+      if (option) setTransactionOptions(current => current.map(item => item.id === option.id ? option : item));
+      return {success: true, option};
+    } catch (error) {
+      return {success: false, error};
+    }
+  };
 
   // Kumuha ng transactions mula sa Laravel
   const fetchTransactions = useCallback(async ({page = 1, append = false} = {}) => {
@@ -106,11 +188,14 @@ export const TransactionProvider = ({ children }) => {
     if (userToken) {
       console.log('[TransactionContext] Fetching transactions...');
       fetchTransactions();
+      fetchTransactionOptions();
     } else {
       setTransactions([]);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
+      setTransactionOptions([]);
+      setOptionsLoaded(false);
     }
-  }, [userToken, fetchTransactions]);
+  }, [userToken, fetchTransactionOptions, fetchTransactions]);
 
   return (
     <TransactionContext.Provider value={{ 
@@ -123,9 +208,15 @@ export const TransactionProvider = ({ children }) => {
       loadMoreTransactions,
       addTransaction,
       updateTransaction,
-      INCOME_CATEGORIES,
-      EXPENSE_CATEGORIES,
-      TRANSACTION_SOURCES
+      transactionOptions,
+      optionsLoading,
+      fetchTransactionOptions,
+      addTransactionOption,
+      updateTransactionOption,
+      deleteTransactionOption,
+      INCOME_CATEGORIES: incomeCategories,
+      EXPENSE_CATEGORIES: expenseCategories,
+      TRANSACTION_SOURCES: transactionSources
     }}>
       {children}
     </TransactionContext.Provider>

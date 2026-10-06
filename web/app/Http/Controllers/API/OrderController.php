@@ -98,6 +98,10 @@ class OrderController extends Controller
                 ]);
             }
 
+            $orderedProducts = collect($validated['items'])
+                ->map(fn ($item) => $item['quantity'].'× '.$products[$item['product_id']]->name)
+                ->implode(', ');
+
             foreach ($requiredStock as $stockId => $amount) {
                 $stock = $stockItems[$stockId];
                 $before = (float) $stock->current_quantity;
@@ -120,7 +124,7 @@ class OrderController extends Controller
                 'source' => $order->payment_method,
                 'category' => 'Sales',
                 'transaction_date' => today(),
-                'description' => 'Order '.$order->order_number,
+                'description' => $orderedProducts,
                 'entry_method' => 'order_system',
                 'metadata' => ['order_id' => $order->id],
                 'synced' => true,
@@ -157,10 +161,14 @@ class OrderController extends Controller
             $order->update($validated + $extra);
 
             if ($validated['status'] === 'completed' && $previousStatus !== 'completed') {
+                $order->loadMissing('items');
+                $orderedProducts = $order->items
+                    ->map(fn ($item) => $item->quantity.'× '.$item->product_name)
+                    ->implode(', ');
                 Transaction::create([
                     'business_id' => $order->business_id, 'user_id' => $request->user()->id,
                     'amount' => $order->total, 'type' => 'income', 'source' => $order->payment_method,
-                    'category' => 'Sales', 'transaction_date' => today(), 'description' => 'Order '.$order->order_number,
+                    'category' => 'Sales', 'transaction_date' => today(), 'description' => $orderedProducts,
                     'entry_method' => 'order_system', 'metadata' => ['order_id' => $order->id], 'synced' => true,
                 ]);
             }

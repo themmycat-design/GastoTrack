@@ -27,20 +27,32 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <form method="GET" action="{{ route('transactions.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <form method="GET" action="{{ route('transactions.index') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Search -->
-                <div>
+                <div class="md:col-span-2 lg:col-span-5">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Description, customer..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Category, source, product..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
                 </div>
 
-                <!-- Type Filter -->
+                <!-- Source Filter -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
-                    <select name="type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
-                        <option value="">All Types</option>
-                        <option value="income" {{ request('type') == 'income' ? 'selected' : '' }}>Income</option>
-                        <option value="expense" {{ request('type') == 'expense' ? 'selected' : '' }}>Expense</option>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Source</label>
+                    <select name="source" onchange="this.form.elements.category.value=''; this.form.submit();" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
+                        <option value="">All Sources</option>
+                        @foreach($sourceOptions as $source)
+                            <option value="{{ $source }}" {{ request('source') === $source ? 'selected' : '' }}>{{ $source }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Category Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <select name="category" {{ request()->filled('source') ? '' : 'disabled' }} class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50 disabled:bg-gray-100 disabled:text-gray-400" style="focus:ring-color: #00C897;">
+                        <option value="">{{ request()->filled('source') ? 'All Categories' : 'Select a source first' }}</option>
+                        @foreach($categoryOptions as $category)
+                            <option value="{{ $category }}" {{ request('category') === $category ? 'selected' : '' }}>{{ $category }}</option>
+                        @endforeach
                     </select>
                 </div>
 
@@ -57,7 +69,7 @@
                 </div>
 
                 <!-- Buttons -->
-                <div class="md:col-span-4 flex space-x-3">
+                <div class="md:col-span-2 lg:col-span-5 flex space-x-3">
                     <button type="submit" class="px-6 py-2 text-white font-semibold rounded-lg hover:opacity-90" style="background-color: #00C897;">
                         Apply Filters
                     </button>
@@ -113,8 +125,9 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products / Description</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff Member</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                     </tr>
@@ -125,12 +138,11 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ \Carbon\Carbon::parse($transaction->transaction_date)->format('M d, Y') }}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            @if($transaction->type == 'income')
-                                <span class="px-3 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Income</span>
-                            @else
-                                <span class="px-3 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Expense</span>
-                            @endif
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {{ $transaction->category ?? 'Uncategorized' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ match(strtolower($transaction->source ?? '')) { 'cash' => 'Cash', 'gcash' => 'GCash', 'maya' => 'Maya', 'bank', 'bank transfer' => 'Bank Transfer', 'credit_card', 'credit card' => 'Credit Card', default => $transaction->source ?? 'Unknown' } }}
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">
                             {{ $transaction->description ?? 'No description' }}
@@ -144,7 +156,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                             <div class="flex flex-col items-center">
                                 <span class="text-4xl mb-2">📊</span>
                                 <p class="text-lg font-medium">No transactions found</p>

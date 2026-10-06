@@ -12,6 +12,7 @@ use App\Http\Controllers\API\StaffController;
 use App\Http\Controllers\API\StockController;
 use App\Http\Controllers\API\SyncController;
 use App\Http\Controllers\API\TransactionController;
+use App\Http\Controllers\API\TransactionOptionController;
 use Illuminate\Support\Facades\Route;
 
 $registerPublicRoutes = function (): void {
@@ -38,6 +39,10 @@ $registerProtectedRoutes = function (): void {
     Route::get('/transactions/summary', [TransactionController::class, 'summary']);
     Route::post('/transactions/batch', [TransactionController::class, 'batch']);
     Route::apiResource('transactions', TransactionController::class);
+    Route::get('/transaction-options', [TransactionOptionController::class, 'index']);
+    Route::post('/transaction-options', [TransactionOptionController::class, 'store']);
+    Route::put('/transaction-options/{transactionOption}', [TransactionOptionController::class, 'update']);
+    Route::delete('/transaction-options/{transactionOption}', [TransactionOptionController::class, 'destroy']);
     Route::apiResource('products', ProductController::class);
     Route::get('/stock/{stock}/movements', [StockController::class, 'movements']);
     Route::post('/stock/{stock}/adjust', [StockController::class, 'adjust']);

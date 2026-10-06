@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,9 +24,6 @@ const localDate = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-const INCOME_SOURCES = ['Cash', 'Maya', 'GCash'];
-const EXPENSE_SOURCES = ['Cash', 'Maya', 'GCash', 'Bank Transfer', 'Credit Card'];
-
 const emptyForm = (type = 'Income') => ({
   amount: '',
   type,
@@ -40,7 +37,6 @@ const TransactionsScreen = ({route}) => {
   const {user} = useAuth();
   const {
     transactions,
-    transactionTotal,
     isLoading,
     isLoadingMore,
     hasMoreTransactions,
@@ -50,10 +46,13 @@ const TransactionsScreen = ({route}) => {
     updateTransaction,
     INCOME_CATEGORIES,
     EXPENSE_CATEGORIES,
+    TRANSACTION_SOURCES,
   } = useTransactions();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [activeType, setActiveType] = useState('Income');
+  const [search, setSearch] = useState('');
+  const [filterSource, setFilterSource] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
   const [editorVisible, setEditorVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -65,24 +64,34 @@ const TransactionsScreen = ({route}) => {
     () => form.type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES,
     [EXPENSE_CATEGORIES, INCOME_CATEGORIES, form.type],
   );
-  const sources = form.type === 'Income' ? INCOME_SOURCES : EXPENSE_SOURCES;
-  const filteredTransactions = useMemo(
-    () => transactions.filter(transaction => transaction.type === activeType),
-    [activeType, transactions],
+  const incomeSources = useMemo(
+    () => TRANSACTION_SOURCES.filter(source => !['Bank Transfer', 'Credit Card'].includes(source)),
+    [TRANSACTION_SOURCES],
   );
-
-  useEffect(() => {
-    const requestedType = route?.params?.initialType;
-    if (requestedType === 'Income' || requestedType === 'Expense') {
-      setActiveType(requestedType);
-    }
-  }, [route?.params?.initialType, route?.params?.requestedAt]);
+  const sources = form.type === 'Income' ? incomeSources : TRANSACTION_SOURCES;
+  const filterCategories = useMemo(() => {
+    if (filterSource === 'All') return [];
+    return Array.from(new Set(
+      transactions
+        .filter(transaction => transaction.source === filterSource)
+        .map(transaction => transaction.category)
+        .filter(Boolean),
+    ));
+  }, [filterSource, transactions]);
+  const filteredTransactions = useMemo(() => transactions.filter(transaction => {
+    const matchesSource = filterSource === 'All' || transaction.source === filterSource;
+    const matchesCategory = filterCategory === 'All' || transaction.category === filterCategory;
+    const searchValue = search.trim().toLowerCase();
+    const matchesSearch = !searchValue || [transaction.category, transaction.source, transaction.date, transaction.notes, transaction.amount]
+      .some(value => String(value ?? '').toLowerCase().includes(searchValue));
+    return matchesSource && matchesCategory && matchesSearch;
+  }), [filterCategory, filterSource, search, transactions]);
 
   const setField = (field, value) => setForm(current => ({...current, [field]: value}));
 
   const openAdd = () => {
     setEditingTransaction(null);
-    setForm(emptyForm(activeType));
+    setForm(emptyForm(route?.params?.initialType === 'Expense' ? 'Expense' : 'Income'));
     setEditorVisible(true);
   };
 
@@ -149,7 +158,6 @@ const TransactionsScreen = ({route}) => {
       Alert.alert('Could not save transaction', errorMessage(result));
       return;
     }
-    setActiveType(form.type);
     setEditorVisible(false);
     setEditingTransaction(null);
     setForm(emptyForm(form.type));
@@ -172,7 +180,7 @@ const TransactionsScreen = ({route}) => {
           <Icon name={income ? 'arrow-down-left' : 'arrow-up-right'} size={22} color={income ? COLORS.success : COLORS.danger} />
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>{item.category || item.type}</Text>
+          <Text style={styles.cardTitle}>{item.category || 'Uncategorized'}</Text>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
           {item.notes ? <Text style={styles.cardNote} numberOfLines={1}>{item.notes}</Text> : null}
         </View>
@@ -197,23 +205,33 @@ const TransactionsScreen = ({route}) => {
     <View style={styles.container}>
       <StaffScreenHeader
         title="Transactions"
-        subtitle={`${transactionTotal || transactions.length} total record${(transactionTotal || transactions.length) === 1 ? '' : 's'}`}
         actionIcon="plus"
         actionLabel="Add transaction"
         onActionPress={openAdd}
-        centered
       />
 
-      <View style={styles.tabs}>
-        {['Income', 'Expense'].map(type => {
-          const selected = activeType === type;
-          return (
-            <TouchableOpacity key={type} style={[styles.tab, selected && styles.tabActive]} onPress={() => setActiveType(type)}>
-              <Icon name={type === 'Income' ? 'arrow-down-left' : 'arrow-up-right'} size={19} color={selected ? COLORS.accentDark : COLORS.textGray} />
-              <Text style={[styles.tabText, selected && styles.tabTextActive]}>{type === 'Income' ? 'Income' : 'Expenses'}</Text>
-            </TouchableOpacity>
-          );
+      <View style={styles.filters}>
+        <View style={styles.searchBox}>
+          <Icon name="magnify" size={21} color={COLORS.textGray} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search transactions..."
+            placeholderTextColor={COLORS.textMuted}
+            accessibilityLabel="Search transactions"
+          />
+          {search ? <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear transaction search"><Icon name="close-circle" size={19} color={COLORS.textMuted} /></TouchableOpacity> : null}
+        </View>
+        <Text style={styles.filterLabel}>Source</Text>
+        {renderChips(['All', ...TRANSACTION_SOURCES], filterSource, value => {
+          setFilterSource(value);
+          setFilterCategory('All');
         })}
+        {filterSource !== 'All' ? <>
+          <Text style={styles.filterLabel}>Category</Text>
+          {renderChips(['All', ...filterCategories], filterCategory, setFilterCategory)}
+        </> : <Text style={styles.categoryHint}>Choose a source to view category filters.</Text>}
       </View>
 
       {isLoading && !transactions.length ? (
@@ -230,8 +248,8 @@ const TransactionsScreen = ({route}) => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[COLORS.accent]} />}
           ListEmptyComponent={<View style={styles.centerState}>
             <Icon name="receipt-text-outline" size={58} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>No {activeType === 'Income' ? 'income' : 'expenses'} yet</Text>
-            <Text style={styles.stateText}>Tap + to record the first {activeType.toLowerCase()} transaction.</Text>
+            <Text style={styles.emptyTitle}>No transactions found</Text>
+            <Text style={styles.stateText}>{search || filterSource !== 'All' || filterCategory !== 'All' ? 'Try changing your search or filters.' : 'Tap + to record the first transaction.'}</Text>
           </View>}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
           onEndReached={hasMoreTransactions ? loadMoreTransactions : undefined}
@@ -252,6 +270,9 @@ const TransactionsScreen = ({route}) => {
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.label}>Transaction type</Text>
+              {renderChips(['Income', 'Expense'], form.type, value => setForm(current => ({...current, type: value, source: '', category: ''})))}
+
               <Text style={styles.label}>Source</Text>
               {renderChips(sources, form.source, value => setForm(current => ({...current, source: value, category: ''})))}
 
@@ -272,8 +293,8 @@ const TransactionsScreen = ({route}) => {
               <Text style={styles.label}>Date</Text>
               <TextInput style={styles.input} value={form.date} onChangeText={value => setField('date', value)} placeholder="YYYY-MM-DD" />
 
-              <Text style={styles.label}>Notes (optional)</Text>
-              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={value => setField('notes', value)} placeholder="Add a short note" multiline />
+              <Text style={styles.label}>Description (optional)</Text>
+              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={value => setField('notes', value)} placeholder="Add a short description" multiline />
 
               <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={save} disabled={saving}>
                 {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{editingTransaction ? 'Save changes' : 'Save transaction'}</Text>}
@@ -296,6 +317,13 @@ const TransactionsScreen = ({route}) => {
               </TouchableOpacity>
             </View>
             {selectedTransaction ? <>
+              <View style={[styles.detailHero, selectedTransaction.type?.toLowerCase() === 'income' ? styles.detailHeroIncome : styles.detailHeroExpense]}>
+                <View style={styles.detailHeroIcon}><Icon name={selectedTransaction.type?.toLowerCase() === 'income' ? 'arrow-down-left' : 'arrow-up-right'} size={23} color="#FFFFFF" /></View>
+                <View style={styles.detailHeroText}>
+                  <Text style={styles.detailCategory}>{selectedTransaction.category || 'Uncategorized'}</Text>
+                  <Text style={styles.detailType}>{selectedTransaction.source || 'Unknown source'} · {selectedTransaction.date}</Text>
+                </View>
+              </View>
               <Text style={[
                 styles.detailAmount,
                 selectedTransaction.type?.toLowerCase() === 'income' ? styles.incomeAmount : styles.expenseAmount,
@@ -303,11 +331,10 @@ const TransactionsScreen = ({route}) => {
                 {selectedTransaction.type?.toLowerCase() === 'income' ? '+' : '-'}₱{Number(selectedTransaction.amount || 0).toFixed(2)}
               </Text>
               {[
-                ['Type', selectedTransaction.type],
                 ['Category', selectedTransaction.category],
                 ['Source', selectedTransaction.source],
                 ['Date', selectedTransaction.date],
-                ['Notes', selectedTransaction.notes || 'None'],
+                [selectedTransaction.entryMethod === 'order_system' ? 'Products ordered' : 'Description', selectedTransaction.notes || 'None'],
               ].map(([label, value]) => <View key={label} style={styles.detailRow}>
                 <Text style={styles.detailLabel}>{label}</Text>
                 <Text style={styles.detailValue}>{value}</Text>
@@ -318,16 +345,12 @@ const TransactionsScreen = ({route}) => {
                   <Icon name="pencil-outline" size={18} color={COLORS.accentDark} />
                   <Text style={styles.editButtonText}>Edit transaction</Text>
                 </TouchableOpacity>
-              ) : (
+              ) : selectedTransaction.entryMethod !== 'order_system' ? (
                 <View style={styles.protectedNotice}>
                   <Icon name="lock-outline" size={18} color="#8A5A00" />
-                  <Text style={styles.protectedText}>
-                    {selectedTransaction.entryMethod === 'order_system'
-                      ? 'Order-generated sales are protected accounting records.'
-                      : 'You can only edit transactions that you recorded.'}
-                  </Text>
+                  <Text style={styles.protectedText}>You can only edit transactions that you recorded.</Text>
                 </View>
-              )}
+              ) : null}
             </> : null}
           </View>
         </View>
@@ -338,11 +361,11 @@ const TransactionsScreen = ({route}) => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  tabs: {flexDirection: 'row', backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border},
-  tab: {flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderBottomWidth: 3, borderBottomColor: 'transparent'},
-  tabActive: {borderBottomColor: COLORS.accent},
-  tabText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray},
-  tabTextActive: {color: COLORS.accentDark},
+  filters: {backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 15},
+  searchBox: {minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.border, borderRadius: 13, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13},
+  searchInput: {flex: 1, fontSize: 14, color: COLORS.textDark, paddingVertical: 10},
+  filterLabel: {fontSize: 11, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 13, marginBottom: 7},
+  categoryHint: {fontSize: 12, color: COLORS.textMuted, marginTop: 11},
   list: {paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28},
   emptyList: {flexGrow: 1},
   card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 10, ...SHADOWS.card},
@@ -362,7 +385,7 @@ const styles = StyleSheet.create({
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8}, chip: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
   sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 11, marginTop: 12}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
   saveButton: {minHeight: 50, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 22, marginBottom: 8}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
-  detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 14}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 11}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
+  detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 14}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 11}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 3}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 14}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 11}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
   editButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20}, editButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
   protectedNotice: {flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: '#FFF8E1', padding: 13, marginTop: 20}, protectedText: {flex: 1, fontSize: 12, lineHeight: 18, color: '#8A5A00'},
 });

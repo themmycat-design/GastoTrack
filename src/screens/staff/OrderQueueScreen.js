@@ -257,12 +257,9 @@ const OrderQueueScreen = ({route}) => {
 
       <StaffScreenHeader
         title="New order"
-        subtitle="Choose items, then review the cart"
-        icon="point-of-sale"
         actionIcon="cart-outline"
         actionLabel="Open cart"
         onActionPress={cart.length > 0 ? handleOpenCheckout : undefined}
-        centered
       />
 
       {/* Cart Badge */}

@@ -9,7 +9,7 @@ import DashboardScreen from '../screens/staff/DashboardScreen';
 import TransactionsStack from './TransactionsStack';
 import OrderQueueScreen from '../screens/staff/OrderQueueScreen';
 import StockScreen from '../screens/staff/StockScreen';
-import ProfileScreen from '../screens/staff/ProfileScreen';
+import ProfileStack from './ProfileStack';
 import AiAssistantScreen from '../screens/staff/AiAssistantScreen';
 
 const Tab = createBottomTabNavigator();
@@ -98,7 +98,7 @@ const StaffNavigator = () => {
       <Tab.Screen name="Orders" component={OrderQueueScreen} />
       <Tab.Screen name="Stock" component={StockScreen} />
       <Tab.Screen name="Assistant" component={AiAssistantScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 };

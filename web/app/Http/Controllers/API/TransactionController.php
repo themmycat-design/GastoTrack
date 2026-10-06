@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +42,7 @@ class TransactionController extends Controller
         }
 
         $transactions = $query->paginate(min($request->integer('per_page', 20), 100));
+        $this->addOrderedProductNames($transactions->getCollection(), $request->user()->business_id);
 
         return response()->json([
             'transactions' => $transactions->items(),
@@ -88,6 +90,8 @@ class TransactionController extends Controller
     {
         $transaction = Transaction::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
+
+        $this->addOrderedProductNames(collect([$transaction]), $request->user()->business_id);
 
         return response()->json(['transaction' => $transaction]);
     }
@@ -191,5 +195,35 @@ class TransactionController extends Controller
             409,
             'Order-generated transactions cannot be edited or deleted. Use an order refund or reversal instead.'
         );
+    }
+
+    private function addOrderedProductNames($transactions, int $businessId): void
+    {
+        $orderIds = $transactions
+            ->filter(fn ($transaction) => $transaction->entry_method === 'order_system')
+            ->map(fn ($transaction) => data_get($transaction->metadata, 'order_id'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($orderIds->isEmpty()) return;
+
+        $orders = Order::where('business_id', $businessId)
+            ->whereIn('id', $orderIds)
+            ->with('items')
+            ->get()
+            ->keyBy('id');
+
+        $transactions->each(function ($transaction) use ($orders) {
+            if ($transaction->entry_method !== 'order_system') return;
+            $order = $orders->get(data_get($transaction->metadata, 'order_id'));
+            if (!$order) return;
+
+            $productNames = $order->items
+                ->map(fn ($item) => $item->quantity.'× '.$item->product_name)
+                ->implode(', ');
+
+            if ($productNames !== '') $transaction->description = $productNames;
+        });
     }
 }

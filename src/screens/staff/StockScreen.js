@@ -15,6 +15,8 @@ const emptyProductForm = {
   isAvailable: true, ingredients: [], image: null, imageAsset: null,
 };
 
+const emptyStockForm = {name: '', unit: 'pcs', quantity: '', threshold: '', unitCost: ''};
+
 const productToForm = product => ({
   name: product.name || '',
   category: product.category || 'Coffee',
@@ -32,8 +34,8 @@ const productToForm = product => ({
 
 const StockScreen = () => {
   const {
-    stockItems, stockTotal, isLoading, isLoadingMore, hasMoreStock,
-    fetchStock, loadMoreStock, getStatus, adjustStock,
+    stockItems, isLoading, isLoadingMore, hasMoreStock,
+    fetchStock, loadMoreStock, getStatus, adjustStock, createStock,
   } = useStock();
   const {
     products, fetchProducts, createProduct, updateProduct, deleteProduct,
@@ -52,6 +54,9 @@ const StockScreen = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [stockEditorVisible, setStockEditorVisible] = useState(false);
+  const [stockForm, setStockForm] = useState(emptyStockForm);
+  const [isSavingStock, setIsSavingStock] = useState(false);
 
   const filteredItems = useMemo(() => {
     const source = activeTab === 'stock' ? stockItems : products;
@@ -75,6 +80,44 @@ const StockScreen = () => {
     setAdjustType('add');
     setAdjustValue('');
     setAdjustReason('');
+  };
+
+  const openCreateStock = () => {
+    setStockForm(emptyStockForm);
+    setStockEditorVisible(true);
+  };
+
+  const setStockField = (field, value) => setStockForm(current => ({...current, [field]: value}));
+
+  const saveStock = async () => {
+    const quantity = Number(stockForm.quantity);
+    const threshold = Number(stockForm.threshold);
+    const unitCost = Number(stockForm.unitCost);
+    if (!stockForm.name.trim() || !stockForm.unit.trim()) {
+      Alert.alert('Missing details', 'Enter the stock name and unit.');
+      return;
+    }
+    if (![quantity, threshold, unitCost].every(value => Number.isFinite(value) && value >= 0)) {
+      Alert.alert('Invalid values', 'Quantity, low-stock level, and unit cost must be zero or greater.');
+      return;
+    }
+    setIsSavingStock(true);
+    try {
+      await createStock({
+        name: stockForm.name.trim(),
+        unit: stockForm.unit.trim(),
+        current_quantity: quantity,
+        minimum_quantity: threshold,
+        unit_cost: unitCost,
+      });
+      setStockEditorVisible(false);
+      setStockForm(emptyStockForm);
+      Alert.alert('Stock item added', 'The new stock item is ready to use.');
+    } catch (error) {
+      Alert.alert('Could not add stock item', apiErrorMessage(error));
+    } finally {
+      setIsSavingStock(false);
+    }
   };
 
   const handleAdjust = async () => {
@@ -268,12 +311,9 @@ const StockScreen = () => {
     <View style={styles.container}>
       <StaffScreenHeader
         title="Inventory"
-        subtitle={activeTab === 'stock' ? `${stockTotal || stockItems.length} stock items` : `${products.length} products`}
-        icon="package-variant-closed"
-        actionIcon={activeTab === 'products' ? 'plus' : 'refresh'}
-        actionLabel={activeTab === 'products' ? 'Add product' : 'Refresh inventory'}
-        onActionPress={activeTab === 'products' ? openCreateProduct : refresh}
-        centered
+        actionIcon="plus"
+        actionLabel={activeTab === 'products' ? 'Add product' : 'Add stock item'}
+        onActionPress={activeTab === 'products' ? openCreateProduct : openCreateStock}
       />
 
       <View style={styles.tabs}>
@@ -316,13 +356,37 @@ const StockScreen = () => {
           ListEmptyComponent={<View style={styles.centerState}>
             <Icon name={activeTab === 'stock' ? 'package-variant-closed' : 'food-off'} size={58} color="#C9CEC9" />
             <Text style={styles.emptyTitle}>No {activeTab === 'stock' ? 'stock items' : 'products'} found</Text>
-            <Text style={styles.stateText}>{search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'The business owner can add stock items from the owner dashboard.'}</Text>
+            <Text style={styles.stateText}>{search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
           </View>}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
           onEndReached={activeTab === 'stock' && hasMoreStock ? loadMoreStock : undefined}
           onEndReachedThreshold={0.35}
         />
       )}
+
+      <Modal visible={stockEditorVisible} transparent animationType="slide" onRequestClose={() => setStockEditorVisible(false)}>
+        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add stock item</Text>
+            <TouchableOpacity onPress={() => setStockEditorVisible(false)} accessibilityLabel="Close stock item form"><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.fieldLabel}>Stock name</Text>
+            <TextInput style={styles.input} value={stockForm.name} onChangeText={value => setStockField('name', value)} placeholder="e.g. Fresh milk" />
+            <Text style={styles.fieldLabel}>Unit</Text>
+            <TextInput style={styles.input} value={stockForm.unit} onChangeText={value => setStockField('unit', value)} placeholder="pcs, ml, g, kg" />
+            <Text style={styles.fieldLabel}>Starting quantity</Text>
+            <TextInput style={styles.input} value={stockForm.quantity} onChangeText={value => setStockField('quantity', value)} keyboardType="decimal-pad" placeholder="0" />
+            <Text style={styles.fieldLabel}>Low-stock level</Text>
+            <TextInput style={styles.input} value={stockForm.threshold} onChangeText={value => setStockField('threshold', value)} keyboardType="decimal-pad" placeholder="0" />
+            <Text style={styles.fieldLabel}>Unit cost</Text>
+            <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.00" />
+            <TouchableOpacity style={[styles.primaryButton, isSavingStock && styles.disabledButton]} onPress={saveStock} disabled={isSavingStock}>
+              {isSavingStock ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Add stock item</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </View></View>
+      </Modal>
 
       <Modal visible={Boolean(selectedItem)} transparent animationType="fade" onRequestClose={() => setSelectedItem(null)}>
         <View style={styles.modalOverlay}><View style={styles.modalCard}>

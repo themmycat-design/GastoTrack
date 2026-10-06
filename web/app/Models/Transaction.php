@@ -17,7 +17,7 @@ class Transaction extends Model
 
     protected $casts = [
         'amount'   => 'decimal:2',
-        'transaction_date' => 'date',
+        'transaction_date' => 'date:Y-m-d',
         'metadata' => 'array',
         'synced' => 'boolean',
     ];

@@ -30,7 +30,7 @@ class StockController extends Controller
     // POST /api/stock
     public function store(Request $request)
     {
-        abort_unless($request->user()->isOwner(), 403, 'Only owners can create stock items.');
+        abort_unless($request->user()->isOwner() || $request->user()->isStaff(), 403, 'Only owners and staff can create stock items.');
         $request->validate([
             'name'      => 'required|string|max:255',
             'current_quantity' => 'required|numeric|min:0',
