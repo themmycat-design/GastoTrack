@@ -192,13 +192,17 @@ const TransactionsScreen = ({route}) => {
   };
 
   const renderChips = (values, selected, onSelect) => (
-    <View style={styles.chips}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chips}
+      keyboardShouldPersistTaps="handled">
       {values.map(value => (
         <TouchableOpacity key={value} style={[styles.chip, selected === value && styles.chipActive]} onPress={() => onSelect(value)}>
           <Text style={[styles.chipText, selected === value && styles.chipTextActive]}>{value}</Text>
         </TouchableOpacity>
       ))}
-    </View>
+    </ScrollView>
   );
 
   return (
@@ -382,7 +386,7 @@ const styles = StyleSheet.create({
   label: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 16, marginBottom: 7},
   amountInputWrap: {flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 12}, peso: {fontSize: 22, fontWeight: '700', color: COLORS.textDark, marginRight: 6}, amountInput: {flex: 1, fontSize: 22, color: COLORS.textDark, paddingVertical: 10},
   input: {borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, color: COLORS.textDark, paddingHorizontal: 12, paddingVertical: 11}, notesInput: {height: 80, textAlignVertical: 'top'},
-  chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8}, chip: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
+  chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
   sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 11, marginTop: 12}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
   saveButton: {minHeight: 50, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 22, marginBottom: 8}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
   detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 14}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 11}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 3}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 14}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 11}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},

@@ -113,24 +113,7 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={styles.currencySymbol}>₱</Text>
             <Text style={styles.incomeAmount}>{todayIncome.toFixed(2)}</Text>
           </View>
-          <View style={styles.incomeActions}>
-            <TouchableOpacity
-              style={styles.salesButton}
-              onPress={() => navigation.navigate('Transactions', {
-                screen: 'TransactionsMain',
-                params: {initialType: 'Income', requestedAt: Date.now()},
-              })}>
-              <Text style={styles.salesButtonText}>Sales</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.expensesButton}
-              onPress={() => navigation.navigate('Transactions', {
-                screen: 'TransactionsMain',
-                params: {initialType: 'Expense', requestedAt: Date.now()},
-              })}>
-              <Text style={styles.expensesButtonText}>Expenses</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.incomeDescription}>Total income logged today</Text>
         </View>
 
         <View style={styles.quickActions}>
@@ -347,14 +330,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.accent,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   incomeAmountContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 2,
   },
   currencySymbol: {
     fontSize: 32,
@@ -368,9 +351,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.textWhite,
   },
-  incomeActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  incomeDescription: {
+    fontSize: 13,
+    color: COLORS.textWhite,
+    opacity: 0.72,
   },
   quickActions: {
     flexDirection: 'row',
@@ -396,40 +380,6 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: COLORS.textDark,
     textAlign: 'center',
-  },
-  salesButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.surface,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.accent,
-  },
-  salesButtonText: {
-    color: COLORS.accentDark,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  expensesButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.surface,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginLeft: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.expense,
-  },
-  expensesButtonText: {
-    color: COLORS.expense,
-    fontSize: 13,
-    fontWeight: '700',
   },
   productsSection: {
     marginTop: 8,

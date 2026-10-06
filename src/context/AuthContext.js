@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, {createContext, useCallback, useEffect, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
@@ -10,6 +10,14 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
   const [user, setUser] = useState(null);
   const [business, setBusiness] = useState(null);
+
+  const clearLocalSession = useCallback(async () => {
+    setUserToken(null);
+    setUserRole(null);
+    setUser(null);
+    setBusiness(null);
+    await AsyncStorage.removeMany(['userToken', 'userRole', 'user', 'business']);
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -55,14 +63,10 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {
       console.log('Error logging out API', e);
     }
-    setUserToken(null);
-    setUserRole(null);
-    setUser(null);
-    setBusiness(null);
-    await AsyncStorage.multiRemove(['userToken', 'userRole', 'user', 'business']);
+    await clearLocalSession();
   };
 
-  const isLoggedIn = async () => {
+  const isLoggedIn = useCallback(async () => {
     try {
       setIsLoading(true);
       const token = await AsyncStorage.getItem('userToken');
@@ -80,7 +84,17 @@ export const AuthProvider = ({ children }) => {
           setUser(response.data.user);
           setBusiness(response.data.business || null);
         } catch (error) {
-          console.log('[AuthContext] Using saved profile while offline');
+          if (error.response?.status === 401) {
+            console.log('[AuthContext] Saved session expired; returning to sign in');
+            await clearLocalSession();
+          } else if (!error.response) {
+            console.log('[AuthContext] Using saved profile while offline');
+          } else {
+            console.log(
+              '[AuthContext] Unable to validate saved session:',
+              error.response?.data || error.message,
+            );
+          }
         }
       }
     } catch (e) {
@@ -88,11 +102,11 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clearLocalSession]);
 
   useEffect(() => {
     isLoggedIn();
-  }, []);
+  }, [isLoggedIn]);
 
   return (
     <AuthContext.Provider value={{

@@ -2,10 +2,10 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Platform} from 'react-native';
 
-// Android emulators reach the host computer through 10.0.2.2.
-// For a physical phone, set EXPO_PUBLIC_API_URL to the computer's LAN address.
+// Development devices reach the host services through ADB reverse forwarding.
+// Run: adb reverse tcp:8000 tcp:8000
 const DEVELOPMENT_API_URL = Platform.select({
-  android: 'http://10.0.2.2:8000/api/v1',
+  android: 'http://127.0.0.1:8000/api/v1',
   ios: 'http://127.0.0.1:8000/api/v1',
   default: 'http://127.0.0.1:8000/api/v1',
 });
