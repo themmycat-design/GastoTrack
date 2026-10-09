@@ -17,6 +17,7 @@ import ReceiptScannerScreen from './src/screens/staff/ReceiptScannerScreen';
 import LoginScreen from './src/screens/LoginScreens';
 import OwnerBlockedScreen from './src/screens/auth/OwnerBlockedScreen';
 import { COLORS } from './src/theme';
+import AppErrorBoundary from './src/components/AppErrorBoundary';
 
 const RootStack = createNativeStackNavigator();
 
@@ -64,7 +65,9 @@ const App = () => (
           <TransactionProvider>
             <OrderProvider>
               <NavigationContainer>
-                <AppNav />
+                <AppErrorBoundary>
+                  <AppNav />
+                </AppErrorBoundary>
               </NavigationContainer>
             </OrderProvider>
           </TransactionProvider>

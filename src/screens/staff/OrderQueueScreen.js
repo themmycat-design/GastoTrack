@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, {useMemo, useRef, useState, useEffect} from 'react';
 import {
   View,
   Text,
+  Alert,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -18,9 +19,11 @@ import { subscribeToNotifications } from '../../modules/NotificationModule';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 
-const OrderQueueScreen = ({route}) => {
-  const { products } = useProducts();
-  const { createOrder } = useOrders();
+const OrderQueueScreen = ({navigation, route}) => {
+  const {products, isLoading: productsLoading} = useProducts();
+  const {createOrder, cart, setCart} = useOrders();
+  const submittingOrder = useRef(false);
+  const paymentCompletionTimer = useRef(null);
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [paymentTypeModalVisible, setPaymentTypeModalVisible] = useState(false);
@@ -29,16 +32,15 @@ const OrderQueueScreen = ({route}) => {
   const [qrPaymentModalVisible, setQrPaymentModalVisible] = useState(false);
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [receivedAmount, setReceivedAmount] = useState(0);
+  const [paymentNotice, setPaymentNotice] = useState('');
   
   // Cart and payment state
-  const [cart, setCart] = useState([]);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [paymentType, setPaymentType] = useState(null); // 'cash' or 'cashless'
   const [selectedEwallet, setSelectedEwallet] = useState('GCash'); // For QR payment
   
   // Order form state
   const [quantity, setQuantity] = useState('1');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -60,10 +62,17 @@ const OrderQueueScreen = ({route}) => {
     const requestedCategory = route?.params?.category;
     if (requestedCategory && categories.includes(requestedCategory)) {
       setSelectedCategory(requestedCategory);
+      navigation.setParams({category: undefined});
     } else if (!categories.includes(selectedCategory)) {
       setSelectedCategory('All');
     }
-  }, [categories, route?.params?.category, selectedCategory]);
+  }, [categories, navigation, route?.params?.category, selectedCategory]);
+
+  useEffect(() => {
+    if (!paymentNotice) return undefined;
+    const timeout = setTimeout(() => setPaymentNotice(''), 6000);
+    return () => clearTimeout(timeout);
+  }, [paymentNotice]);
 
   // Listen for e-wallet notifications when QR payment modal is open
   useEffect(() => {
@@ -83,19 +92,28 @@ const OrderQueueScreen = ({route}) => {
         const tolerance = 1; // ±1 peso tolerance
         
         if (Math.abs(amount - expectedAmount) <= tolerance) {
+          if (paymentCompletionTimer.current) return;
+
           // Payment received!
           setPaymentReceived(true);
           setReceivedAmount(amount);
           
           // Auto-complete order after 1.5 seconds
-          setTimeout(() => {
+          paymentCompletionTimer.current = setTimeout(() => {
+            paymentCompletionTimer.current = null;
             handlePlaceOrder();
           }, 1500);
         }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (paymentCompletionTimer.current) {
+        clearTimeout(paymentCompletionTimer.current);
+        paymentCompletionTimer.current = null;
+      }
+    };
     // The subscription is intentionally recreated only when the payment listener changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qrPaymentModalVisible, selectedEwallet]);
@@ -124,7 +142,11 @@ const OrderQueueScreen = ({route}) => {
 
   // Quick add to cart (for cashless, no detail view)
   const handleQuickAddToCart = () => {
-    const qty = parseInt(quantity) || 1;
+    const qty = Number.parseInt(quantity, 10);
+    if (!Number.isInteger(qty) || qty < 1) {
+      Alert.alert('Invalid quantity', 'Please enter a quantity greater than zero.');
+      return;
+    }
     const existingIndex = cart.findIndex(item => item.product.id === selectedProduct.id);
     
     if (existingIndex >= 0) {
@@ -140,9 +162,9 @@ const OrderQueueScreen = ({route}) => {
 
   // Add to cart from product detail (cash flow)
   const handleAddToCart = () => {
-    const qty = parseInt(quantity) || 1;
-    if (qty < 1) {
-      alert('Please enter a valid quantity');
+    const qty = Number.parseInt(quantity, 10);
+    if (!Number.isInteger(qty) || qty < 1) {
+      Alert.alert('Invalid quantity', 'Please enter a quantity greater than zero.');
       return;
     }
 
@@ -173,7 +195,7 @@ const OrderQueueScreen = ({route}) => {
   // Open checkout modal
   const handleOpenCheckout = () => {
     if (cart.length === 0) {
-      alert('Cart is empty. Add products first.');
+      Alert.alert('Cart is empty', 'Add products before checking out.');
       return;
     }
     setCheckoutModalVisible(true);
@@ -181,9 +203,10 @@ const OrderQueueScreen = ({route}) => {
 
   // Proceed to payment (from checkout)
   const handleProceedToPayment = () => {
-    setCheckoutModalVisible(false);
+    if (isPlacingOrder) return;
 
     if (paymentType === 'cashless') {
+      setCheckoutModalVisible(false);
       // Reset payment status
       setPaymentReceived(false);
       setReceivedAmount(0);
@@ -197,6 +220,10 @@ const OrderQueueScreen = ({route}) => {
 
   // Place an order. The backend creates income only after completion.
   const handlePlaceOrder = async () => {
+    if (submittingOrder.current || cart.length === 0) return;
+    submittingOrder.current = true;
+    setIsPlacingOrder(true);
+
     const subtotal = getCartSubtotal();
     const paymentMethod = paymentType === 'cash' ? 'Cash' : selectedEwallet;
     
@@ -219,17 +246,29 @@ const OrderQueueScreen = ({route}) => {
 
     // Reset form
       setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
       setPaymentType(null);
       setNotes('');
       setPaymentReceived(false);
       setReceivedAmount(0);
       setQrPaymentModalVisible(false);
+      setCheckoutModalVisible(false);
 
-      alert(`Order #${order.orderNumber} completed and added to Transactions.`);
+      setPaymentNotice(
+        paymentType === 'cashless'
+          ? `Payment detected. Order #${order.orderNumber} was added to Transactions.`
+          : `Order #${order.orderNumber} was added to Transactions.`,
+      );
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to place the order.');
+      setQrPaymentModalVisible(false);
+      setPaymentReceived(false);
+      setReceivedAmount(0);
+      const fallbackMessage = paymentType === 'cashless'
+        ? 'Payment may have been received. Check Order history before retrying to avoid a duplicate.'
+        : 'Check Order history before retrying to avoid a duplicate order.';
+      Alert.alert('Could not confirm order', error.response?.data?.message || fallbackMessage);
+    } finally {
+      submittingOrder.current = false;
+      setIsPlacingOrder(false);
     }
   };
 
@@ -261,6 +300,25 @@ const OrderQueueScreen = ({route}) => {
         actionLabel="Open cart"
         onActionPress={cart.length > 0 ? handleOpenCheckout : undefined}
       />
+
+      <TouchableOpacity
+        style={styles.historyLink}
+        onPress={() => navigation.navigate('OrderHistory')}
+        accessibilityRole="button">
+        <Icon name="history" size={18} color={COLORS.accentDark} />
+        <Text style={styles.historyLinkText}>Order history</Text>
+        <Icon name="chevron-right" size={19} color={COLORS.textMuted} />
+      </TouchableOpacity>
+
+      {paymentNotice ? (
+        <View style={styles.paymentNotice} accessibilityLiveRegion="polite">
+          <Icon name="check-circle-outline" size={19} color={COLORS.success} />
+          <Text style={styles.paymentNoticeText}>{paymentNotice}</Text>
+          <TouchableOpacity onPress={() => setPaymentNotice('')} accessibilityLabel="Dismiss payment notice">
+            <Icon name="close" size={18} color={COLORS.textGray} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Cart Badge */}
       {cart.length > 0 && (
@@ -303,6 +361,29 @@ const OrderQueueScreen = ({route}) => {
         numColumns={2}
         contentContainerStyle={styles.productsList}
         columnWrapperStyle={styles.productRow}
+        ListEmptyComponent={productsLoading ? (
+          <View style={styles.emptyProductsState}>
+            <ActivityIndicator size="large" color={COLORS.accent} />
+            <Text style={styles.emptyProductsText}>Loading products…</Text>
+          </View>
+        ) : (
+          <View style={styles.emptyProductsState}>
+            <Icon name="store-alert-outline" size={48} color={COLORS.textMuted} />
+            <Text style={styles.emptyProductsTitle}>
+              {availableProducts.length ? 'No products in this category' : 'No products available yet'}
+            </Text>
+            <Text style={styles.emptyProductsText}>
+              {availableProducts.length
+                ? 'Choose another category to see available products.'
+                : 'Add products in Inventory before creating an order.'}
+            </Text>
+            {!availableProducts.length ? (
+              <TouchableOpacity style={styles.inventoryButton} onPress={() => navigation.navigate('Stock')}>
+                <Text style={styles.inventoryButtonText}>Open Inventory</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
       />
 
       {/* Floating Checkout Button */}
@@ -424,7 +505,7 @@ const OrderQueueScreen = ({route}) => {
                       <TouchableOpacity
                         style={styles.quantityButton}
                         onPress={() => {
-                          const q = parseInt(quantity) || 1;
+                          const q = Number.parseInt(quantity, 10) || 1;
                           if (q > 1) setQuantity(String(q - 1));
                         }}>
                         <Text style={styles.quantityButtonText}>−</Text>
@@ -438,7 +519,7 @@ const OrderQueueScreen = ({route}) => {
                       <TouchableOpacity
                         style={styles.quantityButton}
                         onPress={() => {
-                          const q = parseInt(quantity) || 1;
+                          const q = Number.parseInt(quantity, 10) || 1;
                           setQuantity(String(q + 1));
                         }}>
                         <Text style={styles.quantityButtonText}>+</Text>
@@ -451,7 +532,7 @@ const OrderQueueScreen = ({route}) => {
                     style={styles.addToCartButton}
                     onPress={handleAddToCart}>
                     <Text style={styles.addToCartButtonText}>
-                      Add to Cart • ₱{(selectedProduct.price * (parseInt(quantity) || 1)).toFixed(2)}
+                      Add to Cart • ₱{(selectedProduct.price * (Number.parseInt(quantity, 10) || 1)).toFixed(2)}
                     </Text>
                   </TouchableOpacity>
 
@@ -468,13 +549,18 @@ const OrderQueueScreen = ({route}) => {
         visible={checkoutModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setCheckoutModalVisible(false)}>
+        onRequestClose={() => {
+          if (!isPlacingOrder) setCheckoutModalVisible(false);
+        }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Checkout</Text>
-              <TouchableOpacity onPress={() => setCheckoutModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => setCheckoutModalVisible(false)}
+                disabled={isPlacingOrder}
+                accessibilityLabel="Close checkout">
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -566,11 +652,16 @@ const OrderQueueScreen = ({route}) => {
 
               {/* Proceed to Payment Button */}
               <TouchableOpacity
-                style={styles.placeOrderButton}
-                onPress={handleProceedToPayment}>
-                <Text style={styles.placeOrderButtonText}>
-                  {paymentType === 'cash' ? 'Place Order' : 'Proceed to Payment'}
-                </Text>
+                style={[styles.placeOrderButton, isPlacingOrder && styles.placeOrderDisabled]}
+                onPress={handleProceedToPayment}
+                disabled={isPlacingOrder}>
+                {isPlacingOrder ? (
+                  <ActivityIndicator color={COLORS.textWhite} />
+                ) : (
+                  <Text style={styles.placeOrderButtonText}>
+                    {paymentType === 'cash' ? 'Place Order' : 'Proceed to Payment'}
+                  </Text>
+                )}
               </TouchableOpacity>
 
             </ScrollView>
@@ -681,6 +772,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
+  historyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+  },
+  historyLinkText: {fontSize: 12, fontWeight: '700', color: COLORS.accentDark},
+  paymentNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#B9E3C2',
+    backgroundColor: '#EEF8F0',
+  },
+  paymentNoticeText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textDark},
   categorySection: {
     backgroundColor: COLORS.background,
     paddingVertical: 12,
@@ -715,6 +830,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 28,
+  },
+  emptyProductsState: {
+    minHeight: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  emptyProductsTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  emptyProductsText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.textGray,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  inventoryButton: {
+    marginTop: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 17,
+    borderRadius: 11,
+    backgroundColor: COLORS.accent,
+  },
+  inventoryButtonText: {
+    color: COLORS.textWhite,
+    fontSize: 13,
+    fontWeight: '700',
   },
   productRow: {
     justifyContent: 'space-between',
@@ -1116,6 +1263,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
+  placeOrderDisabled: {opacity: 0.65},
   placeOrderButtonText: {
     fontSize: 16,
     fontWeight: 'bold',

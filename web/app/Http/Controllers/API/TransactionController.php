@@ -23,6 +23,13 @@ class TransactionController extends Controller
             $query->where('type', $request->type);
         }
 
+        if ($request->filled('source')) {
+            $query->where('source', $request->source);
+        }
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
+        }
+
         // Filter by date range
         if ($request->has('from')) {
             $query->where('transaction_date', '>=', $request->from);
@@ -37,7 +44,9 @@ class TransactionController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('category', 'like', "%{$search}%")
                   ->orWhere('source', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('transaction_date', 'like', "%{$search}%")
+                  ->orWhere('amount', 'like', "%{$search}%");
             });
         }
 
@@ -47,6 +56,21 @@ class TransactionController extends Controller
         return response()->json([
             'transactions' => $transactions->items(),
             'meta' => ['current_page' => $transactions->currentPage(), 'last_page' => $transactions->lastPage(), 'total' => $transactions->total()],
+        ]);
+    }
+
+    // GET /api/transactions/categories?source=Cash
+    public function categories(Request $request)
+    {
+        $query = Transaction::where('business_id', $request->user()->business_id)
+            ->whereNotNull('category');
+
+        if ($request->filled('source')) {
+            $query->where('source', $request->source);
+        }
+
+        return response()->json([
+            'categories' => $query->distinct()->orderBy('category')->pluck('category'),
         ]);
     }
 
@@ -132,9 +156,15 @@ class TransactionController extends Controller
     // DELETE /api/transactions/{id}
     public function destroy(Request $request, $id)
     {
-        abort_unless($request->user()->isOwner(), 403, 'Only owners can delete transactions.');
         $transaction = Transaction::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
+
+        abort_unless(
+            $request->user()->isOwner()
+                || ($request->user()->isStaff() && (int) $transaction->user_id === (int) $request->user()->id),
+            403,
+            'Staff can only delete transactions they recorded.'
+        );
 
         $this->ensureMutable($transaction);
 

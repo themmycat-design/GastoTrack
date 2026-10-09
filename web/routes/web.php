@@ -35,6 +35,7 @@ Route::get('/business-status', function () {
 Route::middleware(['auth', 'owner'])->group(function () {
     // Transactions (Read-only for owners)
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
+    Route::get('/transactions/categories', [TransactionController::class, 'categories'])->name('transactions.categories');
     
     // Stock CRUD
     Route::resource('stock', StockController::class)->except(['show', 'create', 'edit']);

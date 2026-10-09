@@ -145,6 +145,38 @@ export const TransactionProvider = ({ children }) => {
     }
   }, [userToken]);
 
+  const queryTransactions = useCallback(async ({page = 1, search, source, category} = {}) => {
+    const params = {page};
+    if (search?.trim()) params.search = search.trim();
+    if (source && source !== 'All') params.source = source;
+    if (category && category !== 'All') params.category = category;
+
+    try {
+      const response = await api.get('/transactions', {params});
+      const records = response.data?.transactions || (Array.isArray(response.data) ? response.data : []);
+      return {
+        success: true,
+        transactions: records.map(normalizeTransaction),
+        pagination: normalizePagination(response.data?.meta, page, records.length),
+      };
+    } catch (error) {
+      console.log('Error querying transactions:', error.response?.data || error.message);
+      return {success: false, error};
+    }
+  }, []);
+
+  const fetchTransactionCategories = useCallback(async source => {
+    try {
+      const response = await api.get('/transactions/categories', {
+        params: source && source !== 'All' ? {source} : {},
+      });
+      return {success: true, categories: response.data?.categories || []};
+    } catch (error) {
+      console.log('Error fetching transaction categories:', error.response?.data || error.message);
+      return {success: false, error};
+    }
+  }, []);
+
   const hasMoreTransactions = pagination.currentPage < pagination.lastPage;
   const loadMoreTransactions = useCallback(() => {
     if (!isLoading && !isLoadingMore && pagination.currentPage < pagination.lastPage) {
@@ -182,6 +214,18 @@ export const TransactionProvider = ({ children }) => {
     }
   };
 
+  const deleteTransaction = async transactionId => {
+    try {
+      await api.delete(`/transactions/${transactionId}`);
+      setTransactions(current => current.filter(item => item.id !== transactionId));
+      setPagination(current => ({...current, total: Math.max(0, current.total - 1)}));
+      return {success: true};
+    } catch (error) {
+      console.log('Error deleting transaction:', error.response?.data || error.message);
+      return {success: false, error};
+    }
+  };
+
   // I-load ang data kapag nag-login ang user
   useEffect(() => {
     console.log('[TransactionContext] userToken changed:', userToken ? 'Token exists' : 'No token');
@@ -205,9 +249,12 @@ export const TransactionProvider = ({ children }) => {
       hasMoreTransactions,
       transactionTotal: pagination.total,
       fetchTransactions, 
+      queryTransactions,
+      fetchTransactionCategories,
       loadMoreTransactions,
       addTransaction,
       updateTransaction,
+      deleteTransaction,
       transactionOptions,
       optionsLoading,
       fetchTransactionOptions,

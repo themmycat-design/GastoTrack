@@ -11,8 +11,8 @@ import {
 import {AuthContext} from '../context/AuthContext';
 
 const LoginScreen = () => {
-  const [email, setEmail] = useState('staff1@gastotrack.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const {login} = useContext(AuthContext);
 
@@ -42,6 +42,7 @@ const LoginScreen = () => {
           style={styles.input}
           value={email}
           onChangeText={setEmail}
+          placeholder="Enter your email"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
@@ -57,7 +58,12 @@ const LoginScreen = () => {
           returnKeyType="done"
           onSubmitEditing={handleLogin}
           editable={!loading}
+          placeholder="Enter your password"
         />
+
+        <Text style={styles.helpText}>
+          Need a password reset? Contact your business owner.
+        </Text>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -113,6 +119,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 16,
     color: '#0A2E2A',
+  },
+  helpText: {
+    color: '#647370',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: -7,
+    marginBottom: 12,
   },
   button: {
     backgroundColor: '#00C897',

@@ -1,3 +1,86 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --gt-brand: #00C897;
+    --gt-brand-strong: #00A87E;
+    --gt-ink: #0A2E2A;
+    --gt-canvas: #F4F8F7;
+    --gt-border: #DDE9E5;
+}
+
+.gt-card {
+    border: 1px solid var(--gt-border);
+    border-radius: 1.25rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(10, 46, 42, .045);
+}
+
+.gt-lift {
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+
+.gt-lift:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0, 168, 126, .28);
+    box-shadow: 0 16px 32px rgba(10, 46, 42, .09);
+}
+
+.gt-focus:focus-visible {
+    outline: 3px solid rgba(0, 200, 151, .38);
+    outline-offset: 3px;
+}
+
+.gt-enter {
+    animation: gt-enter .55s cubic-bezier(.2, .75, .25, 1) both;
+}
+
+.gt-enter-1 { animation-delay: .06s; }
+.gt-enter-2 { animation-delay: .12s; }
+.gt-enter-3 { animation-delay: .18s; }
+.gt-enter-4 { animation-delay: .24s; }
+
+.gt-hero-glow {
+    background:
+        radial-gradient(circle at 83% 16%, rgba(0, 200, 151, .18), transparent 27rem),
+        linear-gradient(145deg, #fff 0%, #f3fbf8 60%, #e8f8f2 100%);
+}
+
+.gt-brand-panel {
+    background: linear-gradient(135deg, #0A2E2A 0%, #08745D 65%, #00A87E 130%);
+}
+
+.gt-owner-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
+.gt-owner-page select,
+.gt-owner-page textarea {
+    border-color: var(--gt-border);
+    border-radius: .75rem;
+    background-color: #fff;
+    color: var(--gt-ink);
+}
+
+.gt-owner-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):focus,
+.gt-owner-page select:focus,
+.gt-owner-page textarea:focus {
+    border-color: var(--gt-brand-strong);
+    outline: 2px solid rgba(0, 200, 151, .18);
+    outline-offset: 1px;
+}
+
+.gt-owner-page input:disabled,
+.gt-owner-page select:disabled,
+.gt-owner-page textarea:disabled {
+    background-color: var(--gt-canvas);
+}
+
+@keyframes gt-enter {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gt-enter { animation: none; }
+    .gt-lift { transition: none; }
+    .gt-lift:hover { transform: none; }
+}

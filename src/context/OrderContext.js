@@ -27,6 +27,7 @@ const normalizePagination = (meta, page, count) => ({
 
 export const OrderProvider = ({children}) => {
   const [orders, setOrders] = useState([]);
+  const [cart, setCart] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
@@ -64,6 +65,7 @@ export const OrderProvider = ({children}) => {
       fetchOrders();
     } else {
       setOrders([]);
+      setCart([]);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
     }
   }, [fetchOrders, userToken]);
@@ -86,6 +88,8 @@ export const OrderProvider = ({children}) => {
 
   return <OrderContext.Provider value={{
     orders,
+    cart,
+    setCart,
     orderTotal: pagination.total,
     isLoading,
     isLoadingMore,

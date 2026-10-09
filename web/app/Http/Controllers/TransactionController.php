@@ -56,14 +56,16 @@ class TransactionController extends Controller
             $query->whereDate('transaction_date', '<=', $request->date_to);
         }
         
-        $summaryQuery = clone $query;
-
         // Get transactions with pagination
         $transactions = $query->orderBy('transaction_date', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();
         $this->addOrderedProductNames($transactions->getCollection(), $businessId);
+
+        if ($request->query('fragment') === 'activity') {
+            return view('transactions.partials.activity', compact('transactions'));
+        }
 
         $sourceOptions = ['Cash', 'Maya', 'GCash', 'Bank Transfer', 'Credit Card'];
         $categoryOptions = collect();
@@ -82,11 +84,37 @@ class TransactionController extends Controller
                 ->pluck('category');
         }
         
-        // Calculate totals for filtered results
-        $totalIncome = (clone $summaryQuery)->where('type', 'income')->sum('amount');
-        $totalExpense = (clone $summaryQuery)->where('type', 'expense')->sum('amount');
+        // Keep the summary cards business-wide; filters apply to the activity list only.
+        $totalIncome = Transaction::where('business_id', $businessId)
+            ->where('type', 'income')
+            ->sum('amount');
+        $totalExpense = Transaction::where('business_id', $businessId)
+            ->where('type', 'expense')
+            ->sum('amount');
         
         return view('transactions.index', compact('transactions', 'totalIncome', 'totalExpense', 'sourceOptions', 'categoryOptions'));
+    }
+
+    public function categories(Request $request)
+    {
+        $validated = $request->validate([
+            'source' => ['required', 'string', 'max:50'],
+        ]);
+
+        $sourceAliases = match (strtolower($validated['source'])) {
+            'bank transfer' => ['bank transfer', 'bank'],
+            'credit card' => ['credit card', 'credit_card'],
+            default => [strtolower($validated['source'])],
+        };
+
+        $categories = Transaction::where('business_id', $request->user()->business_id)
+            ->whereIn(DB::raw('LOWER(source)'), $sourceAliases)
+            ->whereNotNull('category')
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category');
+
+        return response()->json(['categories' => $categories]);
     }
 
     /**

@@ -1,20 +1,15 @@
-import GeminiService from './GeminiService';
-import { isGeminiConfigured } from '../config/gemini.config';
-
 /**
- * OCR Service for Receipt Scanning
- * Uses Google Gemini Vision API for accurate text extraction
- * Falls back to ML Kit if Gemini not configured
+ * OCR Service for Receipt Scanning.
+ * Uses on-device ML Kit, so receipt scans do not require network access or an
+ * AI credential in the mobile app.
  */
 
 // Common keywords found in receipts
 const AMOUNT_KEYWORDS = ['total', 'amount', 'subtotal', 'grand total', 'sum'];
-const DATE_KEYWORDS = ['date', 'time', 'transaction date'];
-const MERCHANT_KEYWORDS = ['merchant', 'store', 'shop', 'from'];
 
 // E-wallet and payment source patterns
 const PAYMENT_SOURCES = {
-  gcash: /gcash|g\-?cash/i,
+  gcash: /gcash|g-?cash/i,
   maya: /maya|paymaya/i,
   grabpay: /grab\s?pay|grabpay/i,
   shopeepay: /shopee\s?pay|shopeepay/i,
@@ -39,18 +34,10 @@ const CATEGORY_PATTERNS = {
 };
 
 /**
- * Scan receipt image and extract text using Gemini Vision API
- * Falls back to ML Kit if Gemini not configured
+ * Scan receipt image and extract text using on-device ML Kit.
  */
 export const scanReceipt = async (imageUri) => {
   try {
-    // Try Gemini Vision API first if configured
-    if (isGeminiConfigured()) {
-      return await scanReceiptWithGemini(imageUri);
-    }
-    
-    // Fallback to ML Kit (local OCR)
-    console.log('Gemini not configured, using ML Kit fallback...');
     const TextRecognition = require('@react-native-ml-kit/text-recognition').default;
     const result = await TextRecognition.recognize(imageUri);
     return {
@@ -65,68 +52,6 @@ export const scanReceipt = async (imageUri) => {
       success: false,
       error: error.message,
     };
-  }
-};
-
-/**
- * Scan receipt with Gemini Vision API
- */
-const scanReceiptWithGemini = async (imageUri) => {
-  try {
-    // Convert image to base64
-    const base64Image = await imageToBase64(imageUri);
-    
-    // Create detailed prompt for receipt extraction
-    const prompt = `You are an expert receipt OCR system. Extract ALL text from this receipt image.
-
-Instructions:
-1. Extract ALL visible text, numbers, and symbols
-2. Maintain the original layout and order
-3. Include store name, items, prices, totals, date, payment method
-4. Be extremely accurate with numbers and amounts
-5. If you see currency symbols (₱, PHP, $), include them
-
-Format your response as plain text, preserving the receipt structure.`;
-
-    const result = await GeminiService.generateFromImage(base64Image, prompt);
-    
-    if (result.success) {
-      return {
-        success: true,
-        text: result.text,
-        method: 'gemini',
-        rawResponse: result.rawResponse,
-      };
-    } else {
-      throw new Error(result.error || 'Gemini Vision API failed');
-    }
-  } catch (error) {
-    console.error('Gemini OCR Error:', error);
-    throw error;
-  }
-};
-
-/**
- * Convert image URI to base64
- */
-const imageToBase64 = async (imageUri) => {
-  try {
-    // For React Native, use fetch to read file as blob then convert
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-    
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error('Image to Base64 error:', error);
-    throw error;
   }
 };
 
@@ -220,10 +145,12 @@ const extractDate = (lines) => {
   
   for (const line of lines) {
     // Pattern: MM/DD/YYYY or DD/MM/YYYY
-    const datePattern1 = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/;
+    const datePattern1 = /(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/;
     const match1 = line.match(datePattern1);
     if (match1) {
-      const [_, part1, part2, year] = match1;
+      const part1 = match1[1];
+      const part2 = match1[2];
+      const year = match1[3];
       const fullYear = year.length === 2 ? `20${year}` : year;
       // Assume MM/DD/YYYY format
       return `${fullYear}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
@@ -233,7 +160,9 @@ const extractDate = (lines) => {
     const datePattern2 = /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})/i;
     const match2 = line.match(datePattern2);
     if (match2) {
-      const [_, month, day, year] = match2;
+      const month = match2[1];
+      const day = match2[2];
+      const year = match2[3];
       const monthMap = {
         jan: '01', feb: '02', mar: '03', apr: '04',
         may: '05', jun: '06', jul: '07', aug: '08',

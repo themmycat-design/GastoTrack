@@ -38,6 +38,7 @@ $registerProtectedRoutes = function (): void {
     Route::get('/transactions-summary', [TransactionController::class, 'summary']);
     Route::get('/transactions/summary', [TransactionController::class, 'summary']);
     Route::post('/transactions/batch', [TransactionController::class, 'batch']);
+    Route::get('/transactions/categories', [TransactionController::class, 'categories']);
     Route::apiResource('transactions', TransactionController::class);
     Route::get('/transaction-options', [TransactionOptionController::class, 'index']);
     Route::post('/transaction-options', [TransactionOptionController::class, 'store']);

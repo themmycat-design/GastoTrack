@@ -114,7 +114,28 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={styles.incomeAmount}>{todayIncome.toFixed(2)}</Text>
           </View>
           <Text style={styles.incomeDescription}>Total income logged today</Text>
+          {todayIncome <= 0 ? (
+            <Text style={styles.incomeEmptyHint}>New sales will appear here when recorded.</Text>
+          ) : null}
         </View>
+
+        {transactions.length === 0 && availableProducts.length === 0 ? (
+          <View style={styles.gettingStartedCard}>
+            <View style={styles.gettingStartedIcon}>
+              <Icon name="lightbulb-on-outline" size={22} color={COLORS.accentDark} />
+            </View>
+            <View style={styles.gettingStartedCopy}>
+              <Text style={styles.gettingStartedTitle}>Ready to get started?</Text>
+              <Text style={styles.gettingStartedText}>
+                Add stock items and products in Inventory, then create an order or record a transaction. Contact your business owner if setup is restricted.
+              </Text>
+              <TouchableOpacity style={styles.gettingStartedAction} onPress={() => navigation.navigate('Stock')}>
+                <Text style={styles.gettingStartedActionText}>Open Inventory</Text>
+                <Icon name="arrow-right" size={17} color={COLORS.accentDark} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.quickActions}>
           {[
@@ -140,12 +161,10 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Products</Text>
           <TouchableOpacity
             onPress={() =>
-              navigation.navigate(
-                'Orders',
-                selectedCategory === 'All'
-                  ? undefined
-                  : {category: selectedCategory},
-              )
+              navigation.navigate('Orders', {
+                screen: 'OrderQueue',
+                params: selectedCategory === 'All' ? undefined : {category: selectedCategory},
+              })
             }>
               <Text style={styles.viewAllText}>View all &gt;</Text>
             </TouchableOpacity>
@@ -201,7 +220,10 @@ const DashboardScreen = ({ navigation }) => {
                 <TouchableOpacity
                   key={product.id}
                   style={styles.productCard}
-                  onPress={() => navigation.navigate('Orders', {category: product.category})}>
+                  onPress={() => navigation.navigate('Orders', {
+                    screen: 'OrderQueue',
+                    params: {category: product.category},
+                  })}>
                   <View style={styles.productImageContainer}>
                     {product.image ? (
                       <Image source={{ uri: product.image }} style={styles.productImage} />
@@ -356,6 +378,36 @@ const styles = StyleSheet.create({
     color: COLORS.textWhite,
     opacity: 0.72,
   },
+  incomeEmptyHint: {
+    fontSize: 11,
+    color: COLORS.textWhite,
+    opacity: 0.62,
+    marginTop: 5,
+  },
+  gettingStartedCard: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  gettingStartedIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceMuted,
+    marginRight: 12,
+  },
+  gettingStartedCopy: {flex: 1},
+  gettingStartedTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
+  gettingStartedText: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 5},
+  gettingStartedAction: {flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10},
+  gettingStartedActionText: {fontSize: 12, fontWeight: '700', color: COLORS.accentDark},
   quickActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',

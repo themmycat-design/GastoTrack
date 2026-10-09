@@ -7,7 +7,7 @@ import { COLORS, RADIUS, SHADOWS } from '../theme';
 
 import DashboardScreen from '../screens/staff/DashboardScreen';
 import TransactionsStack from './TransactionsStack';
-import OrderQueueScreen from '../screens/staff/OrderQueueScreen';
+import OrdersStack from './OrdersStack';
 import StockScreen from '../screens/staff/StockScreen';
 import ProfileStack from './ProfileStack';
 import AiAssistantScreen from '../screens/staff/AiAssistantScreen';
@@ -95,7 +95,7 @@ const StaffNavigator = () => {
       }}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Transactions" component={TransactionsStack} />
-      <Tab.Screen name="Orders" component={OrderQueueScreen} />
+      <Tab.Screen name="Orders" component={OrdersStack} />
       <Tab.Screen name="Stock" component={StockScreen} />
       <Tab.Screen name="Assistant" component={AiAssistantScreen} />
       <Tab.Screen name="Profile" component={ProfileStack} />

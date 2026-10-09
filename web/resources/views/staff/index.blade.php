@@ -1,87 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Staff Management - GastoTrack</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Staff | GastoTrack</title>
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet">
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-50">
+<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased" style="font-family: Inter, ui-sans-serif, system-ui, sans-serif">
     <div class="min-h-screen lg:flex">
         @include('layouts.owner-navigation')
 
-        <!-- Main Content -->
-        <div class="min-w-0 flex-1">
-            <div class="mx-auto max-w-7xl px-5 py-6 sm:px-8 sm:py-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-6">
+        <main class="min-w-0 flex-1">
+            @include('layouts.owner-topbar')
+
+            <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <section class="gt-enter flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">Staff Management</h1>
-                <p class="text-gray-600 mt-1">Manage users and access control</p>
+                <p class="text-sm font-semibold text-[#00A87E]">Your team</p>
+                <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Staff</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-500">Manage team accounts and access to your business workspace.</p>
             </div>
-            <button onclick="openAddModal()" class="px-6 py-3 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all" style="background-color: #00C897;">
+            <button onclick="openAddModal()" class="gt-focus inline-flex items-center justify-center gap-2 rounded-xl bg-[#00A87E] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#08745D]">
                 + Add User
             </button>
-        </div>
+        </section>
 
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="gt-card gt-lift gt-enter gt-enter-1 p-5 sm:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-600 mb-1">Total Users</p>
-                        <p class="text-2xl font-bold text-gray-900">{{ $totalUsers }}</p>
+                        <p class="text-sm font-semibold text-slate-500">Total users</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#0A2E2A]">{{ $totalUsers }}</p>
                     </div>
-                    <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background-color: rgba(0, 200, 151, 0.1);">
-                        <span class="text-2xl">👥</span>
+                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.5 5.5 0 0 1 3.5 5"/></svg>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="gt-card gt-lift gt-enter gt-enter-2 p-5 sm:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-600 mb-1">Staff Members</p>
-                        <p class="text-2xl font-bold" style="color: #00C897;">{{ $totalStaff }}</p>
+                        <p class="text-sm font-semibold text-slate-500">Staff members</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $totalStaff }}</p>
                     </div>
-                    <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background-color: rgba(0, 200, 151, 0.1);">
-                        <span class="text-2xl">👤</span>
+                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="gt-card gt-lift gt-enter gt-enter-3 p-5 sm:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-600 mb-1">Owners</p>
-                        <p class="text-2xl font-bold text-purple-600">{{ $totalOwners }}</p>
+                        <p class="text-sm font-semibold text-slate-500">Owners</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $totalOwners }}</p>
                     </div>
-                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span class="text-2xl text-purple-600">👑</span>
+                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 8 4.5 4 4.5-7 4.5 7L21 8l-2 11H5L3 8Z"/><path d="M6 16h12"/></svg>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Filters -->
-        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <form method="GET" action="{{ route('staff.index') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="gt-card gt-enter gt-enter-4 p-5 sm:p-6">
+            <form id="staff-filter-form" method="GET" action="{{ route('staff.index') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Search -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, email, phone..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
+                    <label class="mb-2 block text-sm font-semibold text-slate-700">Search</label>
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, email, phone..." class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                 </div>
 
                 <!-- Role Filter -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                    <select name="role" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
+                    <label class="mb-2 block text-sm font-semibold text-slate-700">Role</label>
+                    <select name="role" class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                         <option value="">All Roles</option>
                         <option value="owner" {{ request('role') == 'owner' ? 'selected' : '' }}>Owner</option>
                         <option value="staff" {{ request('role') == 'staff' ? 'selected' : '' }}>Staff</option>
@@ -90,20 +87,22 @@
 
                 <!-- Buttons -->
                 <div class="flex items-end space-x-3">
-                    <button type="submit" class="px-6 py-2 text-white font-semibold rounded-lg hover:opacity-90" style="background-color: #00C897;">
-                        Apply Filters
+                    <button type="submit" class="gt-focus rounded-xl bg-[#00A87E] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#08745D]">
+                        Apply filters
                     </button>
-                    <a href="{{ route('staff.index') }}" class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300">
-                        Clear
+                    <a id="clear-staff-filters" href="{{ route('staff.index') }}" class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-5 py-3 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
+                        Clear filters
                     </a>
                 </div>
             </form>
         </div>
 
         <!-- Staff Table -->
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+        <div id="owner-staff-list" class="gt-card gt-enter gt-enter-4 overflow-hidden" aria-live="polite" aria-busy="false">
+            <div data-staff-loading class="hidden border-b border-[#C8DED7] bg-[#EAF8F2] px-5 py-3 text-sm font-semibold text-[#08745D] sm:px-6" role="status">Updating team list...</div>
+            <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-[#EAF2EF]">
+                <thead class="bg-[#F8FCFA]">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
@@ -113,12 +112,12 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="divide-y divide-[#EAF2EF] bg-white">
                     @forelse($staff as $user)
-                    <tr class="hover:bg-gray-50">
+                    <tr class="transition hover:bg-[#FBFDFC]">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
-                                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background-color: {{ $user->role == 'owner' ? '#9333EA' : '#00C897' }};">
+                                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAF8F2] font-extrabold text-[#08745D]">
                                     {{ strtoupper(substr($user->name, 0, 1)) }}
                                 </div>
                                 <div class="ml-3">
@@ -137,47 +136,48 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             @if($user->role == 'owner')
-                                <span class="px-3 py-1 text-xs font-semibold text-purple-800 bg-purple-100 rounded-full">👑 Owner</span>
+                                <span class="rounded-full bg-[#EAF8F2] px-3 py-1 text-xs font-bold text-[#08745D]">Owner</span>
                             @else
-                                <span class="px-3 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">👤 Staff</span>
+                                <span class="rounded-full bg-[#F4F8F7] px-3 py-1 text-xs font-bold text-slate-600">Staff</span>
                             @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {{ $user->created_at->format('M d, Y') }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            <button onclick="openEditModal({{ $user->id }}, '{{ addslashes($user->name) }}', '{{ $user->email }}', '{{ $user->phone ?? '' }}', '{{ $user->role }}')" class="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
+                            <button onclick="openEditModal({{ $user->id }}, '{{ addslashes($user->name) }}', '{{ $user->email }}', '{{ $user->phone ?? '' }}', '{{ $user->role }}')" class="gt-focus rounded-lg px-2 py-1 font-bold text-[#08745D] hover:bg-[#EAF8F2]">Edit</button>
                             @if($user->id !== Auth::id())
-                            <button onclick="deleteUser({{ $user->id }})" class="text-red-600 hover:text-red-800 font-medium">Delete</button>
+                            <button onclick="deleteUser({{ $user->id }})" class="gt-focus rounded-lg px-2 py-1 font-bold text-rose-600 hover:bg-rose-50">Delete</button>
                             @endif
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                        <td colspan="6" class="px-6 py-14 text-center text-slate-500">
                             <div class="flex flex-col items-center">
-                                <span class="text-4xl mb-2">👥</span>
-                                <p class="text-lg font-medium">No users found</p>
-                                <p class="text-sm mt-1">Add users to manage your team</p>
+                                <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF8F2] text-xl text-[#08745D]" aria-hidden="true">＋</span>
+                                <p class="mt-3 text-sm font-bold text-[#0A2E2A]">No users found</p>
+                                <p class="mt-1 text-sm">Add users to manage your team.</p>
                             </div>
                         </td>
                     </tr>
                     @endforelse
                 </tbody>
             </table>
+            </div>
 
             <!-- Pagination -->
-            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+            <div class="border-t border-[#EAF2EF] bg-[#FBFDFC] px-5 py-4 sm:px-6">
                 {{ $staff->links() }}
             </div>
         </div>
     </div>
 
     <!-- Add/Edit User Modal -->
-    <div id="userModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-screen overflow-y-auto">
+    <div id="userModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+        <div class="gt-card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5 shadow-2xl sm:p-7">
             <div class="flex justify-between items-center mb-4">
-                <h2 id="modalTitle" class="text-2xl font-bold text-gray-900">Add User</h2>
+                <h2 id="modalTitle" class="text-2xl font-extrabold text-[#0A2E2A]">Add User</h2>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
                     <span class="text-2xl">&times;</span>
                 </button>
@@ -232,10 +232,10 @@
 
                 <!-- Buttons -->
                 <div class="flex space-x-3 mt-6">
-                    <button type="submit" class="flex-1 px-6 py-3 text-white font-semibold rounded-lg hover:opacity-90" style="background-color: #00C897;">
+                    <button type="submit" class="gt-focus flex-1 rounded-xl bg-[#00A87E] px-5 py-3 font-bold text-white transition hover:bg-[#08745D]">
                         Save User
                     </button>
-                    <button type="button" onclick="closeModal()" class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300">
+                    <button type="button" onclick="closeModal()" class="gt-focus flex-1 rounded-xl border border-[#C8DED7] bg-white px-5 py-3 font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
                         Cancel
                     </button>
                 </div>
@@ -309,6 +309,92 @@
             }
         }
 
+        (() => {
+            const form = document.getElementById('staff-filter-form');
+            const clearLink = document.getElementById('clear-staff-filters');
+            let requestController = null;
+            let requestSequence = 0;
+
+            const cleanUrl = (value) => {
+                const url = new URL(value, window.location.origin);
+                url.searchParams.delete('fragment');
+                return url;
+            };
+
+            async function loadStaff(value, updateHistory = false) {
+                const displayUrl = cleanUrl(value);
+                requestController?.abort();
+                const controller = new AbortController();
+                const sequence = ++requestSequence;
+                requestController = controller;
+
+                const currentList = document.getElementById('owner-staff-list');
+                const loadingMessage = currentList.querySelector('[data-staff-loading]');
+                currentList.setAttribute('aria-busy', 'true');
+                currentList.classList.add('opacity-60');
+                loadingMessage.textContent = 'Updating team list...';
+                loadingMessage.classList.remove('hidden');
+
+                try {
+                    const response = await fetch(displayUrl, {
+                        headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html'},
+                        signal: controller.signal,
+                    });
+                    if (!response.ok) throw new Error('Staff list could not be loaded.');
+
+                    const responseDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
+                    const updatedList = responseDocument.getElementById('owner-staff-list');
+                    if (!updatedList) throw new Error('Staff response was incomplete.');
+                    if (sequence !== requestSequence) return;
+
+                    currentList.replaceWith(updatedList);
+                    if (updateHistory) {
+                        window.history.pushState({}, '', displayUrl.pathname + displayUrl.search);
+                    }
+                } catch (error) {
+                    if (error.name !== 'AbortError' && sequence === requestSequence) {
+                        currentList.setAttribute('aria-busy', 'false');
+                        currentList.classList.remove('opacity-60');
+                        loadingMessage.textContent = 'Could not refresh the staff list. Please try again.';
+                        loadingMessage.classList.remove('hidden');
+                    }
+                } finally {
+                    if (requestController === controller) requestController = null;
+                }
+            }
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const url = new URL(form.action, window.location.origin);
+                new FormData(form).forEach((value, key) => {
+                    if (String(value).trim()) url.searchParams.set(key, value);
+                });
+                loadStaff(url, true);
+            });
+
+            clearLink.addEventListener('click', (event) => {
+                event.preventDefault();
+                form.querySelector('[name="search"]').value = '';
+                form.querySelector('[name="role"]').value = '';
+                loadStaff(clearLink.href, true);
+            });
+
+            document.addEventListener('click', (event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                const pageLink = event.target.closest('#owner-staff-list nav[role="navigation"] a[href], #owner-staff-list .pagination a[href]');
+                if (!pageLink) return;
+                event.preventDefault();
+                loadStaff(pageLink.href, true);
+            });
+
+            window.addEventListener('popstate', () => {
+                const url = new URL(window.location.href);
+                form.querySelector('[name="search"]').value = url.searchParams.get('search') || '';
+                form.querySelector('[name="role"]').value = url.searchParams.get('role') || '';
+                loadStaff(url);
+            });
+        })();
+
         // Close modal when clicking outside
         document.getElementById('userModal').addEventListener('click', function(e) {
             if (e.target === this) {
@@ -316,8 +402,7 @@
             }
         });
     </script>
-            </div>
-        </div>
+        </main>
     </div>
 </body>
 </html>
