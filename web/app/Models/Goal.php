@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Services\MonthlySalesGoals;
 
 class Goal extends Model
 {
@@ -18,12 +19,17 @@ class Goal extends Model
         'current_amount',
         'deadline',
         'status',
+        'goal_type',
+        'period_start',
+        'completed_at',
     ];
 
     protected $casts = [
         'target_amount' => 'decimal:2',
         'current_amount' => 'decimal:2',
         'deadline' => 'date',
+        'period_start' => 'date',
+        'completed_at' => 'datetime',
     ];
 
     /**
@@ -43,7 +49,11 @@ class Goal extends Model
             return 0;
         }
         
-        return min(($this->current_amount / $this->target_amount) * 100, 100);
+        $current = $this->goal_type === 'monthly_confirmed_sales'
+            ? app(MonthlySalesGoals::class)->recordedSales($this)
+            : (float) $this->current_amount;
+
+        return min(($current / (float) $this->target_amount) * 100, 100);
     }
 
     /**
@@ -51,6 +61,10 @@ class Goal extends Model
      */
     public function isCompleted(): bool
     {
+        if ($this->goal_type === 'monthly_confirmed_sales') {
+            return app(MonthlySalesGoals::class)->recordedSales($this) >= (float) $this->target_amount;
+        }
+
         return $this->status === 'completed' || $this->current_amount >= $this->target_amount;
     }
 

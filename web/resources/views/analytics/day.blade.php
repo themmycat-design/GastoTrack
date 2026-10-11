@@ -60,8 +60,7 @@
                     @forelse($orders as $order)
                         <a href="{{ route('orders.show', $order->id) }}" class="gt-focus flex items-start justify-between gap-3 px-5 py-4 transition hover:bg-[#FBFDFC] sm:px-6">
                             <div class="min-w-0">
-                                <p class="break-all font-bold text-[#08745D]">{{ $order->order_number ?: 'Order #'.$order->id }}</p>
-                                <p class="mt-1 break-words text-sm text-slate-600">{{ $order->items->map(fn ($item) => $item->quantity.'× '.$item->product_name)->implode(', ') ?: 'No products recorded' }}</p>
+                                <p class="break-words font-bold text-[#08745D]">{{ $order->items->map(fn ($item) => $item->quantity.'× '.$item->product_name)->implode(', ') ?: 'Order details' }}</p>
                                 <p class="mt-1 text-xs text-slate-500">{{ ucfirst($order->status) }} · Payment: {{ str_replace('_', ' ', ucfirst($order->payment_status ?: 'pending')) }} · {{ strtoupper($order->payment_method ?: 'unknown') }}</p>
                             </div>
                             <p class="shrink-0 text-right font-extrabold">{{ $currencyPrefix }}{{ number_format((float) $order->total, 2) }} →</p>

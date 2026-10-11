@@ -14,13 +14,7 @@
 @php
     $currencyPrefix = $currencyCode === 'PHP' ? '₱' : $currencyCode.' ';
     $ledger = $ledger ?? ['income' => 0, 'expenses' => 0, 'netRecordedMovement' => 0];
-    $attentionLabels = [
-        'pending' => ['Awaiting payment', 'Orders not yet paid'],
-        'detected' => ['Awaiting verification', 'A notification was detected; staff confirmation is still required'],
-        'refund_pending' => ['Refund pending', 'Manual refund confirmation remains outstanding'],
-    ];
     $periodLabel = $periodStart->format('M j').'–'.$periodEnd->format('M j, Y');
-    $hasPaymentAttention = array_sum($attentionPayments) > 0;
     $needsSetup = $activeProductCount === 0 && $activeStockCount === 0 && $recentTransactions->isEmpty();
 @endphp
 
@@ -41,7 +35,21 @@
                 <a href="{{ route('products.index') }}" class="gt-focus inline-flex items-center gap-2 rounded-xl bg-[#00A87E] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#08745D]">Manage products</a>
                 @endunless
             </section>
+            <section class="gt-card gt-enter flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6" aria-label="Monthly confirmed sales goal">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Monthly sales goal</p>
+                    @if($monthlyGoal)
+                        <p class="mt-2 text-xl font-extrabold text-[#0A2E2A]">{{ $currencyPrefix }}{{ number_format((float) $monthlyGoal['current_amount'], 2) }} <span class="text-sm font-medium text-slate-500">of {{ $currencyPrefix }}{{ number_format((float) $monthlyGoal['target_amount'], 2) }}</span></p>
+                        <p class="mt-1 text-xs text-slate-500">{{ $monthlyGoal['target_reached'] ? 'Target reached' : number_format($monthlyGoal['progress_percentage'], 1).'% complete' }} · Confirmed, completed orders only</p>
+                    @else
+                        <p class="mt-2 text-sm text-slate-500">Set a target for {{ $periodStart->format('F') }} and track confirmed sales automatically.</p>
+                    @endif
+                </div>
+                <a href="{{ route('goals.index') }}" class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">{{ $monthlyGoal ? 'View goal' : 'Set target' }} →</a>
+            </section>
 
+            <div class="{{ $needsSetup ? '' : 'grid items-start gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]' }}">
+                <div class="min-w-0 space-y-6">
             <section aria-labelledby="financial-summary-heading">
                 <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
                     <div>
@@ -50,7 +58,7 @@
                     </div>
                     <a href="{{ route('analytics.index') }}" class="gt-focus text-sm font-bold text-[#08745D] hover:underline">Open analytics <span aria-hidden="true">→</span></a>
                 </div>
-                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="grid gap-4 sm:grid-cols-2">
                     @php
                         $financialCards = [
                             ['label' => 'Recorded income', 'value' => $ledger['income'], 'caption' => 'All income entered this month', 'tone' => 'green'],
@@ -68,32 +76,40 @@
                         </article>
                     @endforeach
                 </div>
-                <p class="mt-3 text-xs leading-5 text-slate-500">Confirmed order sales are already included in recorded income. Pending refunds remain in the ledger until staff confirms the reversal.</p>
             </section>
-            @if($hasPaymentAttention)
-                <section class="gt-card overflow-hidden" aria-labelledby="payment-attention-heading">
-                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAF2EF] px-5 py-4 sm:px-6">
-                        <div>
-                            <h3 id="payment-attention-heading" class="font-extrabold text-[#0A2E2A]">Payments needing attention</h3>
-                            <p class="mt-1 text-xs text-slate-500">Wallet notifications require staff verification before payment is confirmed.</p>
-                        </div>
-                        <a href="{{ route('orders.index') }}" class="gt-focus text-sm font-bold text-[#08745D] hover:underline">View orders →</a>
-                    </div>
-                    <div class="flex flex-wrap gap-3 p-4">
-                        @foreach($attentionLabels as $status => $attentionLabel)
-                            @if(($attentionPayments[$status] ?? 0) > 0)
-                                <a href="{{ route('orders.index', ['payment_status' => $status]) }}" class="gt-focus min-w-[220px] flex-1 rounded-2xl border {{ $status === 'detected' || $status === 'refund_pending' ? 'border-amber-200 bg-amber-50' : 'border-[#DDE9E5] bg-white' }} p-4 transition hover:shadow-sm">
-                                    <p class="text-sm font-extrabold text-[#0A2E2A]">{{ $attentionLabel[0] }} <span class="ml-1">{{ number_format($attentionPayments[$status]) }}</span></p>
-                                    <p class="mt-1 text-xs leading-5 text-slate-600">{{ $attentionLabel[1] }}</p>
-                                </a>
-                            @endif
-                        @endforeach
-                    </div>
-                </section>
-            @endif
+            <section class="gt-card overflow-hidden" aria-labelledby="completed-orders-heading">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAF2EF] px-5 py-4 sm:px-6">
+                    <h3 id="completed-orders-heading" class="font-extrabold text-[#0A2E2A]">Completed orders</h3>
+                    <a href="{{ route('orders.index', ['status' => 'completed']) }}" class="gt-focus text-sm font-bold text-[#08745D] hover:underline">View all →</a>
+                </div>
+                <div class="divide-y divide-[#EAF2EF]">
+                    @forelse($recentCompletedOrders as $order)
+                        @php
+                            $paymentLabel = match ($order->payment_status) {
+                                'confirmed' => 'Payment confirmed',
+                                'detected' => 'Payment awaiting verification',
+                                'refund_pending' => 'Refund pending',
+                                'refunded' => 'Refunded',
+                                default => 'Payment '.\Illuminate\Support\Str::headline($order->payment_status ?: 'pending'),
+                            };
+                        @endphp
+                        <a href="{{ route('orders.show', $order->id) }}" class="gt-focus flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-[#F8FCFA] sm:px-6">
+                            <span class="min-w-0">
+                                <span class="block text-sm font-bold text-[#0A2E2A]">{{ $order->customer_name ?: 'Walk-in order' }}</span>
+                                <span class="mt-1 block text-xs text-slate-500">{{ $order->completed_at?->format('M j, Y · g:i A') ?: $order->created_at?->format('M j, Y · g:i A') }} · {{ $paymentLabel }}</span>
+                            </span>
+                            <span class="shrink-0 text-sm font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $order->total, 2) }}</span>
+                        </a>
+                    @empty
+                        <p class="px-5 py-6 text-sm text-slate-500 sm:px-6">No completed orders yet.</p>
+                    @endforelse
+                </div>
+            </section>
+
+                </div>
 
             @if(!$needsSetup)
-            <section class="gt-card gt-enter overflow-hidden">
+            <section class="gt-card gt-enter min-w-0 overflow-hidden">
                 <div class="flex items-center justify-between gap-4 border-b border-[#EAF2EF] px-5 py-5 sm:px-6">
                     <div>
                         <h3 class="text-lg font-extrabold text-[#0A2E2A]">Recent transactions</h3>
@@ -106,7 +122,7 @@
                             $isIncome = strtolower($transaction->type) === 'income';
                             $isReversal = $transaction->entry_method === 'order_reversal' || $transaction->reversal_of_id !== null;
                         @endphp
-                        <div class="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-[#FBFDFC] sm:px-6">
+                        <div class="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-[#FBFDFC] sm:px-6 xl:flex-col xl:items-stretch xl:gap-2 xl:[&>p]:text-right">
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-bold text-[#0A2E2A]">{{ $transaction->category ?: 'Uncategorized' }}{{ $isReversal ? ' · Reversal' : '' }}</p>
                                 <p class="mt-1 truncate text-xs text-slate-500">{{ optional($transaction->transaction_date ?? $transaction->created_at)->format('M j, Y') }} · {{ ucfirst($transaction->source ?? 'Unknown source') }} · {{ $transaction->user?->name ?? 'Staff account unavailable' }}</p>
@@ -125,6 +141,8 @@
                 </div>
             </section>
             @endif
+
+            </div>
 
             @if($needsSetup)
                 <section class="gt-card gt-enter p-6 sm:p-8">

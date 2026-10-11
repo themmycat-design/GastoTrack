@@ -19,6 +19,8 @@ import {useAuth} from '../../context/AuthContext';
 import {useTransactions} from '../../context/TransactionContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
+import {getPendingWalletCaptures} from '../../modules/NotificationModule';
+import {subscribeWalletCaptureSync} from '../../services/walletCaptureSyncEvents';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
 import {useStaffDay} from '../../utils/useStaffDay';
@@ -147,6 +149,32 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
   );
 });
 
+const RawWalletFilters = React.memo(({search, source, onSearchChange, onSourceChange}) => (
+  <View style={styles.filters}>
+    <View style={styles.searchBox}>
+      <Icon name="magnify" size={21} color={COLORS.textGray} />
+      <TextInput
+        style={styles.searchInput}
+        value={search}
+        onChangeText={onSearchChange}
+        placeholder="Search wallet notifications..."
+        placeholderTextColor={COLORS.textMuted}
+        accessibilityLabel="Search wallet notifications"
+      />
+      {search ? <TouchableOpacity onPress={() => onSearchChange('')} accessibilityLabel="Clear wallet search"><Icon name="close-circle" size={19} color={COLORS.textMuted} /></TouchableOpacity> : null}
+    </View>
+    <Text style={styles.filterLabel}>Wallet source</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+      {['All', 'GCash', 'Maya'].map(value => (
+        <TouchableOpacity key={value} style={[styles.chip, source === value && styles.chipActive]} onPress={() => onSourceChange(value)} accessibilityRole="button" accessibilityState={{selected: source === value}}>
+          <Text style={[styles.chipText, source === value && styles.chipTextActive]}>{value}</Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+    <Text style={styles.categoryHint}>Notification signals only. Check the wallet account before treating any amount as paid.</Text>
+  </View>
+));
+
 const TransactionActivityList = React.memo(({
   transactions,
   loading,
@@ -158,6 +186,9 @@ const TransactionActivityList = React.memo(({
   onOpenDetail,
   renderTransaction: renderTransactionProp,
   hasFilters,
+  mode,
+  onModeChange,
+  loadError,
 }) => {
   const defaultRenderTransaction = useCallback(({item}) => {
     const income = item.type?.toLowerCase() === 'income';
@@ -168,6 +199,7 @@ const TransactionActivityList = React.memo(({
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>{transactionDisplayName(item)}</Text>
+          <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
@@ -180,14 +212,27 @@ const TransactionActivityList = React.memo(({
   return (
     <FlatList
       data={transactions}
-      keyExtractor={item => String(item.id)}
+      keyExtractor={item => String(item.client_id || item.id)}
       renderItem={renderTransactionProp || defaultRenderTransaction}
-      ListHeaderComponent={<View style={styles.activityHeader}>
-        <View style={styles.activityHeading}>
-          <Text style={styles.activityTitle}>Activity</Text>
-          {loading ? <ActivityIndicator size="small" color={COLORS.accent} /> : null}
+      ListHeaderComponent={<View>
+        <View style={styles.activityHeader}>
+          <View style={styles.activityHeading}>
+            <Text style={styles.activityTitle}>Activity</Text>
+            {loading ? <ActivityIndicator size="small" color={COLORS.accent} /> : null}
+          </View>
+          <Text style={styles.activityCount}>{transactions.length} shown</Text>
         </View>
-        <Text style={styles.activityCount}>{transactions.length} shown</Text>
+        <View style={styles.activityTabs}>
+          {[
+            ['daily', 'Daily transaction'],
+            ['raw', 'Raw transaction'],
+          ].map(([value, label]) => (
+            <TouchableOpacity key={value} style={[styles.activityTab, mode === value && styles.activityTabActive]} onPress={() => onModeChange(value)} accessibilityRole="button" accessibilityState={{selected: mode === value}}>
+              <Text style={[styles.activityTabText, mode === value && styles.activityTabTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {mode === 'raw' && loadError && transactions.length ? <Text style={styles.rawNotice}>Could not update wallet notifications. Pull down to refresh.</Text> : null}
       </View>}
       contentContainerStyle={transactions.length ? styles.list : styles.emptyList}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />}
@@ -195,9 +240,11 @@ const TransactionActivityList = React.memo(({
         {loading
           ? <><ActivityIndicator size="large" color={COLORS.accent} /><Text style={styles.stateText}>Loading activity...</Text></>
           : <>
-            <Icon name="receipt-text-outline" size={58} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>No transactions found</Text>
-            <Text style={styles.stateText}>{hasFilters ? 'Try changing your search or filters.' : 'Tap + to record the first transaction.'}</Text>
+            <Icon name={mode === 'raw' && loadError ? 'cloud-refresh-outline' : 'receipt-text-outline'} size={58} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>{mode === 'raw' && loadError ? 'Wallet alerts unavailable' : mode === 'raw' ? 'No wallet alerts yet' : 'No transactions found'}</Text>
+            <Text style={styles.stateText}>{mode === 'raw'
+              ? loadError ? 'Pull down to try loading again.' : 'New GCash and Maya notifications will appear here. Pull down to refresh.'
+              : hasFilters ? 'Try changing your search or filters.' : 'Tap + to record the first transaction.'}</Text>
             {!transactions.length && hasMore && !loadingMore ? (
               <TouchableOpacity style={styles.loadMoreButton} onPress={onLoadMore} accessibilityRole="button">
                 <Text style={styles.loadMoreText}>Load more activity</Text>
@@ -240,6 +287,17 @@ const TransactionsScreen = ({route}) => {
   const [activityPagination, setActivityPagination] = useState(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityLoadingMore, setActivityLoadingMore] = useState(false);
+  const [activityMode, setActivityMode] = useState('daily');
+  const [rawSearch, setRawSearch] = useState('');
+  const [rawSource, setRawSource] = useState('All');
+  const [rawCaptures, setRawCaptures] = useState([]);
+  const [rawPending, setRawPending] = useState([]);
+  const [rawPagination, setRawPagination] = useState(null);
+  const [rawLoading, setRawLoading] = useState(false);
+  const [rawLoadingMore, setRawLoadingMore] = useState(false);
+  const [rawError, setRawError] = useState(null);
+  const [selectedCapture, setSelectedCapture] = useState(null);
+  const rawRequestId = useRef(0);
   const [editorVisible, setEditorVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -315,6 +373,13 @@ const TransactionsScreen = ({route}) => {
   const hasMoreActivity = activityTransactions === null
     ? hasMoreTransactions
     : Number(activityPagination?.currentPage || 0) < Number(activityPagination?.lastPage || 1);
+  const rawItems = useMemo(() => {
+    const saved = new Set(rawCaptures.map(item => item.client_id));
+    return [...rawPending.filter(item => !saved.has(item.client_id)), ...rawCaptures]
+      .sort((a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime());
+  }, [rawCaptures, rawPending]);
+  const hasMoreRaw = Boolean(rawPagination?.current_page)
+    && Number(rawPagination.current_page) < Number(rawPagination.last_page || 1);
 
   const setField = (field, value) => setForm(current => ({...current, [field]: value}));
   const setExpenseName = value => {
@@ -528,6 +593,75 @@ const TransactionsScreen = ({route}) => {
     }
   }, [activityFilter, activityLoadingMore, activityPagination, activityTransactions, hasMoreActivity, loadMoreTransactions, queryTransactions, showHistory, staffDay]);
 
+  const fetchRaw = useCallback(async (page = 1) => {
+    const requestId = ++rawRequestId.current;
+    if (page === 1) setRawLoading(true);
+    else setRawLoadingMore(true);
+    const source = rawSource === 'All' ? undefined : rawSource.toLowerCase();
+    const search = rawSearch.trim().toLowerCase();
+    try {
+      if (page === 1) {
+        const pending = await getPendingWalletCaptures();
+        if (requestId !== rawRequestId.current) return;
+        setRawPending(pending.filter(item =>
+          (!source || item.source === source)
+          && (!search || `${item.message || ''} ${item.merchant || ''}`.toLowerCase().includes(search))
+          && (showHistory || formatLocalDate(new Date(item.captured_at)) === staffDay),
+        ));
+      }
+      const response = await api.get('/wallet-notifications', {params: {
+        page, source, search: rawSearch.trim() || undefined,
+        ...(!showHistory ? {from: staffDay, to: staffDay} : {}),
+      }});
+      if (requestId !== rawRequestId.current) return;
+      const captures = response.data?.captures || [];
+      setRawCaptures(current => page === 1 ? captures : [
+        ...current,
+        ...captures.filter(item => !current.some(saved => saved.client_id === item.client_id)),
+      ]);
+      setRawPagination(response.data?.meta || null);
+      setRawError(null);
+    } catch (error) {
+      if (requestId === rawRequestId.current) setRawError(getApiErrorMessage(error));
+    } finally {
+      if (requestId === rawRequestId.current) {
+        setRawLoading(false);
+        setRawLoadingMore(false);
+      }
+    }
+  }, [rawSearch, rawSource, showHistory, staffDay]);
+
+  useEffect(() => {
+    if (activityMode !== 'raw') return;
+    const timer = setTimeout(() => fetchRaw(1), rawSearch ? 350 : 0);
+    return () => { clearTimeout(timer); rawRequestId.current += 1; };
+  }, [activityMode, fetchRaw, rawSearch]);
+
+  useEffect(() => subscribeWalletCaptureSync(() => {
+    if (activityMode === 'raw') fetchRaw(1);
+  }), [activityMode, fetchRaw]);
+
+  const refreshRaw = useCallback(async () => {
+    setRefreshing(true);
+    try { await fetchRaw(1); } finally { setRefreshing(false); }
+  }, [fetchRaw]);
+
+  const loadMoreRaw = useCallback(() => {
+    if (!rawLoading && !rawLoadingMore && hasMoreRaw) fetchRaw(Number(rawPagination?.current_page || 0) + 1);
+  }, [fetchRaw, hasMoreRaw, rawLoading, rawLoadingMore, rawPagination]);
+
+  const renderRawCapture = useCallback(({item}) => (
+    <TouchableOpacity style={styles.card} onPress={() => setSelectedCapture(item)} activeOpacity={0.75}>
+      <View style={styles.iconBox}><Icon name="cellphone-message" size={22} color={COLORS.accent} /></View>
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{item.source === 'gcash' ? 'GCash' : 'Maya'} · {item.direction || 'unknown'}</Text>
+        <Text style={styles.cardSubtitle} numberOfLines={2}>{item.message || 'Wallet notification'}</Text>
+        <Text style={styles.cardSubtitle}>{new Date(item.captured_at).toLocaleString()} · {item.id ? 'Unverified' : 'Pending sync'}</Text>
+      </View>
+      {item.amount != null ? <Text style={styles.amount}>₱{Number(item.amount).toFixed(2)}</Text> : null}
+    </TouchableOpacity>
+  ), []);
+
   const renderTransaction = useCallback(({item}) => {
     const income = item.type?.toLowerCase() === 'income';
     return (
@@ -537,6 +671,7 @@ const TransactionsScreen = ({route}) => {
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>{transactionDisplayName(item)}</Text>
+          <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
@@ -578,35 +713,47 @@ const TransactionsScreen = ({route}) => {
         </TouchableOpacity>
       </View>
 
-      <TransactionFilters
+      {activityMode === 'daily' ? <TransactionFilters
         sources={TRANSACTION_SOURCES}
         fetchCategories={fetchTransactionCategories}
         onApply={applyActivityFilters}
-      />
+      /> : <RawWalletFilters search={rawSearch} source={rawSource} onSearchChange={setRawSearch} onSourceChange={setRawSource} />}
 
-      {activityTransactions === null ? (
+      {activityMode === 'daily' && activityTransactions === null ? (
         <ApiErrorBanner message={loadError} onRetry={fetchTransactions} />
       ) : null}
 
-      {isLoading && !transactions.length ? (
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.stateText}>Loading transactions...</Text>
-        </View>
-      ) : (
         <TransactionActivityList
-          transactions={displayedTransactions}
-          loading={activityLoading}
+          transactions={activityMode === 'raw' ? rawItems : displayedTransactions}
+          loading={activityMode === 'raw' ? rawLoading : activityLoading || (isLoading && !transactions.length)}
           refreshing={refreshing}
-          onRefresh={refresh}
-          loadingMore={activityTransactions === null ? isLoadingMore : activityLoadingMore}
-          hasMore={hasMoreActivity}
-          onLoadMore={loadMoreActivity}
+          onRefresh={activityMode === 'raw' ? refreshRaw : refresh}
+          loadingMore={activityMode === 'raw' ? rawLoadingMore : activityTransactions === null ? isLoadingMore : activityLoadingMore}
+          hasMore={activityMode === 'raw' ? hasMoreRaw : hasMoreActivity}
+          onLoadMore={activityMode === 'raw' ? loadMoreRaw : loadMoreActivity}
           onOpenDetail={openDetail}
-          renderTransaction={renderTransaction}
-          hasFilters={hasAppliedFilters}
+          renderTransaction={activityMode === 'raw' ? renderRawCapture : renderTransaction}
+          hasFilters={activityMode === 'raw' ? Boolean(rawSearch || rawSource !== 'All' || !showHistory) : hasAppliedFilters}
+          mode={activityMode}
+          onModeChange={setActivityMode}
+          loadError={activityMode === 'raw' ? rawError : null}
         />
-      )}
+
+      <Modal visible={!!selectedCapture} transparent animationType="fade" onRequestClose={() => setSelectedCapture(null)}>
+        <View style={styles.overlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Wallet notification</Text>
+              <TouchableOpacity onPress={() => setSelectedCapture(null)} accessibilityLabel="Close wallet notification"><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
+            </View>
+            <Text style={styles.cardTitle}>{selectedCapture?.source === 'gcash' ? 'GCash' : 'Maya'} · {selectedCapture?.direction || 'unknown'}</Text>
+            <Text style={styles.cardSubtitle}>{selectedCapture?.captured_at ? new Date(selectedCapture.captured_at).toLocaleString() : ''}</Text>
+            <Text style={styles.cardSubtitle}>{selectedCapture?.amount != null ? `₱${Number(selectedCapture.amount).toFixed(2)} · ` : ''}{selectedCapture?.id ? 'Unverified' : 'Pending sync'}</Text>
+            <Text style={styles.rawMessage}>{selectedCapture?.message || 'No notification text available.'}</Text>
+            <Text style={styles.rawNotice}>This device notification is not proof of payment. Confirm in the wallet account before recording income.</Text>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={editorVisible} transparent animationType="slide" onRequestClose={() => setEditorVisible(false)}>
         <View style={styles.overlay}>
@@ -822,6 +969,13 @@ const styles = StyleSheet.create({
   activityHeading: {flexDirection: 'row', alignItems: 'center', gap: 9},
   activityTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark},
   activityCount: {fontSize: 12, color: COLORS.textGray},
+  activityTabs: {flexDirection: 'row', gap: 8, marginBottom: 11},
+  activityTab: {flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, backgroundColor: COLORS.surface},
+  activityTabActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent},
+  activityTabText: {fontSize: 12, fontWeight: '700', color: COLORS.textGray},
+  activityTabTextActive: {color: COLORS.textWhite},
+  rawNotice: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 12},
+  rawMessage: {fontSize: 14, lineHeight: 21, color: COLORS.textDark, marginTop: 18, marginBottom: 16},
   card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 10, ...SHADOWS.card},
   iconBox: {width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
   incomeIcon: {backgroundColor: '#E8F5E9'}, expenseIcon: {backgroundColor: '#FFEBEE'},

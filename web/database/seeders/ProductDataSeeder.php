@@ -10,6 +10,7 @@ use App\Models\StockItem;
 use App\Models\StockMovement;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\OrderNumberAllocator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -92,9 +93,9 @@ class ProductDataSeeder extends Seeder
             'staff2@gastotrack.com' => User::where('email', 'staff2@gastotrack.com')->first(),
         ];
         $this->seedCompletedOrder($business, $staff['staff1@gastotrack.com'], $products['Classic Milk Tea'], 2,
-            'a7a690a3-9af3-4680-a573-ec058d190001', 'DEMO-ORDER-001', now()->subHours(2));
+            'a7a690a3-9af3-4680-a573-ec058d190001', now()->subHours(2));
         $this->seedCompletedOrder($business, $staff['staff2@gastotrack.com'], $products['Matcha Latte'], 1,
-            'a7a690a3-9af3-4680-a573-ec058d190002', 'DEMO-ORDER-002', now()->subDay());
+            'a7a690a3-9af3-4680-a573-ec058d190002', now()->subDay());
 
         Transaction::updateOrCreate(
             ['client_id' => 'a7a690a3-9af3-4680-a573-ec058d190003'],
@@ -122,18 +123,20 @@ class ProductDataSeeder extends Seeder
         Product $product,
         int $quantity,
         string $clientId,
-        string $orderNumber,
         $soldAt
     ): void {
         if (! $staff) {
-            $this->command?->warn('A demo staff account is missing; skipped sample order '.$orderNumber.'.');
+            $this->command?->warn('A demo staff account is missing; skipped sample order for '.$product->name.'.');
             return;
         }
 
-        DB::transaction(function () use ($business, $staff, $product, $quantity, $clientId, $orderNumber, $soldAt): void {
+        DB::transaction(function () use ($business, $staff, $product, $quantity, $clientId, $soldAt): void {
             $order = Order::where('client_id', $clientId)->lockForUpdate()->first();
             $isNew = ! $order;
             $total = number_format((float) $product->price * $quantity, 2, '.', '');
+            $orderNumber = $isNew
+                ? app(OrderNumberAllocator::class)->next((int) $business->id)
+                : $order->order_number;
 
             if ($isNew) {
                 $order = Order::create([

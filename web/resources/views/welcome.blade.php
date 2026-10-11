@@ -54,6 +54,17 @@
 
     <main>
         <section id="top" class="gt-welcome-hero relative isolate overflow-hidden border-b border-white/10 text-white">
+            <div id="welcome-cursor-glow" class="gt-welcome-cursor-glow" aria-hidden="true"></div>
+            <div class="gt-welcome-sparks gt-welcome-sparks-left" aria-hidden="true">
+                @for($spark = 0; $spark < 10; $spark++)
+                    <span></span>
+                @endfor
+            </div>
+            <div class="gt-welcome-sparks gt-welcome-sparks-right" aria-hidden="true">
+                @for($spark = 0; $spark < 10; $spark++)
+                    <span></span>
+                @endfor
+            </div>
             <div class="gt-welcome-frame relative z-10 flex min-h-[620px] flex-col items-center justify-center py-20 text-center sm:min-h-[720px] sm:py-28">
                 <div class="gt-enter inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold tracking-wide text-[#9BE9D0]">
                     <span class="h-2 w-2 rounded-full bg-[#00C897]"></span>
@@ -95,7 +106,7 @@
                         <p class="text-xs font-extrabold uppercase tracking-[.18em] text-[#00A87E]">One connected workspace</p>
                         <h2 class="mt-3 text-3xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-4xl">The tools behind a smoother shop day.</h2>
                     </div>
-                    <p class="max-w-md text-sm leading-6 text-slate-500">Staff manage daily operations while owners get a clearer view of the business—without mixing platform administration into private shop records.</p>
+                    <p class="max-w-md text-sm leading-6 text-slate-500">Staff manage daily operations while owners get a clearer view of the business, without mixing platform administration into private shop records.</p>
                 </div>
 
                 @php

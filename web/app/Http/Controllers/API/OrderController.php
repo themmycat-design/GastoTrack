@@ -11,6 +11,7 @@ use App\Models\StockMovement;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Services\OrderNumberAllocator;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -138,7 +139,7 @@ class OrderController extends Controller
                 $order = Order::create([
                     'business_id' => $businessId,
                     'user_id' => $request->user()->id,
-                    'order_number' => 'ORD-'.now()->format('YmdHis').'-'.Str::upper(Str::random(5)),
+                    'order_number' => app(OrderNumberAllocator::class)->next($businessId),
                     'customer_name' => $customerName,
                     'customer_phone' => $validated['customer_phone'] ?? null,
                     'subtotal' => $subtotal,

@@ -10,6 +10,34 @@ use Illuminate\Support\Facades\DB;
 
 class StockController extends Controller
 {
+    /** Download the owner's current (non-deleted) inventory, including inactive items. */
+    public function export(Request $request)
+    {
+        $businessId = (int) $request->user()->business_id;
+        $currency = strtoupper((string) ($request->user()->business?->currency ?: 'PHP'));
+        $filename = 'gastotrack-inventory-'.now(config('business.timezone'))->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($businessId, $currency): void {
+            $output = fopen('php://output', 'w');
+            fputcsv($output, ['Item', 'Unit', 'Current quantity', 'Minimum quantity', 'Unit cost ('.$currency.')', 'Stock value ('.$currency.')', 'Status', 'Updated at']);
+
+            foreach (StockItem::where('business_id', $businessId)->orderBy('id')->cursor() as $item) {
+                $safeText = static fn (string $value): string => preg_match('/^\s*[=+\-@]/u', $value) ? "'".$value : $value;
+                fputcsv($output, [
+                    $safeText($item->name),
+                    $safeText($item->unit),
+                    $item->current_quantity,
+                    $item->minimum_quantity,
+                    $item->unit_cost,
+                    number_format((float) $item->current_quantity * (float) $item->unit_cost, 2, '.', ''),
+                    $item->active ? 'Active' : 'Inactive',
+                    $item->updated_at?->toDateTimeString(),
+                ]);
+            }
+            fclose($output);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -27,7 +55,17 @@ class StockController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
         
-        if ($request->has('low_stock') && $request->low_stock == '1') {
+        $stockStatus = $request->query('stock_status');
+        if ($stockStatus === 'out') {
+            $query->where('current_quantity', '<=', 0);
+        } elseif ($stockStatus === 'low') {
+            $query->where('current_quantity', '>', 0)
+                ->whereColumn('current_quantity', '<=', 'minimum_quantity');
+        } elseif ($stockStatus === 'in') {
+            $query->where('current_quantity', '>', 0)
+                ->whereColumn('current_quantity', '>', 'minimum_quantity');
+        } elseif ($stockStatus === 'attention' || $request->query('low_stock') == '1') {
+            // Keep existing inventory-alert links working.
             $query->whereColumn('current_quantity', '<=', 'minimum_quantity');
         }
         
@@ -42,16 +80,29 @@ class StockController extends Controller
         
         // Get stats
         $totalItems = StockItem::where('business_id', $businessId)->where('active', true)->count();
-        $lowStockCount = StockItem::where('business_id', $businessId)
+        $attentionCounts = StockItem::where('business_id', $businessId)
             ->where('active', true)
-            ->whereColumn('current_quantity', '<=', 'minimum_quantity')
-            ->count();
+            ->selectRaw('SUM(CASE WHEN current_quantity > 0 AND current_quantity <= minimum_quantity THEN 1 ELSE 0 END) as low_count')
+            ->selectRaw('SUM(CASE WHEN current_quantity <= 0 THEN 1 ELSE 0 END) as out_count')
+            ->first();
+        $lowStockCount = (int) ($attentionCounts?->low_count ?? 0);
+        $outOfStockCount = (int) ($attentionCounts?->out_count ?? 0);
+        $inStockCount = max(0, $totalItems - $lowStockCount - $outOfStockCount);
         $totalValue = StockItem::where('business_id', $businessId)
             ->where('active', true)
             ->selectRaw('SUM(current_quantity * unit_cost) as total')
             ->value('total') ?? 0;
-        
-        return view('stock.index', compact('stockItems', 'totalItems', 'lowStockCount', 'totalValue'));
+        $recentMovements = StockMovement::query()
+            ->join('stock_items', 'stock_items.id', '=', 'stock_movements.stock_item_id')
+            ->where('stock_items.business_id', $businessId)
+            ->whereNull('stock_items.deleted_at')
+            ->select('stock_movements.*', 'stock_items.name as stock_name', 'stock_items.unit as stock_unit')
+            ->orderByDesc('stock_movements.created_at')
+            ->orderByDesc('stock_movements.id')
+            ->limit(5)
+            ->get();
+
+        return view('stock.index', compact('stockItems', 'totalItems', 'lowStockCount', 'outOfStockCount', 'inStockCount', 'totalValue', 'recentMovements'));
     }
 
     /**

@@ -1,17 +1,25 @@
 <section id="owner-activity" class="gt-card gt-enter gt-enter-4 relative overflow-hidden" aria-live="polite" aria-busy="false">
     <div data-activity-loading class="hidden border-b border-[#C8DED7] bg-[#EAF8F2] px-5 py-3 text-sm font-semibold text-[#08745D] sm:px-6" role="status">Updating activity…</div>
-    <div class="flex items-center justify-between gap-3 border-b border-[#EAF2EF] px-5 py-5 sm:px-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAF2EF] px-5 py-5 sm:px-6">
         <div>
             <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Activity</p>
-            <h3 class="mt-1 text-lg font-extrabold text-[#0A2E2A]">Transaction records</h3>
+            <h3 class="mt-1 text-lg font-extrabold text-[#0A2E2A]">{{ $viewMode === 'raw' ? 'Wallet notifications' : 'Transaction records' }}</h3>
         </div>
-        <span class="rounded-full bg-[#F4F8F7] px-3 py-1.5 text-xs font-bold text-slate-500">{{ $transactions->total() }} records</span>
+        <span class="rounded-full bg-[#F4F8F7] px-3 py-1.5 text-xs font-bold text-slate-500">{{ $viewMode === 'raw' ? $captures->total() : $transactions->total() }} records</span>
     </div>
+    <nav class="flex gap-2 border-b border-[#EAF2EF] px-5 py-3 sm:px-6" aria-label="Activity views">
+        <a href="{{ route('transactions.index', array_merge(request()->except(['view', 'page', 'fragment', 'category']), ['view' => 'daily'])) }}" data-activity-view="daily" aria-current="{{ $viewMode === 'daily' ? 'page' : 'false' }}" class="gt-focus rounded-xl px-4 py-2 text-sm font-bold transition {{ $viewMode === 'daily' ? 'bg-[#00A87E] text-white' : 'border border-[#C8DED7] bg-white text-[#08745D] hover:bg-[#EAF8F2]' }}">Daily transaction</a>
+        <a href="{{ route('transactions.index', array_merge(request()->except(['view', 'page', 'fragment', 'category']), ['view' => 'raw'])) }}" data-activity-view="raw" aria-current="{{ $viewMode === 'raw' ? 'page' : 'false' }}" class="gt-focus rounded-xl px-4 py-2 text-sm font-bold transition {{ $viewMode === 'raw' ? 'bg-[#00A87E] text-white' : 'border border-[#C8DED7] bg-white text-[#08745D] hover:bg-[#EAF8F2]' }}">Raw transaction</a>
+    </nav>
+    @if($viewMode === 'raw')
+        @include('transactions.partials.wallet-captures')
+    @else
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-[#EAF2EF]">
             <thead class="bg-[#F8FCFA]">
                 <tr>
                     <th class="whitespace-nowrap px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500 sm:px-6">Date</th>
+                    <th class="whitespace-nowrap px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Record</th>
                     <th class="whitespace-nowrap px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500 sm:px-6">Category</th>
                     <th class="whitespace-nowrap px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500 sm:px-6">Source</th>
                     <th class="min-w-56 px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500 sm:px-6">Products / Description</th>
@@ -23,6 +31,7 @@
                 @forelse($transactions as $transaction)
                     <tr class="transition hover:bg-[#FBFDFC]">
                         <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600 sm:px-6">{{ \Carbon\Carbon::parse($transaction->transaction_date)->format('M d, Y') }}</td>
+                        <td class="whitespace-nowrap px-5 py-4 text-sm font-bold text-[#0A2E2A]">{{ $transaction->entry_method === 'order_system' ? 'Order' : ($transaction->type === 'income' ? 'Income' : 'Expense') }}</td>
                         <td class="whitespace-nowrap px-5 py-4 text-sm font-bold text-[#0A2E2A]">{{ $transaction->category ?? 'Uncategorized' }}</td>
                         <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600">{{ match(strtolower($transaction->source ?? '')) { 'cash' => 'Cash', 'gcash' => 'GCash', 'maya' => 'Maya', 'bank', 'bank transfer' => 'Bank Transfer', 'credit_card', 'credit card' => 'Credit Card', default => $transaction->source ?? 'Unknown' } }}</td>
                         <td class="px-5 py-4 text-sm text-slate-600 sm:px-6">{{ $transaction->description ?? 'No description' }}</td>
@@ -31,7 +40,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-14 text-center">
+                        <td colspan="7" class="px-6 py-14 text-center">
                             <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF8F2] text-xl text-[#08745D]" aria-hidden="true">↗</span>
                             <p class="mt-3 text-sm font-bold text-[#0A2E2A]">No transactions found</p>
                             <p class="mt-1 text-sm text-slate-500">Try adjusting your filters. New staff records will appear here.</p>
@@ -42,4 +51,5 @@
         </table>
     </div>
     <div class="border-t border-[#EAF2EF] bg-[#FBFDFC] px-5 py-4 sm:px-6">{{ $transactions->links() }}</div>
+    @endif
 </section>

@@ -58,6 +58,24 @@
     padding-inline: clamp(1.25rem, 4.5vw, 5rem);
 }
 
+.gt-welcome-cursor-glow {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 200, 151, .30) 0%, rgba(0, 200, 151, .14) 30%, transparent 70%);
+    filter: blur(12px);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(-240px, -240px, 0);
+    transition: opacity .2s ease;
+}
+
+.gt-welcome-cursor-glow.is-visible { opacity: 1; }
+
 .gt-welcome-hero {
     background:
         radial-gradient(circle at 50% 8%, rgba(0, 200, 151, .16), transparent 32rem),
@@ -72,6 +90,61 @@
         radial-gradient(ellipse 36rem 25rem at 110% 90%, transparent 58%, rgba(101, 221, 182, .22) 58.2%, transparent 58.5%);
     pointer-events: none;
 }
+
+.gt-welcome-hero::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: -8%;
+    left: 50%;
+    width: min(90%, 72rem);
+    height: 78%;
+    transform: translateX(-50%);
+    background:
+        radial-gradient(ellipse at 50% 45%, rgba(0, 200, 151, .22), rgba(0, 168, 126, .08) 42%, transparent 72%),
+        radial-gradient(ellipse at 20% 20%, rgba(101, 221, 182, .08), transparent 55%);
+    filter: blur(48px);
+    pointer-events: none;
+}
+
+.gt-welcome-sparks {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    bottom: 0;
+    width: clamp(3.5rem, 15vw, 14rem);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.gt-welcome-sparks-left { left: 0; }
+.gt-welcome-sparks-right { right: 0; }
+
+.gt-welcome-sparks span {
+    position: absolute;
+    top: -5%;
+    left: var(--spark-x);
+    width: var(--spark-size, 4px);
+    height: var(--spark-size, 4px);
+    border-radius: 50%;
+    background: #a4ffe0;
+    box-shadow: 0 0 9px 2px rgba(101, 221, 182, .55);
+    opacity: 0;
+    animation: gt-spark-shower var(--spark-speed, 7s) linear var(--spark-delay, 0s) infinite;
+}
+
+.gt-welcome-sparks span:nth-child(1) { --spark-x: 12%; --spark-size: 3px; --spark-speed: 7s; --spark-delay: -1s; }
+.gt-welcome-sparks span:nth-child(2) { --spark-x: 67%; --spark-size: 5px; --spark-speed: 8s; --spark-delay: -5s; }
+.gt-welcome-sparks span:nth-child(3) { --spark-x: 38%; --spark-size: 3px; --spark-speed: 6.5s; --spark-delay: -3s; }
+.gt-welcome-sparks span:nth-child(4) { --spark-x: 84%; --spark-size: 4px; --spark-speed: 9s; --spark-delay: -7s; }
+.gt-welcome-sparks span:nth-child(5) { --spark-x: 23%; --spark-size: 5px; --spark-speed: 7.5s; --spark-delay: -6s; }
+.gt-welcome-sparks span:nth-child(6) { --spark-x: 55%; --spark-size: 3px; --spark-speed: 8.5s; --spark-delay: -2s; }
+.gt-welcome-sparks span:nth-child(7) { --spark-x: 91%; --spark-size: 3px; --spark-speed: 7s; --spark-delay: -4s; }
+.gt-welcome-sparks span:nth-child(8) { --spark-x: 44%; --spark-size: 4px; --spark-speed: 9s; --spark-delay: -1.5s; }
+.gt-welcome-sparks span:nth-child(9) { --spark-x: 73%; --spark-size: 3px; --spark-speed: 8s; --spark-delay: -6.5s; }
+.gt-welcome-sparks span:nth-child(10) { --spark-x: 7%; --spark-size: 4px; --spark-speed: 6.5s; --spark-delay: -4.5s; }
+
+.gt-welcome-sparks-right span { animation-delay: calc(var(--spark-delay, 0s) - 2s); }
 
 .gt-welcome-title {
     max-width: 880px;
@@ -190,6 +263,13 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes gt-spark-shower {
+    0% { top: -5%; opacity: 0; transform: translateX(-6px) scale(.7); }
+    12% { opacity: .65; }
+    75% { opacity: .65; }
+    100% { top: 105%; opacity: 0; transform: translateX(9px) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .gt-welcome-scroll { scroll-behavior: auto; }
     .gt-enter { animation: none; }
@@ -197,4 +277,10 @@
     .gt-lift:hover { transform: none; }
     .gt-welcome-back-to-top { transition: none; }
     .gt-reveal-ready .gt-scroll-reveal { transition: none; }
+    .gt-welcome-sparks { display: none; }
+    .gt-welcome-cursor-glow { display: none; }
+}
+
+@media (hover: none), (pointer: coarse) {
+    .gt-welcome-cursor-glow { display: none; }
 }

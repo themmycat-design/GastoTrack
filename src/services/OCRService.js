@@ -5,7 +5,7 @@
  */
 
 // Common keywords found in receipts
-const AMOUNT_KEYWORDS = ['total', 'amount', 'subtotal', 'grand total', 'sum'];
+const AMOUNT_KEYWORDS = ['grand total', 'total due', 'amount due', 'total', 'amount paid'];
 
 // E-wallet and payment source patterns
 const PAYMENT_SOURCES = {
@@ -15,22 +15,56 @@ const PAYMENT_SOURCES = {
   shopeepay: /shopee\s?pay|shopeepay/i,
   cash: /cash/i,
 };
+const PAYMENT_SOURCE_LABELS = {gcash: 'GCash', maya: 'Maya', grabpay: 'GrabPay', shopeepay: 'ShopeePay', cash: 'Cash'};
 
-// Category detection patterns
-const CATEGORY_PATTERNS = {
-  // Expenses
-  ingredients: /ingredient|supply|food|grocery|market/i,
-  packaging: /packaging|container|cup|straw|plastic/i,
-  utilities: /electric|water|internet|wifi|utility|bill/i,
-  rent: /rent|rental|lease/i,
-  salaries: /salary|wage|payroll|staff/i,
-  equipment: /equipment|machine|appliance|tool/i,
-  supplies: /office|supply|supplies|paper/i,
-  
-  // Income
-  sales: /sales|customer|order|payment received/i,
-  delivery: /delivery|grab|foodpanda|lalamove/i,
-  catering: /catering|event|party|booking/i,
+// These are suggestions only; the review screen must match them against the
+// business's currently available categories before selecting one.
+const CATEGORY_RULES = [
+  {type: 'Expense', category: 'Ingredients', pattern: /\b(?:ingredients?|milk|coffee|beans?|sugar|flour|tea|syrup|eggs?|butter|cream|chocolate|yeast|baking|grocery|groceries)\b/i},
+  {type: 'Expense', category: 'Rent', pattern: /\b(?:rent|rental|lease)\b/i},
+  {type: 'Expense', category: 'Salaries', pattern: /\b(?:salary|salaries|wages?|payroll)\b/i},
+  {type: 'Expense', category: 'Utilities', pattern: /\b(?:electricity|electric|water bill|internet|wifi|utilities|utility)\b/i},
+  {type: 'Expense', category: 'Packaging', pattern: /\b(?:packaging|containers?|cups?|lids?|straws?|plastic bags?)\b/i},
+  {type: 'Expense', category: 'Supplies', pattern: /\b(?:supplies|stationery|office|paper|napkins?|tissues?)\b/i},
+  {type: 'Expense', category: 'Equipment', pattern: /\b(?:equipment|machine|appliance|blender|oven|refrigerator)\b/i},
+  {type: 'Income', category: 'Tips', pattern: /\b(?:tips?|gratuity)\b/i},
+  {type: 'Income', category: 'Catering', pattern: /\b(?:catering|event booking)\b/i},
+  {type: 'Income', category: 'Delivery', pattern: /\b(?:delivery sale|foodpanda payout|grabfood payout)\b/i},
+  {type: 'Income', category: 'Sales', pattern: /\b(?:sales?|customer payment|payment received)\b/i},
+];
+
+const localDate = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+const matchingCategory = (categories, name) => categories.find(category => category.toLowerCase() === name.toLowerCase());
+
+export const suggestReceiptCategory = (parsed, categories, type = parsed.type) => {
+  if (!Array.isArray(categories) || !categories.length) return '';
+  const text = String(parsed.rawText || '');
+  // A custom category written explicitly on the receipt takes priority.
+  const explicit = [...categories].sort((a, b) => b.length - a.length).find(category => {
+    if (category.length < 4 || /^other (?:income|expense)$/i.test(category)) return false;
+    const escaped = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+  });
+  if (explicit) return explicit;
+
+  const detected = type === parsed.type && parsed.category
+    ? parsed.category
+    : CATEGORY_RULES.find(rule => rule.type === type && rule.pattern.test(text))?.category;
+  if (!detected) return '';
+  const direct = matchingCategory(categories, detected);
+  if (direct) return direct;
+  // Only use a fallback when it has a clear accounting equivalent.
+  if (type === 'Expense' && ['Packaging', 'Equipment'].includes(detected)) {
+    return matchingCategory(categories, 'Supplies') || '';
+  }
+  if (type === 'Income' && ['Catering', 'Delivery'].includes(detected)) {
+    return matchingCategory(categories, 'Other Income') || '';
+  }
+  return '';
 };
 
 /**
@@ -75,13 +109,17 @@ export const parseReceiptData = (ocrText) => {
   parsed.amount = extractAmount(lines);
   
   // Extract date
-  parsed.date = extractDate(lines);
+  const detectedDate = extractDate(lines);
+  parsed.date = detectedDate || localDate();
+  parsed.dateDetected = Boolean(detectedDate);
   
   // Extract merchant name
   parsed.merchant = extractMerchant(lines);
   
   // Detect payment source
-  parsed.source = detectPaymentSource(ocrText);
+  const detectedSource = detectPaymentSource(ocrText);
+  parsed.source = detectedSource || 'Cash';
+  parsed.sourceDetected = Boolean(detectedSource);
   
   // Detect category and type
   const categoryResult = detectCategory(ocrText);
@@ -100,28 +138,26 @@ export const parseReceiptData = (ocrText) => {
  */
 const extractAmount = (lines) => {
   const amounts = [];
+  const totals = [];
   
   for (const line of lines) {
-    // Look for PHP currency patterns
-    const phpPattern = /(?:php|₱|p)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
+    if (/\bsub\s*total\b/i.test(line)) continue;
+    const totalPattern = new RegExp(
+      `(?:${AMOUNT_KEYWORDS.join('|')})\\s*:?\\s*(?:PHP|₱|P)?\\s*([\\d,]+(?:\\.\\d{2})?)`,
+      'i'
+    );
+    const totalMatch = line.match(totalPattern);
+    if (totalMatch) {
+      totals.push(parseFloat(totalMatch[1].replace(/,/g, '')));
+      continue;
+    }
+    if (/\b(?:change|tendered|cash received|balance)\b/i.test(line)) continue;
+    const phpPattern = /(?:\bPHP\s*|₱\s*|\bP\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
     const phpMatch = line.match(phpPattern);
     if (phpMatch) {
       amounts.push(parseFloat(phpMatch[1].replace(/,/g, '')));
       continue;
     }
-    
-    // Look for "total" or "amount" followed by number
-    const totalPattern = new RegExp(
-      `(?:${AMOUNT_KEYWORDS.join('|')})\\s*:?\\s*([\\d,]+\\.?\\d*)`,
-      'i'
-    );
-    const totalMatch = line.match(totalPattern);
-    if (totalMatch) {
-      amounts.push(parseFloat(totalMatch[1].replace(/,/g, '')));
-      continue;
-    }
-    
-    // Look for standalone numbers (likely amounts)
     const numberPattern = /(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/;
     const numberMatch = line.match(numberPattern);
     if (numberMatch) {
@@ -132,17 +168,17 @@ const extractAmount = (lines) => {
     }
   }
   
-  // Return the largest amount found (usually the total)
-  return amounts.length > 0 ? Math.max(...amounts) : null;
+  // Prefer an explicit total over cash tendered or a larger line-item price.
+  return totals.length ? totals[totals.length - 1] : amounts.length ? Math.max(...amounts) : null;
 };
 
 /**
  * Extract date from receipt text
  */
 const extractDate = (lines) => {
-  const today = new Date();
-  
   for (const line of lines) {
+    const isoMatch = line.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
     // Pattern: MM/DD/YYYY or DD/MM/YYYY
     const datePattern1 = /(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/;
     const match1 = line.match(datePattern1);
@@ -173,7 +209,7 @@ const extractDate = (lines) => {
   }
   
   // Default to today
-  return today.toISOString().split('T')[0];
+  return null;
 };
 
 /**
@@ -196,56 +232,30 @@ const extractMerchant = (lines) => {
  * Detect payment source from text
  */
 const detectPaymentSource = (text) => {
-  for (const [source, pattern] of Object.entries(PAYMENT_SOURCES)) {
-    if (pattern.test(text)) {
-      // Capitalize first letter
-      return source.charAt(0).toUpperCase() + source.slice(1);
+  const paymentLines = text.split('\n').filter(line => /\b(?:paid|payment|tendered|method|via|mode of payment)\b/i.test(line));
+  for (const candidate of [paymentLines.join('\n'), text.split('\n').slice(1).join('\n'), text]) {
+    for (const [source, pattern] of Object.entries(PAYMENT_SOURCES)) {
+      if (pattern.test(candidate)) return PAYMENT_SOURCE_LABELS[source];
     }
   }
-  return 'Cash';
+  return null;
 };
 
 /**
  * Detect category and transaction type
  */
 const detectCategory = (text) => {
-  const textLower = text.toLowerCase();
-  
-  // Check for income indicators
-  const incomeIndicators = [
-    'received', 'payment received', 'income', 'revenue',
-    'customer', 'order #', 'order no',
-  ];
-  
-  const isIncome = incomeIndicators.some(indicator => 
-    textLower.includes(indicator)
-  );
-  
-  if (isIncome) {
-    // Try to detect income category
-    for (const [category, pattern] of Object.entries(CATEGORY_PATTERNS)) {
-      if (['sales', 'delivery', 'catering'].includes(category) && pattern.test(text)) {
-        return {
-          type: 'Income',
-          category: category.charAt(0).toUpperCase() + category.slice(1),
-        };
-      }
-    }
-    return { type: 'Income', category: 'Sales' };
-  }
-  
-  // Try to detect expense category
-  for (const [category, pattern] of Object.entries(CATEGORY_PATTERNS)) {
-    if (pattern.test(text)) {
-      return {
-        type: 'Expense',
-        category: category.charAt(0).toUpperCase() + category.slice(1),
-      };
-    }
-  }
-  
-  // Default to expense with no category
-  return { type: 'Expense', category: null };
+  // A shop buying ingredients can have "received by" on its receipt; that
+  // alone must never turn an expense into income.
+  const type = /\b(?:sales report|daily sales|sales income|revenue report|income receipt|tips received|catering payout)\b/i.test(text)
+    ? 'Income' : 'Expense';
+  const itemText = text.split('\n').slice(1)
+    .filter(line => !/\b(?:total|amount due|cash|gcash|maya|receipt|invoice)\b/i.test(line))
+    .join('\n');
+  const category = CATEGORY_RULES.find(rule => rule.type === type && rule.pattern.test(itemText))?.category
+    || CATEGORY_RULES.find(rule => rule.type === type && rule.pattern.test(text))?.category
+    || null;
+  return {type, category};
 };
 
 /**
@@ -262,11 +272,11 @@ const calculateConfidence = (parsed) => {
   };
   
   if (parsed.amount) score += weights.amount;
-  if (parsed.date) score += weights.date;
+  if (parsed.dateDetected) score += weights.date;
   if (parsed.merchant && parsed.merchant !== 'Unknown Merchant') {
     score += weights.merchant;
   }
-  if (parsed.source) score += weights.source;
+  if (parsed.sourceDetected) score += weights.source;
   if (parsed.category) score += weights.category;
   
   return score;
@@ -275,13 +285,13 @@ const calculateConfidence = (parsed) => {
 /**
  * Format parsed data for transaction entry
  */
-export const formatForTransaction = (parsed) => {
+export const formatForTransaction = (parsed, availableCategories) => {
   return {
     amount: parsed.amount?.toFixed(2) || '',
     type: parsed.type,
     source: parsed.source,
-    category: parsed.category || '',
-    date: parsed.date || new Date().toISOString().split('T')[0],
+    category: availableCategories ? suggestReceiptCategory(parsed, availableCategories, parsed.type) : parsed.category || '',
+    date: parsed.date || localDate(),
     notes: parsed.merchant && parsed.merchant !== 'Unknown Merchant' ? parsed.merchant : '',
     entryMethod: 'OCR',
     confidence: parsed.confidence,

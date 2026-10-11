@@ -33,7 +33,7 @@ class OwnerDashboardTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_overview_shows_business_scoped_finances_sales_and_actionable_alerts(): void
+    public function test_overview_shows_business_scoped_finances_sales_and_completed_orders(): void
     {
         $business = $this->business('Owner Dashboard Cafe');
         $owner = User::factory()->owner()->create(['business_id' => $business->id]);
@@ -86,8 +86,17 @@ class OwnerDashboardTest extends TestCase
             'total' => 700, 'completed_at' => '2026-10-09 10:00:00',
         ]);
         $this->order($business, $activeStaff, [
+            'order_number' => 'OLDER-COMPLETED-ORDER', 'status' => 'completed',
+            'payment_status' => 'confirmed', 'total' => 80,
+            'completed_at' => '2026-09-15 10:00:00',
+        ]);
+        $this->order($business, $activeStaff, [
             'status' => 'cancelled', 'payment_status' => 'cancelled', 'payment_method' => 'cash',
             'total' => 300, 'completed_at' => null,
+        ]);
+        $this->order($otherBusiness, $otherOwner, [
+            'order_number' => 'OTHER-SHOP-ORDER', 'status' => 'completed',
+            'payment_status' => 'confirmed', 'total' => 50000,
         ]);
 
         $this->actingAs($owner)
@@ -101,11 +110,16 @@ class OwnerDashboardTest extends TestCase
             ->assertViewHas('todaySales', 150.0)
             ->assertViewHas('activeProductCount', 1)
             ->assertViewHas('activeStockCount', 2)
-            ->assertViewHas('attentionPayments', fn (array $counts): bool => $counts['detected'] === 1)
+            ->assertViewHas('recentCompletedOrders', fn ($orders): bool => $orders->count() === 3
+                && $orders->every(fn ($order): bool => (int) $order->business_id === (int) $business->id))
             ->assertSee('Owner Dashboard Cafe')
             ->assertSee('Financial snapshot')
-            ->assertSee('Payments needing attention')
-            ->assertSee('Awaiting verification')
+            ->assertSee('Completed orders')
+            ->assertSee('OLDER-COMPLETED-ORDER')
+            ->assertSee('Payment awaiting verification')
+            ->assertSee(route('orders.index', ['status' => 'completed']))
+            ->assertDontSee('Payments needing attention')
+            ->assertDontSee('OTHER-SHOP-ORDER')
             ->assertSee('Inventory, 1 out of stock and 1 low stock')
             ->assertSee('Stock notifications')
             ->assertSee(route('stock.index', ['low_stock' => 1, 'active' => 1]))
@@ -199,6 +213,9 @@ class OwnerDashboardTest extends TestCase
             )
             ->assertViewHas('comparisonStartDate', fn ($date): bool => $date->toDateString() === '2026-09-01')
             ->assertViewHas('comparisonEndDate', fn ($date): bool => $date->toDateString() === '2026-09-09')
+            ->assertSee('Business Insights')
+            ->assertSee('Recorded income rose 200.0%')
+            ->assertDontSee('What these numbers mean')
             ->assertDontSee('Customer activity is increasing');
     }
 
@@ -226,6 +243,7 @@ class OwnerDashboardTest extends TestCase
             ->assertViewHas('chart', fn (array $chart): bool => count($chart['labels']) === 5
                 && $chart['income'][0] === 100.0
                 && $chart['expenses'][4] === 25.0)
+            ->assertSee('Recorded expenses rose 150.0%')
             ->assertSee('Daily income and expenses');
     }
 
@@ -431,11 +449,34 @@ class OwnerDashboardTest extends TestCase
             'order_number' => 'PRIVATE-ORDER-REFERENCE', 'total' => 25,
         ]);
 
-        $this->actingAs($owner)
+        $orderList = $this->actingAs($owner)
             ->get(route('orders.index'))
             ->assertOk()
+            ->assertViewHas('summary', fn ($summary): bool => (int) $summary->total_orders === 1
+                && (int) $summary->awaiting_verification === 1
+                && (int) $summary->completed_paid === 0)
             ->assertSee('CAFE-ORDER-REFERENCE')
             ->assertDontSee('PRIVATE-ORDER-REFERENCE');
+        preg_match('/<select id="status"[^>]*>(.*?)<\/select>/s', $orderList->getContent(), $statusSelect);
+        $this->assertNotEmpty($statusSelect);
+        $this->assertStringNotContainsString('value="pending"', $statusSelect[1]);
+        $this->assertStringNotContainsString('value="preparing"', $statusSelect[1]);
+        $this->assertStringNotContainsString('value="ready"', $statusSelect[1]);
+        preg_match('/<select id="payment_status"[^>]*>(.*?)<\/select>/s', $orderList->getContent(), $paymentStatusSelect);
+        $this->assertNotEmpty($paymentStatusSelect);
+        $this->assertStringNotContainsString('value="pending"', $paymentStatusSelect[1]);
+        $this->assertStringNotContainsString('value="detected"', $paymentStatusSelect[1]);
+        $this->assertStringNotContainsString('value="refund_pending"', $paymentStatusSelect[1]);
+
+        $this->actingAs($owner)
+            ->get(route('orders.index', ['search' => 'CAFE-ORDER', 'payment_status' => 'detected']))
+            ->assertOk()
+            ->assertViewHas('orders', fn ($orders): bool => $orders->total() === 1);
+
+        $this->actingAs($owner)
+            ->get(route('orders.index', ['search' => 'PRIVATE-ORDER']))
+            ->assertOk()
+            ->assertViewHas('orders', fn ($orders): bool => $orders->total() === 0);
 
         $this->actingAs($owner)
             ->get(route('orders.show', $ownOrder))
@@ -444,6 +485,22 @@ class OwnerDashboardTest extends TestCase
             ->assertSee('Awaiting verification');
 
         $this->actingAs($owner)->get(route('orders.show', $otherOrder))->assertNotFound();
+    }
+
+    public function test_owner_can_search_an_order_by_its_previous_reference_after_renumbering(): void
+    {
+        $business = $this->business('Old Reference Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        $order = $this->order($business, $staff, ['order_number' => '0001']);
+        $order->forceFill(['legacy_order_number' => 'ORD-OLD-REFERENCE'])->save();
+
+        $this->actingAs($owner)
+            ->get(route('orders.index', ['search' => 'ORD-OLD-REFERENCE']))
+            ->assertOk()
+            ->assertViewHas('orders', fn ($orders): bool => $orders->total() === 1
+                && $orders->first()->id === $order->id)
+            ->assertSee('0001');
     }
 
     public function test_transaction_and_staff_pages_do_not_expose_another_business_records(): void

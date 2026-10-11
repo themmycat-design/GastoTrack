@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useFocusEffect} from '@react-navigation/native';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useTransactions} from '../../context/TransactionContext';
+import {useProducts} from '../../context/ProductContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
@@ -23,6 +24,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
   const {
     INCOME_CATEGORIES,
     EXPENSE_CATEGORIES,
+    PRODUCT_CATEGORIES,
     TRANSACTION_SOURCES,
     transactionOptions,
     optionsLoading,
@@ -32,6 +34,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
     updateTransactionOption,
     deleteTransactionOption,
   } = useTransactions();
+  const {fetchProducts} = useProducts();
   const [name, setName] = useState('');
   const [transactionType, setTransactionType] = useState('expense');
   const [saving, setSaving] = useState(false);
@@ -45,9 +48,10 @@ const TransactionOptionsScreen = ({navigation, route}) => {
   const groups = useMemo(() => isCategory ? [
     {key: 'income', title: 'Income categories', values: INCOME_CATEGORIES},
     {key: 'expense', title: 'Expense categories', values: EXPENSE_CATEGORIES},
+    {key: 'product', title: 'Product categories', values: PRODUCT_CATEGORIES},
   ] : [
     {key: 'all', title: 'Payment sources', values: TRANSACTION_SOURCES},
-  ], [EXPENSE_CATEGORIES, INCOME_CATEGORIES, TRANSACTION_SOURCES, isCategory]);
+  ], [EXPENSE_CATEGORIES, INCOME_CATEGORIES, PRODUCT_CATEGORIES, TRANSACTION_SOURCES, isCategory]);
 
   const findOption = (value, type) => transactionOptions.find(option =>
     option.kind === kind
@@ -66,7 +70,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
       return;
     }
     const currentValues = isCategory
-      ? transactionType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+      ? transactionType === 'income' ? INCOME_CATEGORIES : transactionType === 'product' ? PRODUCT_CATEGORIES : EXPENSE_CATEGORIES
       : TRANSACTION_SOURCES;
     if (currentValues.some(value => value.toLowerCase() === cleanName.toLowerCase() && value.toLowerCase() !== editingOption?.name?.toLowerCase())) {
       Alert.alert('Already exists', `This ${kind} is already in the list.`);
@@ -85,12 +89,16 @@ const TransactionOptionsScreen = ({navigation, route}) => {
     }
     setName('');
     setEditingOption(null);
+    if (editingOption?.transaction_type === 'product') {
+      const refreshed = await fetchProducts();
+      if (!refreshed?.success) Alert.alert('Category saved', 'Refresh the Products list to see the updated category.');
+    }
   };
 
   const beginEdit = option => {
     setEditingOption(option);
     setName(option.name);
-    setTransactionType(option.transaction_type === 'income' ? 'income' : 'expense');
+    setTransactionType(option.transaction_type === 'all' ? 'expense' : option.transaction_type);
   };
 
   const cancelEdit = () => {
@@ -101,14 +109,16 @@ const TransactionOptionsScreen = ({navigation, route}) => {
   const removeOption = option => {
     Alert.alert(
       `Remove ${kind}?`,
-      `“${option.name}” will no longer appear as a choice. Existing transactions will not be changed.`,
+      option.transaction_type === 'product'
+        ? `"${option.name}" can only be removed when no products use it.`
+        : `"${option.name}" will no longer appear as a choice. Existing transactions will not be changed.`,
       [
         {text: 'Cancel', style: 'cancel'},
         {text: 'Remove', style: 'destructive', onPress: async () => {
           setDeletingId(option.id);
           const result = await deleteTransactionOption(option.id);
           setDeletingId(null);
-          if (editingOption?.id === option.id) cancelEdit();
+          if (result.success && editingOption?.id === option.id) cancelEdit();
           if (!result.success) Alert.alert(`Could not remove ${kind}`, errorMessage(result.error));
         }},
       ],
@@ -135,9 +145,9 @@ const TransactionOptionsScreen = ({navigation, route}) => {
           </View>
 
           {isCategory ? <View style={styles.typeSelector}>
-            {['income', 'expense'].map(type => (
-              <TouchableOpacity key={type} style={[styles.typeButton, transactionType === type && styles.typeButtonActive]} onPress={() => setTransactionType(type)}>
-                <Text style={[styles.typeText, transactionType === type && styles.typeTextActive]}>{type === 'income' ? 'Income' : 'Expense'}</Text>
+            {['income', 'expense', 'product'].map(type => (
+              <TouchableOpacity key={type} style={[styles.typeButton, transactionType === type && styles.typeButtonActive]} onPress={() => setTransactionType(type)} disabled={!!editingOption && (editingOption.transaction_type === 'product') !== (type === 'product')}>
+                <Text style={[styles.typeText, transactionType === type && styles.typeTextActive]}>{type === 'income' ? 'Income' : type === 'product' ? 'Product' : 'Expense'}</Text>
               </TouchableOpacity>
             ))}
           </View> : null}
@@ -147,7 +157,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder={isCategory ? 'Example: Delivery fees' : 'Example: GrabPay'}
+              placeholder={isCategory ? transactionType === 'product' ? 'Example: Bakery' : 'Example: Delivery fees' : 'Example: GrabPay'}
               placeholderTextColor={COLORS.textMuted}
               maxLength={100}
               onSubmitEditing={saveOption}

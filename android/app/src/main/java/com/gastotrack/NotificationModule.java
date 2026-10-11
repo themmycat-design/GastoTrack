@@ -4,6 +4,7 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.modules.core.PermissionAwareActivity;
 import com.facebook.react.modules.core.PermissionListener;
 
@@ -29,6 +30,37 @@ public class NotificationModule extends ReactContextBaseJavaModule {
     @Override
     public String getName() {
         return MODULE_NAME;
+    }
+
+    @ReactMethod
+    public void setCaptureAccount(int userId, int businessId, Promise promise) {
+        try {
+            WalletCaptureStore.getInstance(getReactApplicationContext()).setActiveAccount(userId, businessId);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("CAPTURE_ACCOUNT_ERROR", "Could not set the active capture account.");
+        }
+    }
+
+    @ReactMethod
+    public void getPendingCaptures(Promise promise) {
+        try {
+            promise.resolve(WalletCaptureStore.getInstance(getReactApplicationContext()).pending().toString());
+        } catch (Exception exception) {
+            promise.reject("CAPTURE_READ_ERROR", "Could not read captured wallet notifications.");
+        }
+    }
+
+    @ReactMethod
+    public void markCapturesSynced(ReadableArray ids, Promise promise) {
+        try {
+            String[] clientIds = new String[ids.size()];
+            for (int index = 0; index < ids.size(); index++) clientIds[index] = ids.getString(index);
+            WalletCaptureStore.getInstance(getReactApplicationContext()).markSynced(clientIds);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("CAPTURE_SYNC_ERROR", "Could not clear synced wallet notifications.");
+        }
     }
 
     /**

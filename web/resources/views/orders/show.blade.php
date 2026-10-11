@@ -4,7 +4,7 @@
     <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <title>{{ $order->order_number ?: 'Order #'.$order->id }} | GastoTrack</title>
+    <title>Order details | GastoTrack</title>
 </head>
 <body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased">
 @php
@@ -30,47 +30,26 @@
     @include('layouts.owner-navigation')
     <main class="min-w-0 flex-1">
         @include('layouts.owner-topbar')
-        <div class="mx-auto max-w-[1100px] space-y-5 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <div class="mx-auto max-w-[1600px] space-y-5 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <a href="{{ route('orders.index') }}" class="gt-focus inline-flex items-center gap-2 text-sm font-bold text-[#08745D] hover:underline">← Back to orders</a>
 
-            <section class="gt-card p-5 sm:p-7">
+            <section class="gt-card gt-enter p-5 sm:p-7">
                 <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Order details</p>
-                        <h2 class="mt-1 break-all text-2xl font-extrabold tracking-tight">{{ $order->order_number ?: 'Order #'.$order->id }}</h2>
-                        <p class="mt-2 text-sm text-slate-500">{{ optional($order->created_at)->format('M j, Y · g:i A') }} · {{ $order->creator?->name ?? 'Staff account unavailable' }}</p>
+                        <h2 class="mt-1 text-2xl font-extrabold tracking-tight">{{ $order->customer_name ?: 'Walk-in order' }}</h2>
+                        <p class="mt-2 text-sm text-slate-500">Placed {{ optional($order->created_at)->format('M j, Y · g:i A') }}</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <span class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">Order: {{ \Illuminate\Support\Str::headline($order->status) }}</span>
-                        <span class="rounded-full px-3 py-1.5 text-xs font-bold {{ $paymentTone }}">Payment: {{ $paymentLabel }}</span>
                     </div>
                 </div>
 
-                @if($paymentStatus === 'detected')
-                    <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                        A matching wallet notification was detected, but it is not provider verification. This payment remains unconfirmed until an authorized staff member checks it.
-                    </div>
-                @elseif($paymentStatus === 'refund_pending')
-                    <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                        A refund was requested and is awaiting manual confirmation. This page does not claim that money has already been returned.
-                    </div>
-                @endif
-
-                <dl class="mt-6 grid gap-4 border-t border-[#EAF2EF] pt-5 sm:grid-cols-3">
-                    <div><dt class="text-xs font-semibold text-slate-500">Customer</dt><dd class="mt-1 text-sm font-bold">{{ $order->customer_name ?: 'Walk-in Customer' }}</dd></div>
-                    <div><dt class="text-xs font-semibold text-slate-500">Payment method</dt><dd class="mt-1 text-sm font-bold">{{ $order->payment_method ? strtoupper($order->payment_method) : 'Not recorded' }}</dd></div>
-                    <div><dt class="text-xs font-semibold text-slate-500">Currency</dt><dd class="mt-1 text-sm font-bold">{{ $order->payment_currency ?: $currencyCode }}</dd></div>
-                    @if($order->payment_confirmed_at)
-                        <div><dt class="text-xs font-semibold text-slate-500">Confirmed at</dt><dd class="mt-1 text-sm font-bold">{{ $order->payment_confirmed_at->format('M j, Y · g:i A') }}</dd></div>
-                        <div><dt class="text-xs font-semibold text-slate-500">Confirmed by</dt><dd class="mt-1 text-sm font-bold">{{ $order->paymentConfirmer?->name ?? 'Staff account unavailable' }}</dd></div>
-                    @endif
-                    @if($order->payment_reference)
-                        <div><dt class="text-xs font-semibold text-slate-500">Payment reference</dt><dd class="mt-1 break-all text-sm font-bold">{{ $order->payment_reference }}</dd></div>
-                    @endif
-                </dl>
             </section>
 
-            <section class="gt-card overflow-hidden">
+            <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
+                <div class="min-w-0 space-y-5">
+            <section class="gt-card gt-enter overflow-hidden">
                 <div class="border-b border-[#EAF2EF] px-5 py-4 sm:px-6"><h3 class="font-extrabold">Items</h3></div>
                 <div class="divide-y divide-[#EAF2EF]">
                     @forelse($order->items as $item)
@@ -106,6 +85,53 @@
                     </div>
                 </section>
             @endif
+                </div>
+
+                <aside class="min-w-0 space-y-5" aria-label="Order and payment information">
+                    <section class="gt-card gt-enter overflow-hidden">
+                        <div class="px-5 py-5 sm:px-6">
+                            <h3 class="text-lg font-extrabold">Payment</h3>
+                            <span class="mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-bold {{ $paymentTone }}">{{ $paymentLabel }}</span>
+                            @if($paymentStatus === 'detected')
+                                <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">A wallet notification was detected, not verified by the provider. Staff must check the payment before confirming it.</p>
+                            @elseif($paymentStatus === 'refund_pending')
+                                <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">The refund is pending manual confirmation. This does not mean money has been returned.</p>
+                            @endif
+                            <dl class="mt-5 divide-y divide-[#EAF2EF] text-sm">
+                                <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Method</dt><dd class="font-bold">{{ $order->payment_method ? strtoupper($order->payment_method) : 'Not recorded' }}</dd></div>
+                                <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Currency</dt><dd class="font-bold">{{ $order->payment_currency ?: $currencyCode }}</dd></div>
+                                @if($order->payment_confirmed_at)
+                                    <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Confirmed at</dt><dd class="text-right font-bold">{{ $order->payment_confirmed_at->format('M j, Y · g:i A') }}</dd></div>
+                                    <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Confirmed by</dt><dd class="text-right font-bold">{{ $order->paymentConfirmer?->name ?? 'Staff account unavailable' }}</dd></div>
+                                @endif
+                                @if($order->payment_reference)
+                                    <div class="py-2"><dt class="text-slate-500">Payment reference</dt><dd class="mt-1 break-all font-bold">{{ $order->payment_reference }}</dd></div>
+                                @endif
+                            </dl>
+                        </div>
+                    </section>
+
+                    <section class="gt-card gt-enter p-5 sm:p-6">
+                        <h3 class="text-lg font-extrabold">Order information</h3>
+                        <dl class="mt-4 divide-y divide-[#EAF2EF] text-sm">
+                            <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Customer</dt><dd class="text-right font-bold">{{ $order->customer_name ?: 'Walk-in customer' }}</dd></div>
+                            <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Placed by</dt><dd class="text-right font-bold">{{ $order->creator?->name ?? 'Staff account unavailable' }}</dd></div>
+                            @if($order->completed_at)
+                                <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Completed</dt><dd class="text-right font-bold">{{ $order->completed_at->format('M j, Y · g:i A') }}</dd></div>
+                            @endif
+                            @if($order->cancelled_at)
+                                <div class="py-2"><dt class="text-slate-500">Cancellation</dt><dd class="mt-1 font-bold">{{ $order->cancel_reason ?: 'No reason recorded' }}</dd></div>
+                            @endif
+                            @if($order->refund_requested_at)
+                                <div class="py-2"><dt class="text-slate-500">Refund request</dt><dd class="mt-1 font-bold">{{ $order->refund_reason ?: 'No reason recorded' }}</dd></div>
+                            @endif
+                            @if($order->notes)
+                                <div class="py-2"><dt class="text-slate-500">Order notes</dt><dd class="mt-1 whitespace-pre-wrap font-medium">{{ $order->notes }}</dd></div>
+                            @endif
+                        </dl>
+                    </section>
+                </aside>
+            </div>
         </div>
     </main>
 </div>

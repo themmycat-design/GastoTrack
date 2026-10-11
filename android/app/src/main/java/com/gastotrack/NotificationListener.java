@@ -15,6 +15,7 @@ public class NotificationListener extends NotificationListenerService {
     private static final String[] SUPPORTED_APPS = {
         NotificationParser.GCASH,
         NotificationParser.MAYA,
+        NotificationParser.MAYA_ALT,
         NotificationParser.GRABPAY,
         NotificationParser.SHOPEEPAY
     };
@@ -49,6 +50,9 @@ public class NotificationListener extends NotificationListenerService {
         String title = extras.getString(Notification.EXTRA_TITLE, "");
         String text  = "";
         CharSequence textSeq = extras.getCharSequence(Notification.EXTRA_TEXT);
+        if (textSeq == null || textSeq.length() == 0) {
+            textSeq = extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
+        }
         if (textSeq != null) text = textSeq.toString();
 
         // Skip empty notifications
@@ -59,6 +63,14 @@ public class NotificationListener extends NotificationListenerService {
             NotificationParser.parse(packageName, title, text);
 
         if (parsed == null) return;
+
+        // Persist before emitting: the React Native runtime may not be alive
+        // while Android delivers a notification in the background.
+        try {
+            WalletCaptureStore.getInstance(this).capture(sbn, parsed);
+        } catch (RuntimeException ignored) {
+            // A storage failure must not crash Android's notification listener.
+        }
 
         // Emit the parsed transaction to the React Native JS side
         emitTransactionEvent(parsed);

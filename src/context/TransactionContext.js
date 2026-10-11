@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, useContext, useCallback, use
 import api from '../services/api';
 import { AuthContext } from './AuthContext'; 
 import {getApiErrorMessage} from '../services/apiErrors';
+import {productCategoriesFromOptions} from '../constants/productCategories';
 
 export const TransactionContext = createContext();
 
@@ -81,6 +82,10 @@ export const TransactionProvider = ({ children }) => {
   const transactionSources = useMemo(() => optionsLoaded
     ? mergeOptions([], transactionOptions.filter(option => option.kind === 'source').map(option => option.name))
     : TRANSACTION_SOURCES, [optionsLoaded, transactionOptions]);
+  const productCategories = useMemo(
+    () => productCategoriesFromOptions(transactionOptions, optionsLoaded),
+    [optionsLoaded, transactionOptions],
+  );
 
   const fetchTransactionOptions = useCallback(async () => {
     if (!userToken) return;
@@ -269,7 +274,8 @@ export const TransactionProvider = ({ children }) => {
       deleteTransactionOption,
       INCOME_CATEGORIES: incomeCategories,
       EXPENSE_CATEGORIES: expenseCategories,
-      TRANSACTION_SOURCES: transactionSources
+      TRANSACTION_SOURCES: transactionSources,
+      PRODUCT_CATEGORIES: productCategories,
     }}>
       {children}
     </TransactionContext.Provider>

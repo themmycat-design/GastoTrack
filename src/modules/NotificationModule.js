@@ -56,3 +56,19 @@ export const subscribeToNotifications = (callback) => {
 
   return () => subscription.remove();
 };
+
+export const setWalletCaptureAccount = async (userId, businessId) => {
+  if (Platform.OS !== 'android' || !NotificationModule) return false;
+  return NotificationModule.setCaptureAccount(Number(userId) || 0, Number(businessId) || 0);
+};
+
+export const getPendingWalletCaptures = async () => {
+  if (Platform.OS !== 'android' || !NotificationModule) return [];
+  const serialized = await NotificationModule.getPendingCaptures();
+  return JSON.parse(serialized || '[]');
+};
+
+export const markWalletCapturesSynced = async clientIds => {
+  if (Platform.OS !== 'android' || !NotificationModule || !clientIds.length) return;
+  await NotificationModule.markCapturesSynced(clientIds);
+};

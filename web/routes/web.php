@@ -6,6 +6,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\OwnerDashboardController;
+use App\Http\Controllers\OwnerGoalController;
 use App\Http\Controllers\OwnerAnalyticsController;
 use App\Http\Controllers\OwnerAnalyticsDayController;
 use App\Http\Controllers\OwnerOrderController;
@@ -36,11 +37,14 @@ Route::get('/business-status', function () {
 
 // Owner Dashboard routes
 Route::middleware(['auth', 'owner'])->group(function () {
+    Route::get('/goals', [OwnerGoalController::class, 'index'])->name('goals.index');
+    Route::post('/goals', [OwnerGoalController::class, 'store'])->name('goals.store');
     // Transactions (Read-only for owners)
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::get('/transactions/categories', [TransactionController::class, 'categories'])->name('transactions.categories');
     
     // Stock CRUD
+    Route::get('/stock/report', [StockController::class, 'export'])->name('stock.export');
     Route::resource('stock', StockController::class)->except(['show', 'create', 'edit']);
     Route::post('/stock/{stock}/adjust', [StockController::class, 'adjust'])->name('stock.adjust');
     

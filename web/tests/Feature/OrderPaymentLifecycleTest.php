@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Business;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductIngredient;
 use App\Models\StockItem;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -124,6 +126,62 @@ class OrderPaymentLifecycleTest extends TestCase
             'event_type' => 'payment_manually_confirmed',
             'reference' => 'GC-ORDER-8831',
         ]);
+    }
+
+    public function test_four_digit_order_numbers_are_consecutive_per_business_and_retries_reuse_the_number(): void
+    {
+        $payload = [
+            'client_id' => '192a4ee5-cded-4da0-bef1-d8146585e2de',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+        ];
+        $first = $this->postJson('/api/v1/orders', $payload)
+            ->assertCreated()->assertJsonPath('order.order_number', '0001')->json('order');
+        $this->postJson('/api/v1/orders', $payload)
+            ->assertOk()->assertJsonPath('order.id', $first['id'])
+            ->assertJsonPath('order.order_number', '0001');
+
+        $this->postJson('/api/v1/orders', [
+            'client_id' => 'd06b949f-1eeb-47a9-ace8-67643638029d',
+            'items' => $payload['items'],
+            'payment_method' => 'cash',
+        ])->assertCreated()->assertJsonPath('order.order_number', '0002');
+
+        Order::findOrFail($first['id'])->delete();
+        $this->postJson('/api/v1/orders', [
+            'client_id' => '2449526a-dd5a-4b71-bb48-8ea5d2611fbe',
+            'items' => $payload['items'],
+            'payment_method' => 'cash',
+        ])->assertCreated()->assertJsonPath('order.order_number', '0003');
+
+        $otherBusiness = Business::create(['name' => 'Second Coffee Shop', 'status' => 'active', 'active' => true]);
+        $otherStaff = User::factory()->staff()->create(['business_id' => $otherBusiness->id]);
+        $otherProduct = Product::create([
+            'business_id' => $otherBusiness->id, 'name' => 'Tea', 'category' => 'Drinks',
+            'price' => 50, 'active' => true, 'is_available' => true,
+        ]);
+        Sanctum::actingAs($otherStaff);
+        $this->postJson('/api/v1/orders', [
+            'items' => [['product_id' => $otherProduct->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+        ])->assertCreated()->assertJsonPath('order.order_number', '0001');
+
+        $this->assertSame(4, (int) DB::table('businesses')->where('id', $this->business->id)->value('next_order_number'));
+        $this->assertSame(2, (int) DB::table('businesses')->where('id', $otherBusiness->id)->value('next_order_number'));
+    }
+
+    public function test_four_digit_sequence_stops_after_9999_without_creating_an_order(): void
+    {
+        DB::table('businesses')->where('id', $this->business->id)->update(['next_order_number' => 9999]);
+        $payload = [
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+        ];
+        $this->postJson('/api/v1/orders', $payload)
+            ->assertCreated()->assertJsonPath('order.order_number', '9999');
+        $this->postJson('/api/v1/orders', $payload)->assertStatus(409);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('transactions', 1);
     }
 
     public function test_order_sale_uses_the_shop_day_after_utc_midnight_boundary(): void

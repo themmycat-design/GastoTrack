@@ -14,14 +14,17 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useProducts } from '../../context/ProductContext';
+import { useTransactions } from '../../context/TransactionContext';
 import { useOrders } from '../../context/OrderContext';
 import { subscribeToNotifications } from '../../modules/NotificationModule';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 
 const OrderQueueScreen = ({navigation, route}) => {
   const {products, isLoading: productsLoading} = useProducts();
+  const {PRODUCT_CATEGORIES} = useTransactions();
   const {createOrder, recordPaymentDetection, confirmPayment, markPaymentFailed, cancelOrder, cart, setCart, cartHydrated} = useOrders();
   const submittingOrder = useRef(false);
 
@@ -52,22 +55,20 @@ const OrderQueueScreen = ({navigation, route}) => {
     () => products.filter(product => product.is_available !== false),
     [products],
   );
-  const categories = useMemo(
-    () => ['All', ...new Set(availableProducts.map(product => product.category).filter(Boolean))],
-    [availableProducts],
-  );
+  const categories = useMemo(() => productCategoryTabs(PRODUCT_CATEGORIES), [PRODUCT_CATEGORIES]);
   const EWALLETS = ['GCash', 'Maya'];
 
-  const filteredProducts = selectedCategory === 'All'
-    ? availableProducts
-    : availableProducts.filter(product => product.category === selectedCategory);
+  const filteredProducts = productsInCategory(availableProducts, selectedCategory);
 
   useEffect(() => {
     const requestedCategory = route?.params?.category;
-    if (requestedCategory && categories.includes(requestedCategory)) {
-      setSelectedCategory(requestedCategory);
+    const matchingCategory = requestedCategory && categories.find(
+      category => category.toLowerCase() === requestedCategory.toLowerCase(),
+    );
+    if (matchingCategory) {
+      setSelectedCategory(matchingCategory);
       navigation.setParams({category: undefined});
-    } else if (!categories.includes(selectedCategory)) {
+    } else if (!categories.some(category => category.toLowerCase() === selectedCategory.toLowerCase())) {
       setSelectedCategory('All');
     }
   }, [categories, navigation, route?.params?.category, selectedCategory]);
@@ -246,12 +247,12 @@ const OrderQueueScreen = ({navigation, route}) => {
 
       if (paymentType === 'cashless' && order.paymentStatus !== 'confirmed') {
         setQrPaymentModalVisible(true);
-        setPaymentNotice(`Order #${order.orderNumber} is pending. GastoTrack has not confirmed payment or deducted stock.`);
+        setPaymentNotice('This order is pending. GastoTrack has not confirmed payment or deducted stock.');
       } else {
         setQrPaymentModalVisible(false);
         setPaymentType(null);
         setNotes('');
-        setPaymentNotice(`Order #${order.orderNumber} is completed; payment and sales were recorded by the server.`);
+        setPaymentNotice('This order is completed; payment and sales were recorded by the server.');
       }
     } catch (error) {
       setPaymentSignalDetected(false);
@@ -282,7 +283,7 @@ const OrderQueueScreen = ({navigation, route}) => {
       setQrPaymentModalVisible(false);
       setPaymentType(null);
       setNotes('');
-      setPaymentNotice(`Payment for order #${result.order.orderNumber} was manually confirmed by staff. No provider API was used.`);
+      setPaymentNotice('Payment for this order was manually confirmed by staff. No provider API was used.');
     } catch (error) {
       Alert.alert('Payment not confirmed', getApiErrorMessage(error, 'The server did not confirm the payment. Verify the order before retrying.'));
     } finally {
@@ -330,7 +331,7 @@ const OrderQueueScreen = ({navigation, route}) => {
             setPaymentOrder(result.order);
             setQrPaymentModalVisible(false);
             setPaymentType(null);
-            setPaymentNotice(`Order #${result.order.orderNumber} was cancelled. No provider refund was initiated.`);
+            setPaymentNotice('This order was cancelled. No provider refund was initiated.');
           } catch (error) {
             Alert.alert('Order not cancelled', getApiErrorMessage(error, 'The order is still pending. Check Order history and try again.'));
           } finally {
@@ -358,7 +359,7 @@ const OrderQueueScreen = ({navigation, route}) => {
             setPaymentOrder(result.order);
             setQrPaymentModalVisible(false);
             setPaymentType(null);
-            setPaymentNotice(`Payment attempt for order #${result.order.orderNumber} was marked failed. No income or stock was recorded; retry or cancel it from Order history.`);
+            setPaymentNotice('Payment attempt for this order was marked failed. No income or stock was recorded; retry or cancel it from Order history.');
           } catch (error) {
             Alert.alert('Could not update payment', getApiErrorMessage(error, 'The server did not confirm this payment status change.'));
           } finally {
@@ -875,7 +876,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                 </View>
 
                 <Text style={styles.qrWaitingText}>
-                  {paymentOrder?.orderNumber ? `Order ${paymentOrder.orderNumber} is pending staff verification.` : 'Waiting for the order response...'}
+                  {paymentOrder ? 'This order is pending staff verification.' : 'Waiting for the order response...'}
                 </Text>
 
                 <TouchableOpacity

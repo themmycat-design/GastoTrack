@@ -16,7 +16,7 @@ import {
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
-import { scanReceipt, parseReceiptData, formatForTransaction } from '../../services/OCRService';
+import { scanReceipt, parseReceiptData, formatForTransaction, suggestReceiptCategory } from '../../services/OCRService';
 import { useTransactions } from '../../context/TransactionContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import { COLORS, SHADOWS } from '../../theme';
@@ -185,17 +185,27 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
       setOcrResult(ocrResponse);
 
+      if (!ocrResponse.text?.trim()) {
+        Alert.alert('No text detected', 'Try a clearer photo with the full receipt visible.');
+        setScanning(false);
+        return;
+      }
+
       // Step 2: Parse the extracted text
       const parsed = parseReceiptData(ocrResponse.text);
-      setParsedData(parsed);
 
       // Step 3: Format for transaction form
-      const formatted = formatForTransaction(parsed);
+      const formatted = formatForTransaction(parsed, parsed.type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES);
+      setParsedData({
+        ...parsed,
+        category: formatted.category || null,
+        confidence: parsed.confidence - (parsed.category ? 15 : 0) + (formatted.category ? 15 : 0),
+      });
       
       // Pre-fill form
       setAmount(formatted.amount);
       setType(formatted.type);
-      setSource(formatted.source);
+      setSource(TRANSACTION_SOURCES.includes(formatted.source) ? formatted.source : '');
       setCategory(formatted.category);
       setDate(formatted.date);
       setNotes(formatted.notes);
@@ -222,6 +232,14 @@ const ReceiptScannerScreen = ({ navigation }) => {
     }
     if (!category) {
       Alert.alert('Validation Error', 'Please select a category.', [{ text: 'OK' }]);
+      return;
+    }
+    if (!categories.includes(category)) {
+      Alert.alert('Category unavailable', 'Choose a category from the current list.');
+      return;
+    }
+    if (!TRANSACTION_SOURCES.includes(source)) {
+      Alert.alert('Source required', 'Choose a payment source before saving.');
       return;
     }
     if (!notes.trim()) {
@@ -500,7 +518,10 @@ const ReceiptScannerScreen = ({ navigation }) => {
                         ? styles.toggleActiveIncome
                         : styles.toggleActiveExpense),
                     ]}
-                    onPress={() => { setType(t); setCategory(''); }}>
+                    onPress={() => {
+                      setType(t);
+                      setCategory(suggestReceiptCategory(parsedData || {}, t === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES, t));
+                    }}>
                     <Text style={[
                       styles.toggleText,
                       type === t && styles.toggleTextActive,
@@ -544,6 +565,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
               {/* Category */}
               <Text style={styles.fieldLabel}>Category</Text>
+              {!category ? <Text style={styles.categoryReviewHint}>No matching category detected. Choose one before saving.</Text> : null}
               <View style={styles.chipRow}>
                 {categories.map(c => (
                   <TouchableOpacity
@@ -861,6 +883,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
+  categoryReviewHint: {fontSize: 12, color: COLORS.textGray, marginBottom: 8},
   saveButton: {
     backgroundColor: COLORS.accentDark,
     borderRadius: 12,

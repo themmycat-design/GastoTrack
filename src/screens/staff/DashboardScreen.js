@@ -22,10 +22,11 @@ import {transactionDisplayName} from '../../utils/transactionDisplay';
 import {useStaffDay} from '../../utils/useStaffDay';
 import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
+import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 
 const DashboardScreen = ({ navigation }) => {
   const { user, sessionStorageWarning } = useAuth();
-  const { transactions, isLoading: transactionsLoading, loadError: transactionError, fetchTransactions } = useTransactions();
+  const { transactions, isLoading: transactionsLoading, loadError: transactionError, fetchTransactions, PRODUCT_CATEGORIES } = useTransactions();
   const { products, isLoading: productsLoading, loadError: productError, fetchProducts } = useProducts();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -72,12 +73,7 @@ const DashboardScreen = ({ navigation }) => {
     () => (products || []).filter(product => product.is_available !== false),
     [products],
   );
-  const categories = useMemo(() => [
-    'All',
-    ...Array.from(new Set(availableProducts
-      .map(product => product.category?.trim())
-      .filter(Boolean))),
-  ], [availableProducts]);
+  const categories = useMemo(() => productCategoryTabs(PRODUCT_CATEGORIES), [PRODUCT_CATEGORIES]);
   useEffect(() => {
     if (!categories.some(category => category.toLowerCase() === selectedCategory.toLowerCase())) {
       setSelectedCategory('All');
@@ -89,11 +85,7 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   // Filter products by category
-  const filteredProducts = selectedCategory === 'All'
-    ? availableProducts
-    : availableProducts.filter(product => (
-      product.category?.trim().toLowerCase() === selectedCategory.toLowerCase()
-    ));
+  const filteredProducts = productsInCategory(availableProducts, selectedCategory);
 
   // Get recent transactions (last 5)
   const recentTransactions = (transactions || []).filter(t => isToday(t.date || t.created_at)).slice(0, 5);
@@ -145,10 +137,7 @@ const DashboardScreen = ({ navigation }) => {
             {todayIncome !== null ? <Text style={styles.currencySymbol}>₱</Text> : null}
             <Text style={[styles.incomeAmount, todayIncome === null && styles.incomeStatus]}>{incomeLoading ? 'Loading…' : todayIncome === null ? 'Unavailable' : todayIncome.toFixed(2)}</Text>
           </View>
-          <Text style={styles.incomeDescription}>{incomeError ? 'Could not load today’s income' : 'Total income logged today'}</Text>
-          {todayIncome === 0 ? (
-            <Text style={styles.incomeEmptyHint}>New sales will appear here when recorded.</Text>
-          ) : null}
+          <Text style={styles.incomeDescription}>{incomeError ? 'Could not load today’s income' : 'Total income today'}</Text>
         </View>
 
         <ApiErrorBanner message={dashboardError} onRetry={retryDashboard} />

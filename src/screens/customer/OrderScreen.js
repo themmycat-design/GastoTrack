@@ -10,13 +10,15 @@ import {
   Image,
 } from 'react-native';
 import { useProducts } from '../../context/ProductContext';
+import {useTransactions} from '../../context/TransactionContext';
 import { useOrders } from '../../context/OrderContext';
 import { COLORS } from '../../theme';
 
 const PAYMENT_METHODS = ['Cash', 'GCash', 'Maya', 'Card'];
 
 const OrderScreen = () => {
-  const { products, PRODUCT_CATEGORIES } = useProducts();
+  const { products } = useProducts();
+  const {PRODUCT_CATEGORIES} = useTransactions();
   const { createOrder } = useOrders();
 
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -89,7 +91,7 @@ const OrderScreen = () => {
       return;
     }
 
-    const order = createOrder({
+    createOrder({
       items: cart,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -101,7 +103,7 @@ const OrderScreen = () => {
     });
 
     // Show success
-    alert(`✅ Order placed successfully!\n\nOrder #${order.orderNumber}\n\nPlease wait for staff to prepare your order.`);
+    alert('✅ Order placed successfully!\n\nPlease wait for staff to prepare your order.');
 
     // Reset
     setCart([]);

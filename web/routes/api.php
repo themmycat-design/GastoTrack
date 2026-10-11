@@ -13,6 +13,7 @@ use App\Http\Controllers\API\StockController;
 use App\Http\Controllers\API\SyncController;
 use App\Http\Controllers\API\TransactionController;
 use App\Http\Controllers\API\TransactionOptionController;
+use App\Http\Controllers\API\WalletNotificationCaptureController;
 use Illuminate\Support\Facades\Route;
 
 $registerPublicRoutes = function (): void {
@@ -40,6 +41,9 @@ $registerProtectedRoutes = function (): void {
     Route::post('/transactions/batch', [TransactionController::class, 'batch']);
     Route::get('/transactions/categories', [TransactionController::class, 'categories']);
     Route::apiResource('transactions', TransactionController::class);
+    Route::get('/wallet-notifications', [WalletNotificationCaptureController::class, 'index']);
+    Route::post('/wallet-notifications/batch', [WalletNotificationCaptureController::class, 'storeBatch'])
+        ->middleware('throttle:60,1,wallet-notifications');
     Route::get('/transaction-options', [TransactionOptionController::class, 'index']);
     Route::post('/transaction-options', [TransactionOptionController::class, 'store']);
     Route::put('/transaction-options/{transactionOption}', [TransactionOptionController::class, 'update']);

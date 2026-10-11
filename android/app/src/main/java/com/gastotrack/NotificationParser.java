@@ -7,16 +7,18 @@ public class NotificationParser {
 
     public static final String GCASH     = "com.globe.gcash.android";
     public static final String MAYA      = "com.voyager.pay";
+    public static final String MAYA_ALT  = "com.paymaya";
     public static final String GRABPAY   = "com.grabtaxi.passenger";
     public static final String SHOPEEPAY = "com.shopee.ph";
 
     public static ParsedTransaction parse(String packageName, String title, String text) {
         ParsedTransaction t = new ParsedTransaction();
-        t.rawMessage = title + " | " + maskPhoneNumbers(text);
+        t.rawMessage = redactSensitive(title) + " | " + redactSensitive(text);
 
         switch (packageName) {
             case GCASH:     return parseGCash(t, text);
             case MAYA:      return parseMaya(t, text);
+            case MAYA_ALT:  return parseMaya(t, text);
             case GRABPAY:   return parseGrabPay(t, text);
             case SHOPEEPAY: return parseShopeePay(t, text);
             default:        return null;
@@ -41,7 +43,7 @@ public class NotificationParser {
             t.merchant = null;
         }
 
-        if (t.merchant != null) t.merchant = maskPhoneNumbers(t.merchant);
+        if (t.merchant != null) t.merchant = redactSensitive(t.merchant);
         t.amount = extractAmount(text);
         return t;
     }
@@ -64,7 +66,7 @@ public class NotificationParser {
             t.merchant = null;
         }
 
-        if (t.merchant != null) t.merchant = maskPhoneNumbers(t.merchant);
+        if (t.merchant != null) t.merchant = redactSensitive(t.merchant);
         t.amount = extractAmount(text);
         return t;
     }
@@ -151,6 +153,12 @@ public class NotificationParser {
         text = text.replaceAll("\\b0\\d{10}\\b", "09*******");
         text = text.replaceAll("\\+639\\d{9}\\b", "+639*******");
         return text;
+    }
+
+    private static String redactSensitive(String text) {
+        String masked = maskPhoneNumbers(text);
+        if (masked == null) return "";
+        return masked.replaceAll("(?i)(\\b(?:otp|one.time (?:pin|password)|verification code|security code|passcode|pin)\\b[^0-9]{0,25})\\d{4,8}\\b", "$1[redacted]");
     }
 
     // ----------------------------------------------------------------

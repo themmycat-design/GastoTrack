@@ -8,7 +8,7 @@ use App\Models\StockItem;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Shared, business-scoped calculations for the owner overview and analytics.
@@ -38,13 +38,9 @@ class OwnerDashboardMetrics
             ->whereBetween('completed_at', [$todayStart, $todayEnd])
             ->sum('total');
 
-        $attentionPayments = Order::query()
+        $completedOrders = Order::query()
             ->where('business_id', $businessId)
-            ->where('status', '!=', 'cancelled')
-            ->whereIn('payment_status', ['pending', 'detected', 'refund_pending'])
-            ->selectRaw('payment_status, COUNT(*) as status_count')
-            ->groupBy('payment_status')
-            ->pluck('status_count', 'payment_status');
+            ->where('status', 'completed');
 
         $activeStock = StockItem::query()
             ->where('business_id', $businessId)
@@ -66,7 +62,11 @@ class OwnerDashboardMetrics
             'currencyCode' => strtoupper((string) ($business->currency ?: 'PHP')),
             'ledger' => $monthLedger,
             'todaySales' => round((float) $todaySales, 2),
-            'attentionPayments' => $this->paymentCountMap($attentionPayments),
+            'recentCompletedOrders' => $completedOrders
+                ->orderByDesc('completed_at')
+                ->orderByDesc('id')
+                ->limit(4)
+                ->get(),
             'activeProductCount' => Product::query()
                 ->where('business_id', $businessId)
                 ->where('active', true)
@@ -122,14 +122,51 @@ class OwnerDashboardMetrics
             $expenseValues[] = $bucketTotals[$key]['expense'] ?? 0;
         }
 
-        $stockItems = StockItem::query()
-            ->where('business_id', $businessId)
-            ->where('active', true)
-            ->select('stock_items.*')
-            ->selectRaw('(current_quantity * unit_cost) as stock_value')
-            ->orderByRaw('(current_quantity * unit_cost) DESC')
+        $productSales = DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->leftJoin('products', 'products.id', '=', 'order_items.product_id')
+            ->where('orders.business_id', $businessId)
+            ->whereNull('orders.deleted_at')
+            ->where('orders.status', 'completed')
+            ->whereIn('orders.payment_status', ['confirmed', 'refund_pending'])
+            ->whereNotNull('orders.payment_confirmed_at')
+            ->whereNotNull('orders.financials_committed_at')
+            ->whereBetween('orders.completed_at', [$start, $end])
+            ->whereExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('transactions')
+                    ->whereColumn('transactions.business_id', 'orders.business_id')
+                    ->where('transactions.type', 'income')
+                    ->whereNull('transactions.deleted_at')
+                    ->whereNull('transactions.reversal_of_id')
+                    ->where(function ($linked): void {
+                        $linked->whereColumn('transactions.order_id', 'orders.id')
+                            ->orWhereColumn('transactions.metadata->order_id', 'orders.id');
+                    });
+            });
+        // Allocate any order-level discount across its items. This is product
+        // sales, not a second addition to the transaction-ledger income.
+        $itemSalesExpression = 'CASE WHEN orders.subtotal > 0 THEN order_items.subtotal * orders.total / orders.subtotal ELSE 0 END';
+        $productSalesTotal = (float) (clone $productSales)
+            ->selectRaw("COALESCE(SUM($itemSalesExpression), 0) as amount")
+            ->first()->amount;
+        $topSellingProducts = (clone $productSales)
+            ->select('order_items.product_id')
+            ->selectRaw('COALESCE(MAX(products.name), MAX(order_items.product_name)) as product_name')
+            ->selectRaw('MAX(CASE WHEN products.deleted_at IS NULL THEN products.image END) as image')
+            ->selectRaw('SUM(order_items.quantity) as units_sold')
+            ->selectRaw("COALESCE(SUM($itemSalesExpression), 0) as sales_amount")
+            ->groupBy('order_items.product_id')
+            ->orderByDesc('units_sold')
+            ->orderByDesc('sales_amount')
             ->limit(5)
-            ->get();
+            ->get()
+            ->each(function ($item) use ($productSalesTotal): void {
+                $item->sales_amount = round((float) $item->sales_amount, 2);
+                $item->sales_share = $productSalesTotal > 0
+                    ? round($item->sales_amount / $productSalesTotal * 100, 1)
+                    : 0;
+            });
 
         return [
             'current' => $current,
@@ -150,7 +187,7 @@ class OwnerDashboardMetrics
                 'income' => $incomeValues,
                 'expenses' => $expenseValues,
             ],
-            'topStockItems' => $stockItems,
+            'topSellingProducts' => $topSellingProducts,
         ];
     }
 
@@ -185,18 +222,4 @@ class OwnerDashboardMetrics
         return round((((float) $current - (float) $previous) / (float) $previous) * 100, 1);
     }
 
-    /** @param Collection<string, int|string> $counts */
-    private function paymentCountMap(Collection $counts): array
-    {
-        $statuses = ['pending', 'detected', 'refund_pending'];
-        $result = array_fill_keys($statuses, 0);
-
-        foreach ($counts as $status => $count) {
-            if (array_key_exists((string) $status, $result)) {
-                $result[(string) $status] = (int) $count;
-            }
-        }
-
-        return $result;
-    }
 }

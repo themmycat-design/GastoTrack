@@ -5,6 +5,7 @@ use App\Models\Goal;
 use App\Models\Notification;
 use App\Models\StockItem;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 
 class NotificationService
 {
@@ -19,11 +20,17 @@ class NotificationService
 
     public function notifyGoalDeadlines(): void
     {
-        Goal::where('status', 'active')->whereBetween('deadline', [today(), today()->addDays(3)])->each(function (Goal $goal) {
-            User::where('business_id', $goal->business_id)->where('role', 'owner')->each(function (User $user) use ($goal) {
-                $exists = Notification::where('user_id', $user->id)->where('type', 'goal_deadline')->whereNull('read_at')->where('data->goal_id', $goal->id)->exists();
-                if (!$exists) Notification::create(['user_id' => $user->id, 'business_id' => $goal->business_id, 'type' => 'goal_deadline', 'title' => 'Goal deadline approaching', 'message' => "{$goal->name} is due {$goal->deadline->format('M d, Y')}.", 'data' => ['goal_id' => $goal->id]]);
+        $today = CarbonImmutable::now(config('business.timezone'))->startOfDay();
+        Goal::where('status', 'active')
+            ->whereBetween('deadline', [$today->toDateString(), $today->addDays(3)->toDateString()])
+            ->each(function (Goal $goal) {
+                if ($goal->isCompleted()) {
+                    return;
+                }
+                User::where('business_id', $goal->business_id)->where('role', 'owner')->each(function (User $user) use ($goal) {
+                    $exists = Notification::where('user_id', $user->id)->where('type', 'goal_deadline')->whereNull('read_at')->where('data->goal_id', $goal->id)->exists();
+                    if (!$exists) Notification::create(['user_id' => $user->id, 'business_id' => $goal->business_id, 'type' => 'goal_deadline', 'title' => 'Goal deadline approaching', 'message' => "{$goal->name} is due {$goal->deadline->format('M d, Y')}.", 'data' => ['goal_id' => $goal->id]]);
+                });
             });
-        });
     }
 }

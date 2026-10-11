@@ -21,12 +21,13 @@
                     <div>
                         <p class="text-sm font-semibold text-[#00A87E]">Money in and out</p>
                         <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Transactions</h2>
-                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review income and expenses recorded by your team, or narrow the list by source, category, and date.</p>
+                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded orders, income, and expenses alongside unverified GCash and Maya notification captures.</p>
                     </div>
                 </section>
 
                 <section class="gt-card gt-enter gt-enter-1 p-5 sm:p-6" aria-label="Filter transactions">
                     <form id="transaction-filter-form" method="GET" action="{{ route('transactions.index') }}" data-category-url="{{ route('transactions.categories') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+                        <input id="transaction-view" type="hidden" name="view" value="{{ $viewMode }}">
                         <div class="md:col-span-2 lg:col-span-5">
                             <label for="transaction-search" class="mb-2 block text-sm font-semibold text-slate-700">Search transactions</label>
                             <input id="transaction-search" type="text" name="search" value="{{ request('search') }}" placeholder="Category, source, product..." class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
@@ -42,9 +43,9 @@
                             </select>
                         </div>
 
-                        <div>
+                        <div id="transaction-category-filter" {{ $viewMode === 'raw' ? 'hidden' : '' }}>
                             <label for="transaction-category" class="mb-2 block text-sm font-semibold text-slate-700">Category</label>
-                            <select id="transaction-category" name="category" {{ request()->filled('source') ? '' : 'disabled' }} class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20 disabled:cursor-not-allowed disabled:bg-[#F4F8F7] disabled:text-slate-400">
+                            <select id="transaction-category" name="category" {{ $viewMode === 'daily' && request()->filled('source') ? '' : 'disabled' }} class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20 disabled:cursor-not-allowed disabled:bg-[#F4F8F7] disabled:text-slate-400">
                                 <option value="">{{ request()->filled('source') ? 'All Categories' : 'Select a source first' }}</option>
                                 @foreach($categoryOptions as $category)
                                     <option value="{{ $category }}" {{ request('category') === $category ? 'selected' : '' }}>{{ $category }}</option>
@@ -98,6 +99,9 @@
             const filterForm = document.getElementById('transaction-filter-form');
             const sourceSelect = document.getElementById('transaction-source');
             const categorySelect = document.getElementById('transaction-category');
+            const categoryFilter = document.getElementById('transaction-category-filter');
+            const viewField = document.getElementById('transaction-view');
+            const searchInput = document.getElementById('transaction-search');
             const filterButton = filterForm.querySelector('button[type="submit"]');
             const clearFiltersLink = document.getElementById('clear-transaction-filters');
             let activityController = null;
@@ -106,7 +110,23 @@
             const cleanUrl = (value) => {
                 const url = new URL(value, window.location.origin);
                 url.searchParams.delete('fragment');
+                if (url.searchParams.get('view') === 'raw') {
+                    url.searchParams.delete('category');
+                    if (!['GCash', 'Maya'].includes(url.searchParams.get('source'))) url.searchParams.delete('source');
+                }
                 return url;
+            };
+
+            const syncFilterView = (url) => {
+                const mode = url.searchParams.get('view') === 'raw' ? 'raw' : 'daily';
+                viewField.value = mode;
+                categoryFilter.hidden = mode === 'raw';
+                categorySelect.disabled = mode === 'raw' || !sourceSelect.value;
+                searchInput.placeholder = mode === 'raw' ? 'Search wallet notification text...' : 'Category, source, product...';
+                [...sourceSelect.options].forEach((option) => {
+                    option.hidden = mode === 'raw' && option.value !== '' && !['GCash', 'Maya'].includes(option.value);
+                });
+                if (mode === 'raw' && !['', 'GCash', 'Maya'].includes(sourceSelect.value)) sourceSelect.value = '';
             };
 
             const activityUrl = (value) => {
@@ -143,6 +163,8 @@
                     if (!updatedActivity) throw new Error('Activity response was incomplete.');
 
                     document.getElementById('owner-activity').replaceWith(updatedActivity);
+                    syncFilterView(displayUrl);
+                    if (viewField.value === 'daily' && sourceSelect.value) loadCategories(sourceSelect.value, displayUrl.searchParams.get('category') || '');
                     if (updateHistory) {
                         window.history.pushState({}, '', displayUrl.pathname + displayUrl.search);
                     }
@@ -167,7 +189,7 @@
                 categorySelect.replaceChildren(new Option(source ? 'Loading categories...' : 'Select a source first', ''));
                 categorySelect.disabled = true;
 
-                if (!source) return;
+                if (!source || viewField.value === 'raw') return;
 
                 const requestController = new AbortController();
                 categoryController = requestController;
@@ -212,11 +234,19 @@
                 loadCategories('');
                 filterForm.querySelector('[name="date_from"]').value = '';
                 filterForm.querySelector('[name="date_to"]').value = '';
-                loadActivity(clearFiltersLink.href, true);
+                const url = new URL(clearFiltersLink.href, window.location.origin);
+                url.searchParams.set('view', viewField.value);
+                loadActivity(url, true);
             });
 
             document.addEventListener('click', (event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                const viewLink = event.target.closest('#owner-activity [data-activity-view]');
+                if (viewLink) {
+                    event.preventDefault();
+                    loadActivity(viewLink.href, true);
+                    return;
+                }
                 const pageLink = event.target.closest('#owner-activity nav[role="navigation"] a[href], #owner-activity .pagination a[href]');
                 if (!pageLink) return;
                 event.preventDefault();
@@ -225,13 +255,15 @@
 
             window.addEventListener('popstate', () => {
                 const url = new URL(window.location.href);
+                syncFilterView(url);
                 filterForm.querySelector('[name="search"]').value = url.searchParams.get('search') || '';
                 sourceSelect.value = url.searchParams.get('source') || '';
                 filterForm.querySelector('[name="date_from"]').value = url.searchParams.get('date_from') || '';
                 filterForm.querySelector('[name="date_to"]').value = url.searchParams.get('date_to') || '';
-                loadCategories(sourceSelect.value, url.searchParams.get('category') || '');
+                if (viewField.value === 'daily') loadCategories(sourceSelect.value, url.searchParams.get('category') || '');
                 loadActivity(url);
             });
+            syncFilterView(new URL(window.location.href));
         })();
     </script>
 </body>

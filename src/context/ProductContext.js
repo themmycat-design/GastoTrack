@@ -4,7 +4,6 @@ import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
 
 export const ProductContext = createContext();
-export const PRODUCT_CATEGORIES = ['Milktea', 'Coffee', 'Food', 'Drinks', 'Other'];
 
 const normalizeProduct = product => ({
   ...product,
@@ -129,7 +128,6 @@ export const ProductProvider = ({ children }) => {
       createProduct,
       updateProduct,
       deleteProduct,
-      PRODUCT_CATEGORIES,
     }}>
       {children}
     </ProductContext.Provider>

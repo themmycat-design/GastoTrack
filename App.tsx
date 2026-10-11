@@ -18,6 +18,7 @@ import LoginScreen from './src/screens/LoginScreens';
 import OwnerBlockedScreen from './src/screens/auth/OwnerBlockedScreen';
 import { COLORS } from './src/theme';
 import AppErrorBoundary from './src/components/AppErrorBoundary';
+import WalletCaptureSync from './src/components/WalletCaptureSync';
 
 const RootStack = createNativeStackNavigator();
 
@@ -60,6 +61,7 @@ const AppNav = () => {
 const App = () => (
   <SafeAreaProvider>
     <AuthProvider>
+      <WalletCaptureSync />
       <StockProvider>
         <ProductProvider>
           <TransactionProvider>

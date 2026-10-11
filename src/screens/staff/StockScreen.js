@@ -7,6 +7,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useStock} from '../../context/StockContext';
 import {useProducts} from '../../context/ProductContext';
+import {useTransactions} from '../../context/TransactionContext';
 import {COLORS} from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
@@ -43,8 +44,8 @@ const StockScreen = () => {
   } = useStock();
   const {
     products, isLoading: productsLoading, fetchProducts, createProduct, updateProduct, deleteProduct, loadError: productError,
-    PRODUCT_CATEGORIES,
   } = useProducts();
+  const {PRODUCT_CATEGORIES} = useTransactions();
   const [activeTab, setActiveTab] = useState('stock');
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -196,7 +197,7 @@ const StockScreen = () => {
 
   const openCreateProduct = () => {
     setEditingProduct(null);
-    setProductForm({...emptyProductForm, ingredients: []});
+    setProductForm({...emptyProductForm, category: PRODUCT_CATEGORIES[0] || '', ingredients: []});
     setProductEditorVisible(true);
   };
 
@@ -262,6 +263,10 @@ const StockScreen = () => {
     const price = Number(productForm.price);
     if (!productForm.name.trim() || !productForm.category || !Number.isFinite(price) || price < 0) {
       Alert.alert('Check product details', 'Enter a product name, category, and valid price.');
+      return;
+    }
+    if (!PRODUCT_CATEGORIES.includes(productForm.category)) {
+      Alert.alert('Category unavailable', 'Choose a current product category before saving.');
       return;
     }
     if (productForm.ingredients.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {

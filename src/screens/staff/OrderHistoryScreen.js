@@ -148,7 +148,6 @@ const OrderHistoryScreen = ({navigation}) => {
     const itemDescription = items.length
       ? items.map(orderItem => `${orderItem.quantity}× ${orderItem.product_name || orderItem.product?.name || 'Product'}`).join(', ')
       : 'Order items unavailable';
-    const number = item.orderNumber || item.order_number || `#${item.id}`;
     const paymentMethod = item.paymentMethod || item.payment_method || 'Payment unavailable';
     const orderStatus = String(item.status || 'pending').trim().toLowerCase();
     const rawPaymentStatus = getEffectiveOrderPaymentStatus(item);
@@ -170,7 +169,7 @@ const OrderHistoryScreen = ({navigation}) => {
             <Icon name="receipt-text-outline" size={21} color={COLORS.accentDark} />
           </View>
           <View style={styles.orderInfo}>
-            <Text style={styles.orderNumber}>Order {number}</Text>
+            <Text style={styles.orderTitle}>{item.customerName || item.customer_name || 'Order'}</Text>
             <Text style={styles.orderDate}>{formatOrderDate(item.createdAt || item.created_at)}</Text>
           </View>
           <Text style={styles.orderTotal}>₱{Number(item.total || 0).toFixed(2)}</Text>
@@ -348,7 +347,7 @@ const styles = StyleSheet.create({
   cardTop: {flexDirection: 'row', alignItems: 'center'},
   orderIcon: {width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted},
   orderInfo: {flex: 1, marginHorizontal: 10},
-  orderNumber: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
+  orderTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
   orderDate: {fontSize: 11, color: COLORS.textGray, marginTop: 3},
   orderTotal: {fontSize: 15, fontWeight: '700', color: COLORS.accentDark},
   orderItems: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 12},

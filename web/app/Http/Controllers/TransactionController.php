@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Transaction;
+use App\Models\WalletNotificationCapture;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,8 +16,40 @@ class TransactionController extends Controller
      */
     public function index(Request $request)
     {
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'source' => ['nullable', 'string', 'max:50'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d'],
+        ]);
         $user = auth()->user();
         $businessId = $user->business_id;
+        $viewMode = $request->query('view') === 'raw' ? 'raw' : 'daily';
+        $transactions = null;
+        $captures = null;
+
+        if ($viewMode === 'raw') {
+            $captureQuery = WalletNotificationCapture::where('business_id', $businessId)
+                ->with('capturedBy:id,name');
+            if ($request->filled('source')) {
+                $captureQuery->where('source', strtolower($request->source));
+            }
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $captureQuery->where(fn ($query) => $query
+                    ->where('message', 'like', "%{$search}%")
+                    ->orWhere('merchant', 'like', "%{$search}%"));
+            }
+            $timezone = config('business.timezone');
+            if ($request->filled('date_from')) {
+                $captureQuery->where('captured_at', '>=', Carbon::parse($request->date_from, $timezone)->startOfDay()->utc());
+            }
+            if ($request->filled('date_to')) {
+                $captureQuery->where('captured_at', '<=', Carbon::parse($request->date_to, $timezone)->endOfDay()->utc());
+            }
+            $captures = $captureQuery->orderByDesc('captured_at')->orderByDesc('id')->paginate(15)->withQueryString();
+        } else {
         
         // Start query
         $query = Transaction::where('business_id', $businessId)
@@ -62,14 +96,15 @@ class TransactionController extends Controller
             ->paginate(15)
             ->withQueryString();
         $this->addOrderedProductNames($transactions->getCollection(), $businessId);
+        }
 
         if ($request->query('fragment') === 'activity') {
-            return view('transactions.partials.activity', compact('transactions'));
+            return view('transactions.partials.activity', compact('transactions', 'captures', 'viewMode'));
         }
 
         $sourceOptions = ['Cash', 'Maya', 'GCash', 'Bank Transfer', 'Credit Card'];
         $categoryOptions = collect();
-        if ($request->filled('source')) {
+        if ($viewMode === 'daily' && $request->filled('source')) {
             $source = strtolower($request->source);
             $sourceAliases = match ($source) {
                 'bank transfer' => ['bank transfer', 'bank'],
@@ -92,7 +127,7 @@ class TransactionController extends Controller
             ->where('type', 'expense')
             ->sum('amount');
         
-        return view('transactions.index', compact('transactions', 'totalIncome', 'totalExpense', 'sourceOptions', 'categoryOptions'));
+        return view('transactions.index', compact('transactions', 'captures', 'viewMode', 'totalIncome', 'totalExpense', 'sourceOptions', 'categoryOptions'));
     }
 
     public function categories(Request $request)
