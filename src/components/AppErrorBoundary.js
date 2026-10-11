@@ -9,8 +9,8 @@ class AppErrorBoundary extends React.Component {
     return {error};
   }
 
-  componentDidCatch(error, errorInfo) {
-    console.error('[AppErrorBoundary] Screen rendering failed:', error, errorInfo);
+  componentDidCatch() {
+    console.error('[AppErrorBoundary] A screen render failed. Sensitive details were omitted.');
   }
 
   retry = () => {

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import api, {API_URL} from '../services/api';
 import { AuthContext } from './AuthContext';
+import {getApiErrorMessage} from '../services/apiErrors';
 
 export const ProductContext = createContext();
 export const PRODUCT_CATEGORIES = ['Milktea', 'Coffee', 'Food', 'Drinks', 'Other'];
@@ -62,6 +63,7 @@ const toMultipartPayload = (product, method) => {
 export const ProductProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const { userToken } = useContext(AuthContext);
 
   const fetchProducts = useCallback(async () => {
@@ -70,20 +72,22 @@ export const ProductProvider = ({ children }) => {
     try {
       const response = await api.get('/products');
       setProducts(extractProducts(response.data));
+      setLoadError(null);
+      return {success: true};
     } catch (error) {
-      console.log('Error fetching products:', error);
+      setLoadError(getApiErrorMessage(error));
+      return {success: false, error};
     } finally {
       setIsLoading(false);
     }
   }, [userToken]);
 
   useEffect(() => {
-    console.log('[ProductContext] userToken changed:', userToken ? 'Token exists' : 'No token');
     if (userToken) {
-      console.log('[ProductContext] Fetching products...');
       fetchProducts();
     } else {
       setProducts([]);
+      setLoadError(null);
     }
   }, [userToken, fetchProducts]);
 
@@ -120,6 +124,7 @@ export const ProductProvider = ({ children }) => {
     <ProductContext.Provider value={{
       products,
       isLoading,
+      loadError,
       fetchProducts,
       createProduct,
       updateProduct,

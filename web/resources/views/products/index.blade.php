@@ -1,48 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Products - GastoTrack</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-    </style>
+    <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Products | GastoTrack</title>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-50">
-    <!-- Navigation Bar -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <a href="{{ route('dashboard') }}" class="flex items-center">
-                        <span class="text-2xl font-bold" style="color: #00C897;">GastoTrack</span>
-                    </a>
-                    <div class="ml-10 flex space-x-8">
-                        <a href="{{ route('dashboard') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">Dashboard</a>
-                        <a href="{{ route('transactions.index') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">Transactions</a>
-                        <a href="{{ route('products.index') }}" class="text-gray-900 border-b-2 px-3 py-2 text-sm font-semibold" style="border-color: #00C897; color: #00C897;">Products</a>
-                        <a href="{{ route('stock.index') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">Stock</a>
-                        <a href="{{ route('staff.index') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">Staff</a>
-                        <a href="{{ route('analytics.index') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium">Analytics</a>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-700">{{ Auth::user()->name }}</span>
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button type="submit" class="text-sm text-gray-700 hover:text-gray-900">Logout</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased">
+<div class="min-h-screen lg:flex">
+    @include('layouts.owner-navigation')
+    <main class="min-w-0 flex-1">
+        @include('layouts.owner-topbar')
+        <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
             <div>
@@ -53,6 +24,16 @@
                 + Add Product
             </button>
         </div>
+
+        @if(session('success'))
+            <div role="status" class="mb-5 rounded-xl border border-[#C8DED7] bg-[#EAF8F2] px-4 py-3 text-sm font-semibold text-[#08745D]">{{ session('success') }}</div>
+        @endif
+        @if($errors->any())
+            <div role="alert" class="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <p class="font-bold">Please correct the product details:</p>
+                <ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            </div>
+        @endif
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -149,8 +130,10 @@
                                 <span class="text-xs text-gray-500">{{ $product->category }}</span>
                             </div>
                         </div>
-                        @if($product->is_available)
+                        @if($product->active && $product->is_available)
                             <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Available</span>
+                        @elseif(!$product->active)
+                            <span class="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-full">Inactive</span>
                         @else
                             <span class="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Unavailable</span>
                         @endif
@@ -177,12 +160,16 @@
 
                 <!-- Product Actions -->
                 <div class="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-between items-center">
-                    <button onclick="toggleAvailability({{ $product->id }}, {{ $product->is_available ? 'false' : 'true' }})" class="text-sm font-medium hover:underline" style="color: {{ $product->is_available ? '#E53935' : '#00C897' }};">
-                        {{ $product->is_available ? 'Mark Unavailable' : 'Mark Available' }}
-                    </button>
+                    @if($product->active)
+                        <button type="button" onclick="toggleAvailability({{ $product->id }})" class="text-sm font-medium hover:underline" style="color: {{ $product->is_available ? '#E53935' : '#00C897' }};">
+                            {{ $product->is_available ? 'Mark Unavailable' : 'Mark Available' }}
+                        </button>
+                    @else
+                        <span class="text-sm font-medium text-gray-500">Inactive product</span>
+                    @endif
                     <div class="flex space-x-3">
-                        <button onclick="openEditModal({{ $product->id }}, '{{ addslashes($product->name) }}', '{{ addslashes($product->description ?? '') }}', '{{ $product->category }}', {{ $product->price }}, {{ $product->cost ?? 0 }}, '{{ $product->emoji }}', {{ $product->is_available ? 'true' : 'false' }})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">Edit</button>
-                        <button onclick="deleteProduct({{ $product->id }})" class="text-red-600 hover:text-red-800 font-medium text-sm">Delete</button>
+                        <button type="button" onclick="openEditModal({{ \Illuminate\Support\Js::from(['id' => $product->id, 'name' => $product->name, 'description' => $product->description, 'category' => $product->category, 'price' => $product->price, 'cost' => $product->cost, 'emoji' => $product->emoji, 'is_available' => $product->is_available]) }})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">Edit</button>
+                        <button type="button" onclick="deleteProduct({{ $product->id }})" class="text-red-600 hover:text-red-800 font-medium text-sm">Delete</button>
                     </div>
                 </div>
             </div>
@@ -222,6 +209,7 @@
                 @csrf
                 <input type="hidden" id="productId" name="product_id">
                 <input type="hidden" id="formMethod" name="_method">
+                <input type="hidden" name="is_available" value="0">
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Product Name -->
@@ -303,18 +291,23 @@
             document.getElementById('productModal').classList.remove('hidden');
         }
 
-        function openEditModal(id, name, description, category, price, cost, emoji, isAvailable) {
+        const productUpdateUrl = @json(route('products.update', ['product' => '__PRODUCT__']));
+        const productDestroyUrl = @json(route('products.destroy', ['product' => '__PRODUCT__']));
+        const productToggleUrl = @json(route('products.toggle', ['product' => '__PRODUCT__']));
+        const productUrl = (template, id) => template.replace('__PRODUCT__', encodeURIComponent(id));
+
+        function openEditModal(product) {
             document.getElementById('modalTitle').textContent = 'Edit Product';
-            document.getElementById('productForm').action = '/products/' + id;
-            document.getElementById('productId').value = id;
+            document.getElementById('productForm').action = productUrl(productUpdateUrl, product.id);
+            document.getElementById('productId').value = product.id;
             document.getElementById('formMethod').value = 'PUT';
-            document.getElementById('name').value = name;
-            document.getElementById('description').value = description;
-            document.getElementById('category').value = category;
-            document.getElementById('price').value = price;
-            document.getElementById('cost').value = cost;
-            document.getElementById('emoji').value = emoji;
-            document.getElementById('is_available').checked = isAvailable;
+            document.getElementById('name').value = product.name;
+            document.getElementById('description').value = product.description || '';
+            document.getElementById('category').value = product.category;
+            document.getElementById('price').value = product.price;
+            document.getElementById('cost').value = product.cost || 0;
+            document.getElementById('emoji').value = product.emoji || '☕';
+            document.getElementById('is_available').checked = Boolean(product.is_available);
             document.getElementById('productModal').classList.remove('hidden');
         }
 
@@ -323,15 +316,19 @@
         }
 
         function deleteProduct(id) {
-            if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-                fetch('/products/' + id, {
+            if (confirm('Remove this product from the active catalog? Existing order history will be preserved.')) {
+                fetch(productUrl(productDestroyUrl, id), {
                     method: 'DELETE',
                     headers: {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
                         'Accept': 'application/json',
                     }
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Could not delete product.');
+                    return data;
+                })
                 .then(data => {
                     if (data.success) {
                         location.reload();
@@ -340,13 +337,13 @@
                     }
                 })
                 .catch(error => {
-                    alert('Error deleting product');
+                    alert(error.message || 'Could not delete product. Check your connection and try again.');
                 });
             }
         }
 
-        function toggleAvailability(id, newStatus) {
-            fetch('/products/' + id + '/toggle', {
+        function toggleAvailability(id) {
+            fetch(productUrl(productToggleUrl, id), {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -354,7 +351,11 @@
                     'Content-Type': 'application/json',
                 }
             })
-            .then(response => response.json())
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Could not update availability.');
+                    return data;
+                })
             .then(data => {
                 if (data.success) {
                     location.reload();
@@ -362,8 +363,8 @@
                     alert('Error updating product availability');
                 }
             })
-            .catch(error => {
-                alert('Error updating product availability');
+                .catch(error => {
+                    alert(error.message || 'Could not update availability. Check your connection and try again.');
             });
         }
 
@@ -374,5 +375,7 @@
             }
         });
     </script>
+    </main>
+</div>
 </body>
 </html>

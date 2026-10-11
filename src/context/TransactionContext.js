@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import { AuthContext } from './AuthContext'; 
+import {getApiErrorMessage} from '../services/apiErrors';
 
 export const TransactionContext = createContext();
 
@@ -63,10 +64,12 @@ export const TransactionProvider = ({ children }) => {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
   const [transactionOptions, setTransactionOptions] = useState([]);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState(null);
   const { userToken } = useContext(AuthContext);
 
   const incomeCategories = useMemo(() => optionsLoaded
@@ -86,8 +89,9 @@ export const TransactionProvider = ({ children }) => {
       const response = await api.get('/transaction-options');
       setTransactionOptions(response.data?.options || []);
       setOptionsLoaded(true);
+      setOptionsError(null);
     } catch (error) {
-      console.log('Error fetching transaction options:', error.response?.data || error.message);
+      setOptionsError(getApiErrorMessage(error));
     } finally {
       setOptionsLoading(false);
     }
@@ -138,18 +142,23 @@ export const TransactionProvider = ({ children }) => {
         : normalized,
       );
       setPagination(normalizePagination(response.data?.meta, page, normalized.length));
+      setLoadError(null);
+      return {success: true};
     } catch (error) {
-      console.log('Error fetching transactions:', error);
+      setLoadError(getApiErrorMessage(error));
+      return {success: false, error};
     } finally {
       append ? setIsLoadingMore(false) : setIsLoading(false);
     }
   }, [userToken]);
 
-  const queryTransactions = useCallback(async ({page = 1, search, source, category} = {}) => {
+  const queryTransactions = useCallback(async ({page = 1, search, source, category, from, to} = {}) => {
     const params = {page};
     if (search?.trim()) params.search = search.trim();
     if (source && source !== 'All') params.source = source;
     if (category && category !== 'All') params.category = category;
+    if (from) params.from = from;
+    if (to) params.to = to;
 
     try {
       const response = await api.get('/transactions', {params});
@@ -160,7 +169,6 @@ export const TransactionProvider = ({ children }) => {
         pagination: normalizePagination(response.data?.meta, page, records.length),
       };
     } catch (error) {
-      console.log('Error querying transactions:', error.response?.data || error.message);
       return {success: false, error};
     }
   }, []);
@@ -172,7 +180,6 @@ export const TransactionProvider = ({ children }) => {
       });
       return {success: true, categories: response.data?.categories || []};
     } catch (error) {
-      console.log('Error fetching transaction categories:', error.response?.data || error.message);
       return {success: false, error};
     }
   }, []);
@@ -194,7 +201,6 @@ export const TransactionProvider = ({ children }) => {
       setPagination(current => ({...current, total: current.total + 1}));
       return { success: true, transaction };
     } catch (error) {
-      console.log('Error adding transaction:', error);
       return { success: false, error };
     }
   };
@@ -209,7 +215,6 @@ export const TransactionProvider = ({ children }) => {
       setTransactions(current => current.map(item => item.id === transaction.id ? transaction : item));
       return { success: true, transaction };
     } catch (error) {
-      console.log('Error updating transaction:', error.response?.data || error.message);
       return { success: false, error };
     }
   };
@@ -221,23 +226,22 @@ export const TransactionProvider = ({ children }) => {
       setPagination(current => ({...current, total: Math.max(0, current.total - 1)}));
       return {success: true};
     } catch (error) {
-      console.log('Error deleting transaction:', error.response?.data || error.message);
       return {success: false, error};
     }
   };
 
   // I-load ang data kapag nag-login ang user
   useEffect(() => {
-    console.log('[TransactionContext] userToken changed:', userToken ? 'Token exists' : 'No token');
     if (userToken) {
-      console.log('[TransactionContext] Fetching transactions...');
       fetchTransactions();
       fetchTransactionOptions();
     } else {
       setTransactions([]);
+      setLoadError(null);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
       setTransactionOptions([]);
       setOptionsLoaded(false);
+      setOptionsError(null);
     }
   }, [userToken, fetchTransactionOptions, fetchTransactions]);
 
@@ -245,6 +249,7 @@ export const TransactionProvider = ({ children }) => {
     <TransactionContext.Provider value={{ 
       transactions, 
       isLoading, 
+      loadError,
       isLoadingMore,
       hasMoreTransactions,
       transactionTotal: pagination.total,
@@ -257,6 +262,7 @@ export const TransactionProvider = ({ children }) => {
       deleteTransaction,
       transactionOptions,
       optionsLoading,
+      optionsError,
       fetchTransactionOptions,
       addTransactionOption,
       updateTransactionOption,

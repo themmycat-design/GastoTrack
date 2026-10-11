@@ -11,28 +11,61 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {useFocusEffect} from '@react-navigation/native';
 import { useTransactions } from '../../context/TransactionContext';
 import { useProducts } from '../../context/ProductContext';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import ApiErrorBanner from '../../components/ApiErrorBanner';
+import {transactionDisplayName} from '../../utils/transactionDisplay';
+import {useStaffDay} from '../../utils/useStaffDay';
+import api from '../../services/api';
+import {getApiErrorMessage} from '../../services/apiErrors';
 
 const DashboardScreen = ({ navigation }) => {
-  const { user } = useAuth();
-  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useTransactions();
-  const { products, isLoading: productsLoading, fetchProducts } = useProducts();
+  const { user, sessionStorageWarning } = useAuth();
+  const { transactions, isLoading: transactionsLoading, loadError: transactionError, fetchTransactions } = useTransactions();
+  const { products, isLoading: productsLoading, loadError: productError, fetchProducts } = useProducts();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [todayIncome, setTodayIncome] = useState(null);
+  const [incomeLoading, setIncomeLoading] = useState(true);
+  const [incomeError, setIncomeError] = useState(null);
+  const incomeRequestId = React.useRef(0);
+  const day = useStaffDay();
 
-  useEffect(() => {
+  const fetchDailyIncome = React.useCallback(async () => {
+    const requestId = ++incomeRequestId.current;
+    setIncomeLoading(true);
+    setTodayIncome(null);
+    try {
+      const response = await api.get('/transactions/summary', {params: {from: day, to: day}});
+      if (requestId !== incomeRequestId.current) return;
+      setTodayIncome(Number(response.data?.income || 0));
+      setIncomeError(null);
+    } catch (error) {
+      if (requestId !== incomeRequestId.current) return;
+      setTodayIncome(null);
+      setIncomeError(getApiErrorMessage(error));
+    } finally {
+      if (requestId === incomeRequestId.current) setIncomeLoading(false);
+    }
+  }, [day]);
+
+  useFocusEffect(React.useCallback(() => {
+    fetchDailyIncome();
     fetchTransactions();
     fetchProducts();
-  }, [fetchProducts, fetchTransactions]);
+  }, [fetchDailyIncome, fetchProducts, fetchTransactions]));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchTransactions(), fetchProducts()]);
-    setRefreshing(false);
+    try {
+      await Promise.all([fetchTransactions(), fetchProducts(), fetchDailyIncome()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const availableProducts = useMemo(
@@ -52,15 +85,8 @@ const DashboardScreen = ({ navigation }) => {
   }, [categories, selectedCategory]);
   const isToday = value => {
     if (!value) return false;
-    return new Date(value).toDateString() === new Date().toDateString();
+    return String(value).slice(0, 10) === day;
   };
-
-  // Calculate today's sales (income)
-  const todayIncome = (transactions || [])
-    .filter(t => {
-      return t.type?.toLowerCase() === 'income' && isToday(t.date || t.created_at);
-    })
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
   // Filter products by category
   const filteredProducts = selectedCategory === 'All'
@@ -70,16 +96,15 @@ const DashboardScreen = ({ navigation }) => {
     ));
 
   // Get recent transactions (last 5)
-  const recentTransactions = (transactions || []).slice(0, 5);
+  const recentTransactions = (transactions || []).filter(t => isToday(t.date || t.created_at)).slice(0, 5);
+  const dashboardError = incomeError || transactionError || productError;
+  const dataUnavailable = Boolean(dashboardError);
+  const showGettingStarted = !dataUnavailable && !incomeLoading && !transactionsLoading && !productsLoading
+    && (transactions.length === 0 || availableProducts.length === 0);
 
-  if (transactionsLoading || productsLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.accent} />
-        <Text style={styles.loadingText}>Loading Dashboard...</Text>
-      </View>
-    );
-  }
+  const retryDashboard = () => Promise.allSettled([
+    fetchDailyIncome(), fetchTransactions(), fetchProducts(),
+  ]);
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -97,6 +122,13 @@ const DashboardScreen = ({ navigation }) => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />
         }>
+        <ApiErrorBanner message={sessionStorageWarning} />
+        {(transactionsLoading || productsLoading) ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.accent} />
+            <Text style={styles.loadingText}>Loading dashboard data...</Text>
+          </View>
+        ) : null}
         {/* Daily Income Card */}
         <View style={styles.incomeCard}>
           <View style={styles.incomeHeader}>
@@ -110,16 +142,18 @@ const DashboardScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <View style={styles.incomeAmountContainer}>
-            <Text style={styles.currencySymbol}>₱</Text>
-            <Text style={styles.incomeAmount}>{todayIncome.toFixed(2)}</Text>
+            {todayIncome !== null ? <Text style={styles.currencySymbol}>₱</Text> : null}
+            <Text style={[styles.incomeAmount, todayIncome === null && styles.incomeStatus]}>{incomeLoading ? 'Loading…' : todayIncome === null ? 'Unavailable' : todayIncome.toFixed(2)}</Text>
           </View>
-          <Text style={styles.incomeDescription}>Total income logged today</Text>
-          {todayIncome <= 0 ? (
+          <Text style={styles.incomeDescription}>{incomeError ? 'Could not load today’s income' : 'Total income logged today'}</Text>
+          {todayIncome === 0 ? (
             <Text style={styles.incomeEmptyHint}>New sales will appear here when recorded.</Text>
           ) : null}
         </View>
 
-        {transactions.length === 0 && availableProducts.length === 0 ? (
+        <ApiErrorBanner message={dashboardError} onRetry={retryDashboard} />
+
+        {showGettingStarted ? (
           <View style={styles.gettingStartedCard}>
             <View style={styles.gettingStartedIcon}>
               <Icon name="lightbulb-on-outline" size={22} color={COLORS.accentDark} />
@@ -127,7 +161,7 @@ const DashboardScreen = ({ navigation }) => {
             <View style={styles.gettingStartedCopy}>
               <Text style={styles.gettingStartedTitle}>Ready to get started?</Text>
               <Text style={styles.gettingStartedText}>
-                Add stock items and products in Inventory, then create an order or record a transaction. Contact your business owner if setup is restricted.
+                Browse products and place customer orders from Orders. Record income or expenses in Transactions. If the product list is empty, ask your owner to add products and stock in Inventory.
               </Text>
               <TouchableOpacity style={styles.gettingStartedAction} onPress={() => navigation.navigate('Stock')}>
                 <Text style={styles.gettingStartedActionText}>Open Inventory</Text>
@@ -208,9 +242,9 @@ const DashboardScreen = ({ navigation }) => {
                 <View style={styles.emptyProductsIcon}>
                   <Icon name="food-off" size={34} color={COLORS.textMuted} />
                 </View>
-                <Text style={styles.emptyProductsTitle}>No products available</Text>
+                <Text style={styles.emptyProductsTitle}>{productError ? 'Products unavailable' : 'No products available'}</Text>
                 <Text style={styles.emptyProductsText}>
-                  {selectedCategory === 'All'
+                  {productError ? 'Check the server connection, then retry.' : selectedCategory === 'All'
                     ? 'Add or enable products from Inventory.'
                     : `No available products in ${selectedCategory}.`}
                 </Text>
@@ -247,7 +281,7 @@ const DashboardScreen = ({ navigation }) => {
         {/* Recent Transactions */}
         <View style={styles.transactionsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            <Text style={styles.sectionTitle}>Today's Transactions</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Transactions')}>
               <Text style={styles.viewAllText}>View all &gt;</Text>
             </TouchableOpacity>
@@ -256,7 +290,7 @@ const DashboardScreen = ({ navigation }) => {
           {recentTransactions.length === 0 ? (
             <View style={styles.emptyTransactions}>
               <Icon name="receipt-text-outline" size={64} color="#DDD" />
-              <Text style={styles.emptyText}>No transactions yet</Text>
+              <Text style={styles.emptyText}>{transactionError ? 'Transactions unavailable' : 'No transactions today'}</Text>
             </View>
           ) : (
             recentTransactions.map((transaction) => (
@@ -278,7 +312,7 @@ const DashboardScreen = ({ navigation }) => {
                   />
                 </View>
                 <View style={styles.transactionInfo}>
-                  <Text style={styles.transactionCategory}>{transaction.category}</Text>
+                  <Text style={styles.transactionCategory} numberOfLines={2}>{transactionDisplayName(transaction)}</Text>
                   <Text style={styles.transactionDate}>
                     {new Date(transaction.date || transaction.created_at).toLocaleDateString('en-PH', {
                       month: 'short',
@@ -373,6 +407,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.textWhite,
   },
+  incomeStatus: {fontSize: 27, paddingVertical: 10},
   incomeDescription: {
     fontSize: 13,
     color: COLORS.textWhite,

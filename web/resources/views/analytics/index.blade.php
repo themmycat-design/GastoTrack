@@ -1,357 +1,230 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
+    <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Analytics | GastoTrack</title>
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <title>Analytics | GastoTrack</title>
 </head>
-<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased" style="font-family: Inter, ui-sans-serif, system-ui, sans-serif">
-    <div class="min-h-screen lg:flex">
-        @include('layouts.owner-navigation')
+<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased">
+@php
+    $currencyPrefix = $currencyCode === 'PHP' ? '₱' : $currencyCode.' ';
+    $current = $current ?? ['income' => 0, 'expenses' => 0, 'netRecordedMovement' => 0, 'transactionCount' => 0];
+    $comparison = $comparison ?? ['income' => 0, 'expenses' => 0, 'netRecordedMovement' => 0, 'transactionCount' => 0];
+    $metricCards = [
+        ['key' => 'income', 'label' => 'Recorded income', 'amount' => $current['income'], 'growth' => $growth['income'] ?? null, 'goodUp' => true],
+        ['key' => 'expenses', 'label' => 'Recorded expenses', 'amount' => $current['expenses'], 'growth' => $growth['expenses'] ?? null, 'goodUp' => false],
+        ['key' => 'movement', 'label' => 'Net recorded movement', 'amount' => $current['netRecordedMovement'], 'growth' => null, 'goodUp' => true],
+        ['key' => 'transactions', 'label' => 'Recorded transactions', 'amount' => $current['transactionCount'], 'growth' => $growth['transactions'] ?? null, 'goodUp' => true],
+    ];
+    $rangeLabel = $startDate->format('M j, Y').' – '.$endDate->format('M j, Y');
+    $comparisonLabel = $comparisonStartDate->format('M j, Y').' – '.$comparisonEndDate->format('M j, Y');
+    $comparisonPeriods = [
+        'labels' => [$comparisonLabel, $rangeLabel],
+        'income' => [$comparison['income'], $current['income']],
+        'expenses' => [$comparison['expenses'], $current['expenses']],
+        'movement' => [$comparison['netRecordedMovement'], $current['netRecordedMovement']],
+    ];
+    $hasCurrentData = $current['transactionCount'] > 0;
+    $hasLedgerData = $hasCurrentData || $comparison['transactionCount'] > 0;
+    $periodNames = ['week' => 'This week', 'month' => 'This month', 'year' => 'This year', 'custom' => 'Custom range'];
+    $chartPeriodName = $chartInterval === 'month' ? 'Monthly' : 'Daily';
+@endphp
+<div class="min-h-screen lg:flex">
+    @include('layouts.owner-navigation')
+    <main class="min-w-0 flex-1">
+        @include('layouts.owner-topbar')
+        <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+            <section class="gt-enter">
+                <div>
+                    <p class="text-sm font-semibold text-[#00A87E]">{{ Auth::user()->business?->name }} · business performance</p>
+                    <h2 class="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">Analytics</h2>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">This report summarizes saved income and expense transactions; it does not estimate accounting profit or customer counts.</p>
+                </div>
+            </section>
 
-        <main class="min-w-0 flex-1">
-            @include('layouts.owner-topbar')
-
-            <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
-        <section class="gt-enter">
-            <p class="text-sm font-semibold text-[#00A87E]">Business performance · {{ now()->format('F Y') }}</p>
-            <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Analytics</h2>
-            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Explore sales, expenses, trends, and inventory value to understand how your shop is performing.</p>
-        </section>
-
-        <!-- Key Metrics Cards -->
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <!-- Revenue Card -->
-            <div class="gt-card gt-lift gt-enter gt-enter-1 p-5 sm:p-6">
-                <div class="flex items-center justify-between mb-2">
-                    <p class="text-sm font-semibold text-slate-500">Monthly revenue</p>
-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="12" cy="12" r="3"/><path d="M7 9h.01M17 15h.01"/></svg>
+            <section class="gt-card p-4 sm:p-5" aria-label="Reporting period">
+                <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                    <div>
+                        <p class="text-xs font-extrabold uppercase tracking-[.14em] text-slate-500">View income and expenses</p>
+                        <nav class="mt-2 inline-flex flex-wrap gap-1 rounded-xl bg-[#F4F8F7] p-1" aria-label="Analytics period">
+                            @foreach(['week' => 'Weekly', 'month' => 'Monthly', 'year' => 'Yearly'] as $option => $label)
+                                <a href="{{ route('analytics.index', ['period' => $option]) }}" aria-current="{{ $period === $option ? 'page' : 'false' }}" class="gt-focus rounded-lg px-4 py-2 text-sm font-bold transition {{ $period === $option ? 'bg-[#00A87E] text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-[#08745D]' }}">{{ $label }}</a>
+                            @endforeach
+                        </nav>
                     </div>
+                    <p class="text-sm font-semibold text-[#08745D]">{{ $periodNames[$period] }} · {{ $rangeLabel }}</p>
                 </div>
-                <p class="mb-1 text-2xl font-extrabold text-[#08745D]">&#8369;{{ number_format($currentMonthRevenue, 2) }}</p>
-                @if($revenueGrowth != 0)
-                <div class="flex items-center text-sm">
-                    @if($revenueGrowth > 0)
-                    <span class="font-semibold text-[#08745D]">↑ {{ number_format(abs($revenueGrowth), 1) }}%</span>
-                    @else
-                    <span class="font-semibold text-rose-600">↓ {{ number_format(abs($revenueGrowth), 1) }}%</span>
-                    @endif
-                    <span class="ml-2 text-slate-500">vs last month</span>
-                </div>
-                @endif
-            </div>
-
-            <!-- Expenses Card -->
-            <div class="gt-card gt-lift gt-enter gt-enter-2 p-5 sm:p-6">
-                <div class="flex items-center justify-between mb-2">
-                    <p class="text-sm font-semibold text-slate-500">Monthly expenses</p>
-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50">
-                        <span class="text-xl text-rose-600">↓</span>
+                <form method="GET" action="{{ route('analytics.index') }}" class="mt-4 grid gap-3 border-t border-[#EAF2EF] pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                    <input type="hidden" name="period" value="custom">
+                    <div>
+                        <label for="start_date" class="mb-1 block text-xs font-bold text-slate-600">From</label>
+                        <input id="start_date" type="date" name="start_date" value="{{ $startDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="w-full px-3 py-2 text-sm">
                     </div>
-                </div>
-                <p class="mb-1 text-2xl font-extrabold text-rose-600">&#8369;{{ number_format($currentMonthExpenses, 2) }}</p>
-                @if($expenseGrowth != 0)
-                <div class="flex items-center text-sm">
-                    @if($expenseGrowth > 0)
-                    <span class="font-semibold text-rose-600">↑ {{ number_format(abs($expenseGrowth), 1) }}%</span>
-                    @else
-                    <span class="font-semibold text-[#08745D]">↓ {{ number_format(abs($expenseGrowth), 1) }}%</span>
-                    @endif
-                    <span class="ml-2 text-slate-500">vs last month</span>
-                </div>
-                @endif
-            </div>
-
-            <!-- Net Profit Card -->
-            <div class="gt-card gt-lift gt-enter gt-enter-3 p-5 sm:p-6">
-                <div class="flex items-center justify-between mb-2">
-                    <p class="text-sm font-semibold text-slate-500">Net profit</p>
-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EAF8F2]">
-                        <span class="text-xl text-[#08745D]">↗</span>
+                    <div>
+                        <label for="end_date" class="mb-1 block text-xs font-bold text-slate-600">To</label>
+                        <input id="end_date" type="date" name="end_date" value="{{ $endDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="w-full px-3 py-2 text-sm">
                     </div>
-                </div>
-                <p class="mb-1 text-2xl font-extrabold {{ ($currentMonthRevenue - $currentMonthExpenses) >= 0 ? 'text-[#08745D]' : 'text-rose-600' }}">
-                        &#8369;{{ number_format($currentMonthRevenue - $currentMonthExpenses, 2) }}
-                </p>
-                <div class="flex items-center text-sm">
-                    <span class="text-slate-500">
-                        {{ $currentMonthRevenue > 0 ? number_format((($currentMonthRevenue - $currentMonthExpenses) / $currentMonthRevenue) * 100, 1) : 0 }}% margin
-                    </span>
-                </div>
-            </div>
+                    <button class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Apply custom dates</button>
+                </form>
+            </section>
 
-            <!-- Transactions Card -->
-            <div class="gt-card gt-lift gt-enter gt-enter-4 p-5 sm:p-6">
-                <div class="flex items-center justify-between mb-2">
-                    <p class="text-sm font-semibold text-slate-500">Transactions</p>
-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EAF8F2]">
-                        <span class="text-xl text-[#08745D]">≡</span>
-                    </div>
+            <section class="rounded-2xl border border-[#C8DED7] bg-white px-5 py-4 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm font-extrabold text-[#0A2E2A]">{{ $periodNames[$period] }}: {{ $rangeLabel }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Equivalent comparison period: {{ $comparisonLabel }}</p>
                 </div>
-                <p class="mb-1 text-2xl font-extrabold text-[#0A2E2A]">{{ number_format($transactionCount) }}</p>
-                @if($transactionGrowth != 0)
-                <div class="flex items-center text-sm">
-                    @if($transactionGrowth > 0)
-                    <span class="font-semibold text-[#08745D]">↑ {{ number_format(abs($transactionGrowth), 1) }}%</span>
-                    @else
-                    <span class="font-semibold text-rose-600">↓ {{ number_format(abs($transactionGrowth), 1) }}%</span>
-                    @endif
-                    <span class="ml-2 text-slate-500">vs last month</span>
-                </div>
-                @endif
-            </div>
-        </div>
+                <p class="mt-2 text-xs text-slate-500 sm:mt-0">Amounts in {{ $currencyCode }} · transactions dated in the selected range</p>
+            </section>
 
-        <!-- Charts Row -->
-        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <!-- Revenue vs Expenses Chart -->
-            <div class="gt-card gt-enter gt-enter-2 p-5 sm:p-6">
-                <h3 class="mb-4 text-lg font-extrabold text-[#0A2E2A]">Revenue vs Expenses</h3>
-                <div class="relative" style="height: 300px;">
-                    <canvas id="revenueExpensesChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Monthly Comparison Chart -->
-            <div class="gt-card gt-enter gt-enter-3 p-5 sm:p-6">
-                <h3 class="mb-4 text-lg font-extrabold text-[#0A2E2A]">Month-over-Month Comparison</h3>
-                <div class="relative" style="height: 300px;">
-                    <canvas id="monthComparisonChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bottom Row -->
-        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <!-- Top Stock Items -->
-            <div class="gt-card gt-enter gt-enter-3 p-5 sm:p-6">
-                <h3 class="mb-4 text-lg font-extrabold text-[#0A2E2A]">Top Stock Items by Value</h3>
-                <div class="space-y-4">
-                    @forelse($topStockItems as $index => $item)
-                    <div class="flex items-center justify-between pb-4 {{ $loop->last ? '' : 'border-b border-gray-100' }}">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold" style="background-color: #00C897;">
-                                {{ $index + 1 }}
-                            </div>
-                            <div>
-                                <p class="text-sm font-semibold text-gray-900">{{ $item->name }}</p>
-                                <p class="text-xs text-gray-500">{{ number_format($item->current_quantity, 2) }} {{ $item->unit }}</p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-sm font-bold" style="color: #00C897;">₱{{ number_format($item->current_quantity * $item->unit_cost, 2) }}</p>
-                            <p class="text-xs text-gray-500">@ ₱{{ number_format($item->unit_cost, 2) }}/{{ $item->unit }}</p>
-                        </div>
-                    </div>
-                    @empty
-                    <div class="text-center py-8 text-gray-500">
-                        <span class="text-4xl mb-2 block">📦</span>
-                        <p>No stock items available</p>
-                    </div>
-                    @endforelse
-                </div>
-            </div>
-
-            <!-- Insights & Tips -->
-            <div class="gt-card gt-enter gt-enter-4 p-5 sm:p-6">
-                <h3 class="mb-4 text-lg font-extrabold text-[#0A2E2A]">Business Insights</h3>
-                <div class="space-y-4">
-                    <!-- Insight 1: Profitability -->
+            <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Financial metrics">
+                @foreach($metricCards as $index => $card)
                     @php
-                        $profitMargin = $currentMonthRevenue > 0 ? (($currentMonthRevenue - $currentMonthExpenses) / $currentMonthRevenue) * 100 : 0;
+                        $growth = $card['growth'];
+                        $isFavorable = $growth !== null && ($card['goodUp'] ? $growth >= 0 : $growth <= 0);
+                        $amount = $card['key'] === 'transactions'
+                            ? number_format((int) $card['amount'])
+                            : $currencyPrefix.number_format((float) $card['amount'], 2);
                     @endphp
-                            <div class="rounded-xl border {{ $profitMargin >= 20 ? 'border-[#C8DED7] bg-[#EAF8F2]' : 'border-rose-100 bg-rose-50' }} p-4">
-                        <div class="flex items-start space-x-3">
-                            <span class="text-2xl">{{ $profitMargin >= 20 ? '✅' : '⚠️' }}</span>
-                            <div>
-                                <p class="font-semibold text-gray-900">Profit Margin: {{ number_format($profitMargin, 1) }}%</p>
-                                <p class="text-sm text-gray-600 mt-1">
-                                    @if($profitMargin >= 20)
-                                    Your profit margin is healthy! Keep up the good work.
-                                    @elseif($profitMargin >= 10)
-                                    Your profit margin is moderate. Consider optimizing costs.
-                                    @else
-                                    Your profit margin is low. Review expenses and pricing strategy.
-                                    @endif
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <article class="gt-card gt-lift gt-enter gt-enter-{{ min($index + 1, 4) }} p-5 sm:p-6">
+                        <p class="text-sm font-semibold text-slate-500">{{ $card['label'] }}</p>
+                        <p class="mt-3 break-words text-2xl font-extrabold tracking-tight {{ $card['key'] === 'expenses' || (in_array($card['key'], ['income', 'movement'], true) && $card['amount'] < 0) ? 'text-rose-600' : 'text-[#08745D]' }} sm:text-3xl">{{ $amount }}</p>
+                        @if($card['key'] === 'movement')
+                            <p class="mt-2 text-xs leading-5 text-slate-400">Recorded income minus recorded expenses; not accounting profit or a reconciled cash balance.</p>
+                        @elseif($growth === null && $card['key'] !== 'transactions')
+                            <p class="mt-2 text-xs leading-5 text-slate-400">No previous-period baseline</p>
+                        @elseif($growth === null)
+                            <p class="mt-2 text-xs leading-5 text-slate-400">No previous-period baseline</p>
+                        @else
+                            <p class="mt-2 text-xs font-semibold {{ $isFavorable ? 'text-[#08745D]' : 'text-rose-600' }}">
+                                {{ $growth > 0 ? '↑' : ($growth < 0 ? '↓' : '→') }} {{ number_format(abs($growth), 1) }}% vs comparison period
+                            </p>
+                        @endif
+                    </article>
+                @endforeach
+            </section>
 
-                    <!-- Insight 2: Revenue Growth -->
-                    <div class="rounded-xl border {{ $revenueGrowth > 0 ? 'border-[#C8DED7] bg-[#EAF8F2]' : 'border-rose-100 bg-rose-50' }} p-4">
-                        <div class="flex items-start space-x-3">
-                            <span class="text-2xl">{{ $revenueGrowth > 0 ? '📈' : '📉' }}</span>
-                            <div>
-                                <p class="font-semibold text-gray-900">Revenue Trend</p>
-                                <p class="text-sm text-gray-600 mt-1">
-                                    @if($revenueGrowth > 0)
-                                    Revenue is up {{ number_format(abs($revenueGrowth), 1) }}% from last month. Great progress!
-                                    @elseif($revenueGrowth < 0)
-                                    Revenue is down {{ number_format(abs($revenueGrowth), 1) }}% from last month. Focus on marketing.
-                                    @else
-                                    Revenue is stable compared to last month.
-                                    @endif
-                                </p>
+            <section class="grid gap-5 xl:grid-cols-2">
+                <article class="gt-card gt-enter p-5 sm:p-6">
+                    <h3 class="text-lg font-extrabold">{{ $chartPeriodName }} income and expenses</h3>
+                    <p class="mt-1 text-xs text-slate-500">{{ $chartPeriodName }} totals from transaction records in {{ $rangeLabel }}.</p>
+                    @if($hasCurrentData)
+                        <p class="mt-2 text-xs text-[#08745D]">Select a chart point to {{ $chartInterval === 'day' ? 'view its transactions, orders, and ingredients used' : 'see the days in that month' }}.</p>
+                        <div class="relative mt-5 h-72"><canvas id="incomeExpenseChart" aria-label="{{ $chartPeriodName }} income and expenses chart"></canvas></div>
+                        <details class="mt-4 border-t border-[#EAF2EF] pt-3">
+                            <summary class="gt-focus cursor-pointer text-sm font-bold text-[#08745D]">Browse {{ $chartInterval === 'day' ? 'days' : 'months' }}</summary>
+                            <div class="mt-3 max-h-56 divide-y divide-[#EAF2EF] overflow-y-auto">
+                                @foreach($chart['labels'] as $index => $label)
+                                    <a href="{{ $chartLinks[$index] }}" class="gt-focus flex flex-wrap items-center justify-between gap-2 py-2 text-sm hover:text-[#08745D]">
+                                        <span class="font-bold">{{ $label }}</span>
+                                        <span class="text-xs text-slate-500">Income {{ $currencyPrefix }}{{ number_format($chart['income'][$index], 2) }} · Expenses {{ $currencyPrefix }}{{ number_format($chart['expenses'][$index], 2) }}</span>
+                                    </a>
+                                @endforeach
                             </div>
-                        </div>
+                        </details>
+                    @else
+                        <div class="mt-5 flex h-72 items-center justify-center rounded-xl bg-[#F4F8F7] text-center text-sm text-slate-500">No income or expense transactions in the selected period.</div>
+                    @endif
+                </article>
+                <article class="gt-card gt-enter p-5 sm:p-6">
+                    <h3 class="text-lg font-extrabold">Period comparison</h3>
+                    <p class="mt-1 text-xs text-slate-500">{{ $rangeLabel }} compared with {{ $comparisonLabel }}.</p>
+                    @if($hasLedgerData)
+                        <div class="relative mt-5 h-72"><canvas id="periodComparisonChart" aria-label="Equivalent-period comparison chart"></canvas></div>
+                    @else
+                        <div class="mt-5 flex h-72 items-center justify-center rounded-xl bg-[#F4F8F7] text-center text-sm text-slate-500">There is no recorded activity to compare yet.</div>
+                    @endif
+                    <div class="mt-4 grid gap-3 border-t border-[#EAF2EF] pt-4 text-xs sm:grid-cols-2">
+                        <div><p class="font-bold text-slate-600">{{ $comparisonLabel }}</p><p class="mt-1 text-slate-500">Income {{ $currencyPrefix }}{{ number_format($comparison['income'], 2) }} · Expenses {{ $currencyPrefix }}{{ number_format($comparison['expenses'], 2) }} · Net movement {{ $currencyPrefix }}{{ number_format($comparison['netRecordedMovement'], 2) }}</p></div>
+                        <div><p class="font-bold text-slate-600">{{ $rangeLabel }}</p><p class="mt-1 text-slate-500">Income {{ $currencyPrefix }}{{ number_format($current['income'], 2) }} · Expenses {{ $currencyPrefix }}{{ number_format($current['expenses'], 2) }} · Net movement {{ $currencyPrefix }}{{ number_format($current['netRecordedMovement'], 2) }}</p></div>
                     </div>
+                </article>
+            </section>
 
-                    <!-- Insight 3: Transaction Volume -->
-                    <div class="rounded-xl border border-[#DDE9E5] bg-[#F4F8F7] p-4">
-                        <div class="flex items-start space-x-3">
-                            <span class="text-2xl">💡</span>
-                            <div>
-                                <p class="font-semibold text-gray-900">Transaction Activity</p>
-                                <p class="text-sm text-gray-600 mt-1">
-                                    You've processed {{ number_format($transactionCount) }} transactions this month.
-                                    @if($transactionGrowth > 0)
-                                    Customer activity is increasing!
-                                    @endif
-                                </p>
+            <section class="grid gap-5 lg:grid-cols-2">
+                <article class="gt-card p-5 sm:p-6">
+                    <div class="flex items-start justify-between gap-3">
+                        <div><h3 class="text-lg font-extrabold">Top inventory value</h3><p class="mt-1 text-xs text-slate-500">Current quantity × recorded unit cost; excludes inactive/deleted stock.</p></div>
+                        <a href="{{ route('stock.index') }}" class="gt-focus text-sm font-bold text-[#08745D] hover:underline">Inventory →</a>
+                    </div>
+                    <div class="mt-4 divide-y divide-[#EAF2EF]">
+                        @forelse($topStockItems as $item)
+                            <div class="flex items-center justify-between gap-4 py-3">
+                                <div class="min-w-0"><p class="truncate text-sm font-bold">{{ $item->name }}</p><p class="mt-1 text-xs text-slate-500">{{ number_format((float) $item->current_quantity, 2) }} {{ $item->unit }} × {{ $currencyPrefix }}{{ number_format((float) $item->unit_cost, 2) }}/{{ $item->unit }}</p></div>
+                                <p class="shrink-0 text-sm font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $item->stock_value, 2) }}</p>
                             </div>
-                        </div>
+                        @empty
+                            <p class="py-8 text-center text-sm text-slate-500">No active stock items to value.</p>
+                        @endforelse
                     </div>
+                </article>
 
-                    <!-- Quick Actions -->
-                    <div class="pt-4 border-t border-gray-200">
-                        <p class="text-sm font-semibold text-gray-900 mb-3">Quick Actions</p>
-                        <div class="flex flex-wrap gap-2">
-                            <a href="{{ route('transactions.index') }}" class="gt-focus rounded-xl bg-[#00A87E] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#08745D]">View transactions</a>
-                            <a href="{{ route('stock.index') }}" class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">Manage inventory</a>
-                        </div>
+                <article class="gt-card p-5 sm:p-6">
+                    <h3 class="text-lg font-extrabold">What these numbers mean</h3>
+                    <div class="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+                        <p><span class="font-bold text-[#0A2E2A]">Recorded income and expenses</span> include non-deleted transactions for this business, including saved order-sale and reversal entries. Order sales are not added to these amounts a second time.</p>
+                        <p>Older cashless entries awaiting review and original sales with a pending refund may remain in recorded income until they are reconciled or reversed. Check payment status before treating the ledger total as collected money.</p>
+                        <p><span class="font-bold text-[#0A2E2A]">Net recorded movement</span> is income minus expenses in the transaction ledger. Product-level cost of goods sold, tax, and full accounting adjustments are not represented, so this is not profit.</p>
+                        <p><span class="font-bold text-[#0A2E2A]">Growth</span> compares equivalent date ranges. When the comparison has no positive baseline, the page says so instead of showing a false 0% change.</p>
+                        <p><span class="font-bold text-[#0A2E2A]">Transaction count</span> measures saved ledger entries only; it is not a customer or order count.</p>
                     </div>
-                </div>
-            </div>
+                    <div class="mt-5 border-t border-[#EAF2EF] pt-4">
+                        <a href="{{ route('transactions.index') }}" class="gt-focus rounded-xl bg-[#EAF8F2] px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#DDF4EA]">View transaction records →</a>
+                    </div>
+                </article>
+            </section>
         </div>
-    </div>
+    </main>
+</div>
 
-    <script>
-        // Prepare data for charts
-        const dailyRevenueData = @json($dailyRevenue);
-        const dailyExpensesData = @json($dailyExpenses);
-        
-        // Create a complete date range for the current month
-        const startDate = new Date('{{ now()->startOfMonth()->format('Y-m-d') }}');
-        const endDate = new Date('{{ now()->endOfMonth()->format('Y-m-d') }}');
-        const dateLabels = [];
-        const revenueValues = [];
-        const expenseValues = [];
-        
-        // Generate all dates in the month
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            dateLabels.push(d.getDate());
-            
-            // Find revenue for this date
-            const revenueEntry = dailyRevenueData.find(item => item.date === dateStr);
-            revenueValues.push(revenueEntry ? parseFloat(revenueEntry.total) : 0);
-            
-            // Find expense for this date
-            const expenseEntry = dailyExpensesData.find(item => item.date === dateStr);
-            expenseValues.push(expenseEntry ? parseFloat(expenseEntry.total) : 0);
-        }
-        
-        // Revenue vs Expenses Chart
-        const ctx1 = document.getElementById('revenueExpensesChart').getContext('2d');
-        new Chart(ctx1, {
-            type: 'line',
-            data: {
-                labels: dateLabels,
-                datasets: [{
-                    label: 'Revenue',
-                    data: revenueValues,
-                    borderColor: '#00C897',
-                    backgroundColor: 'rgba(0, 200, 151, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }, {
-                    label: 'Expenses',
-                    data: expenseValues,
-                    borderColor: '#E11D48',
-                    backgroundColor: 'rgba(225, 29, 72, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '₱' + value.toLocaleString();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        
-        // Month Comparison Chart
-        const ctx2 = document.getElementById('monthComparisonChart').getContext('2d');
-        new Chart(ctx2, {
-            type: 'bar',
-            data: {
-                labels: ['Revenue', 'Expenses', 'Net Profit'],
-                datasets: [{
-                    label: 'Last Month',
-                    data: [
-                        {{ $lastMonthRevenue }},
-                        {{ $lastMonthExpenses }},
-                        {{ $lastMonthRevenue - $lastMonthExpenses }}
-                    ],
-                    backgroundColor: 'rgba(156, 163, 175, 0.6)',
-                    borderColor: 'rgba(156, 163, 175, 1)',
-                    borderWidth: 1
-                }, {
-                    label: 'This Month',
-                    data: [
-                        {{ $currentMonthRevenue }},
-                        {{ $currentMonthExpenses }},
-                        {{ $currentMonthRevenue - $currentMonthExpenses }}
-                    ],
-                    backgroundColor: 'rgba(0, 200, 151, 0.6)',
-                    borderColor: '#00C897',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '₱' + value.toLocaleString();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    </script>
-        </main>
-    </div>
+@if($hasLedgerData)
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof Chart === 'undefined') return;
+
+    const chartData = @json($chart);
+    const chartLinks = @json($chartLinks);
+    const periods = @json($comparisonPeriods);
+    const currencyPrefix = @json($currencyPrefix);
+    const moneyTick = value => currencyPrefix + Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+    @if($hasCurrentData)
+    new Chart(document.getElementById('incomeExpenseChart'), {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                { label: 'Recorded income', data: chartData.income, borderColor: '#00A87E', backgroundColor: 'rgba(0, 200, 151, .12)', tension: .25, fill: true },
+                { label: 'Recorded expenses', data: chartData.expenses, borderColor: '#E11D48', backgroundColor: 'rgba(225, 29, 72, .08)', tension: .25, fill: true },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            onHover: (event, elements) => { if (event.native?.target) event.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
+            onClick: (event, elements) => { if (elements.length && chartLinks[elements[0].index]) window.location.assign(chartLinks[elements[0].index]); },
+            scales: { y: { beginAtZero: true, ticks: { callback: moneyTick } } },
+        },
+    });
+    @endif
+
+    new Chart(document.getElementById('periodComparisonChart'), {
+        type: 'bar',
+        data: {
+            labels: periods.labels,
+            datasets: [
+                { label: 'Recorded income', data: periods.income, backgroundColor: 'rgba(0, 168, 126, .75)' },
+                { label: 'Recorded expenses', data: periods.expenses, backgroundColor: 'rgba(225, 29, 72, .65)' },
+                { label: 'Net recorded movement', data: periods.movement, backgroundColor: 'rgba(10, 46, 42, .55)' },
+            ],
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: moneyTick } } } },
+    });
+});
+</script>
+@endif
 </body>
 </html>

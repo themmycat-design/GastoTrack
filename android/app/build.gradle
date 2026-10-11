@@ -2,6 +2,33 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// react-native-config reads these files at native build time. Use ENVFILE to
+// choose a non-default environment, e.g. .env.staging or .env.production.
+project.ext.envConfigFiles = [
+    debug: ".env",
+    release: ".env.production",
+]
+apply from: project(":react-native-config").projectDir.getPath() + "/dotenv.gradle"
+
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file("keystore.properties")
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+def signingValue = { String key ->
+    project.findProperty(key)?.toString()
+        ?: System.getenv(key)
+        ?: signingProperties.getProperty(key)
+}
+def releaseStoreFile = signingValue("GASTOTRACK_STORE_FILE")
+def releaseStorePassword = signingValue("GASTOTRACK_STORE_PASSWORD")
+def releaseKeyAlias = signingValue("GASTOTRACK_KEY_ALIAS")
+def releaseKeyPassword = signingValue("GASTOTRACK_KEY_PASSWORD")
+def releaseSigningValuesPresent = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword]
+    .every { it != null && !it.trim().isEmpty() }
+def releaseStorePath = releaseStoreFile ? rootProject.file(releaseStoreFile) : null
+def releaseSigningConfigured = releaseSigningValuesPresent && releaseStorePath.exists()
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -84,6 +111,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     signingConfigs {
         debug {
@@ -92,17 +120,47 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (releaseSigningConfigured) {
+            release {
+                storeFile releaseStorePath
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+// Keep assembleDebug usable on a developer machine, but never let a release
+// task silently produce an APK signed with the public Android debug key.
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    doFirst {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                "Release signing is not configured. Set GASTOTRACK_STORE_FILE, " +
+                "GASTOTRACK_STORE_PASSWORD, GASTOTRACK_KEY_ALIAS, and GASTOTRACK_KEY_PASSWORD " +
+                "in the environment or android/keystore.properties, and ensure the keystore file exists."
+            )
+        }
+        def releaseApiUrl = project.env.get("API_URL")?.trim()
+        if (!releaseApiUrl || !releaseApiUrl.toLowerCase().startsWith("https://")) {
+            throw new GradleException(
+                "A release requires API_URL to be set to a reachable HTTPS endpoint in the selected ENVFILE (normally .env.production)."
+            )
         }
     }
 }

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Super Admin') - GastoTrack</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -11,7 +12,7 @@
 <div class="min-h-screen lg:flex">
     <aside class="bg-emerald-600 text-white lg:fixed lg:inset-y-0 lg:w-64">
         <div class="p-6 border-b border-white/15">
-            <p class="text-2xl font-bold">GastoTrack</p>
+            <div class="flex items-center gap-3"><img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-10 w-10 object-contain"><p class="text-2xl font-bold">GastoTrack</p></div>
             <p class="text-sm text-white/75">Platform Administration</p>
         </div>
         <nav class="p-4 grid grid-cols-2 gap-2 lg:block">

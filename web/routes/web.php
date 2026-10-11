@@ -6,6 +6,9 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\OwnerDashboardController;
+use App\Http\Controllers\OwnerAnalyticsController;
+use App\Http\Controllers\OwnerAnalyticsDayController;
+use App\Http\Controllers\OwnerOrderController;
 use App\Http\Controllers\PlatformReportController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\ViolationReportController;
@@ -44,99 +47,19 @@ Route::middleware(['auth', 'owner'])->group(function () {
     // Staff CRUD
     Route::resource('staff', StaffController::class)->except(['show', 'create', 'edit']);
     
-    Route::get('/analytics', function() {
-        $user = auth()->user();
-        $businessId = $user->business_id;
-        
-        // Get date ranges
-        $today = now();
-        $startOfMonth = now()->startOfMonth();
-        $endOfMonth = now()->endOfMonth();
-        $startOfLastMonth = now()->subMonth()->startOfMonth();
-        $endOfLastMonth = now()->subMonth()->endOfMonth();
-        
-        // Current month totals
-        $currentMonthRevenue = \App\Models\Transaction::where('business_id', $businessId)
-            ->where('type', 'income')
-            ->whereBetween('transaction_date', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
-            
-        $currentMonthExpenses = \App\Models\Transaction::where('business_id', $businessId)
-            ->where('type', 'expense')
-            ->whereBetween('transaction_date', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
-        
-        // Last month totals
-        $lastMonthRevenue = \App\Models\Transaction::where('business_id', $businessId)
-            ->where('type', 'income')
-            ->whereBetween('transaction_date', [$startOfLastMonth, $endOfLastMonth])
-            ->sum('amount');
-            
-        $lastMonthExpenses = \App\Models\Transaction::where('business_id', $businessId)
-            ->where('type', 'expense')
-            ->whereBetween('transaction_date', [$startOfLastMonth, $endOfLastMonth])
-            ->sum('amount');
-        
-        // Calculate growth percentages
-        $revenueGrowth = $lastMonthRevenue > 0 
-            ? (($currentMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100 
-            : 0;
-        $expenseGrowth = $lastMonthExpenses > 0 
-            ? (($currentMonthExpenses - $lastMonthExpenses) / $lastMonthExpenses) * 100 
-            : 0;
-        
-        // Get daily revenue for current month (for chart)
-        $dailyRevenue = \App\Models\Transaction::where('business_id', $businessId)
-            ->where('type', 'income')
-            ->whereBetween('transaction_date', [$startOfMonth, $endOfMonth])
-            ->selectRaw('DATE(transaction_date) as date, SUM(amount) as total')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-        
-        // Get daily expenses for current month (for chart)
-        $dailyExpenses = \App\Models\Transaction::where('business_id', $businessId)
-            ->where('type', 'expense')
-            ->whereBetween('transaction_date', [$startOfMonth, $endOfMonth])
-            ->selectRaw('DATE(transaction_date) as date, SUM(amount) as total')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-        
-        // Get top stock items by value
-        $topStockItems = \App\Models\StockItem::where('business_id', $businessId)
-            ->where('active', true)
-            ->orderByRaw('current_quantity * unit_cost DESC')
-            ->take(5)
-            ->get();
-        
-        // Get transaction count
-        $transactionCount = \App\Models\Transaction::where('business_id', $businessId)
-            ->whereBetween('transaction_date', [$startOfMonth, $endOfMonth])
-            ->count();
-        
-        $lastMonthTransactionCount = \App\Models\Transaction::where('business_id', $businessId)
-            ->whereBetween('transaction_date', [$startOfLastMonth, $endOfLastMonth])
-            ->count();
-        
-        $transactionGrowth = $lastMonthTransactionCount > 0 
-            ? (($transactionCount - $lastMonthTransactionCount) / $lastMonthTransactionCount) * 100 
-            : 0;
-        
-        return view('analytics.index', compact(
-            'currentMonthRevenue',
-            'currentMonthExpenses',
-            'lastMonthRevenue',
-            'lastMonthExpenses',
-            'revenueGrowth',
-            'expenseGrowth',
-            'dailyRevenue',
-            'dailyExpenses',
-            'topStockItems',
-            'transactionCount',
-            'transactionGrowth'
-        ));
-    })->name('analytics.index');
+    // Product management existed in Blade/controller code but was not routed.
+    Route::resource('products', ProductController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::post('/products/{product}/toggle', [ProductController::class, 'toggleAvailability'])
+        ->name('products.toggle');
+
+    // Read-only owner order details; financial/order actions remain in the staff workflow.
+    Route::get('/orders', [OwnerOrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/{order}', [OwnerOrderController::class, 'show'])->name('orders.show');
+    Route::get('/analytics', OwnerAnalyticsController::class)->name('analytics.index');
+    Route::get('/analytics/day/{date}', OwnerAnalyticsDayController::class)
+        ->where('date', '\\d{4}-\\d{2}-\\d{2}')
+        ->name('analytics.day');
 });
 
 Route::middleware('auth')->group(function () {

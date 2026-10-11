@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, Modal, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -9,6 +9,10 @@ import {useStock} from '../../context/StockContext';
 import {useProducts} from '../../context/ProductContext';
 import {COLORS} from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import ApiErrorBanner from '../../components/ApiErrorBanner';
+import {getApiErrorMessage} from '../../services/apiErrors';
+import api from '../../services/api';
+import {needsStockAlternativeCheck} from '../../utils/stockAlternatives';
 
 const emptyProductForm = {
   name: '', category: 'Coffee', price: '', emoji: '☕', description: '',
@@ -34,11 +38,11 @@ const productToForm = product => ({
 
 const StockScreen = () => {
   const {
-    stockItems, isLoading, isLoadingMore, hasMoreStock,
+    stockItems, isLoading, isLoadingMore, hasMoreStock, loadError: stockError,
     fetchStock, loadMoreStock, getStatus, adjustStock, createStock,
   } = useStock();
   const {
-    products, fetchProducts, createProduct, updateProduct, deleteProduct,
+    products, isLoading: productsLoading, fetchProducts, createProduct, updateProduct, deleteProduct, loadError: productError,
     PRODUCT_CATEGORIES,
   } = useProducts();
   const [activeTab, setActiveTab] = useState('stock');
@@ -57,21 +61,64 @@ const StockScreen = () => {
   const [stockEditorVisible, setStockEditorVisible] = useState(false);
   const [stockForm, setStockForm] = useState(emptyStockForm);
   const [isSavingStock, setIsSavingStock] = useState(false);
+  const [alternativeItems, setAlternativeItems] = useState([]);
+  const [alternativesLoading, setAlternativesLoading] = useState(false);
+  const [alternativesStatus, setAlternativesStatus] = useState(null);
+  const [alternativesError, setAlternativesError] = useState(null);
+  const alternativeRequestId = useRef(0);
+  const lastStockSignature = useRef(null);
 
   const filteredItems = useMemo(() => {
     const source = activeTab === 'stock' ? stockItems : products;
     const term = search.trim().toLowerCase();
     return term ? source.filter(item => item.name?.toLowerCase().includes(term)) : source;
   }, [activeTab, products, search, stockItems]);
+  const listLoading = activeTab === 'stock' ? isLoading : productsLoading;
 
   const statusCounts = useMemo(() => stockItems.reduce((counts, item) => {
     counts[getStatus(item.quantity, item.threshold)] += 1;
     return counts;
   }, {OK: 0, Low: 0, Out: 0}), [getStatus, stockItems]);
 
+  const stockSignature = stockItems.map(item => `${item.id}:${item.quantity}`).join('|');
+  const recipeSignature = products.map(product => `${product.id}:${(product.ingredients || []).map(ingredient => `${ingredient.stockId}:${ingredient.quantity}`).join(',')}`).join('|');
+  const inventorySignature = `${stockSignature}/${recipeSignature}/${hasMoreStock}`;
+  useEffect(() => {
+    if (activeTab !== 'stock' || isLoading || productsLoading || !stockItems.length || lastStockSignature.current === inventorySignature) return;
+    lastStockSignature.current = inventorySignature;
+    // All loaded stock is healthy and there are no additional pages: no AI
+    // request is needed. With more pages, the server checks hidden shortages.
+    if (!needsStockAlternativeCheck(stockItems, hasMoreStock)) {
+      alternativeRequestId.current += 1;
+      setAlternativeItems([]);
+      setAlternativesStatus('not_needed');
+      setAlternativesError(null);
+      setAlternativesLoading(false);
+      return;
+    }
+    const requestId = ++alternativeRequestId.current;
+    setAlternativesLoading(true);
+    setAlternativesError(null);
+    setAlternativeItems([]);
+    setAlternativesStatus(null);
+    api.get('/ai/stock-alternatives').then(response => {
+      if (requestId !== alternativeRequestId.current) return;
+      setAlternativeItems(response.data?.items || []);
+      setAlternativesStatus(response.data?.suggestion_status || 'unavailable');
+    }).catch(error => {
+      if (requestId !== alternativeRequestId.current) return;
+      setAlternativeItems([]);
+      setAlternativesError(getApiErrorMessage(error, 'Could not load ingredient alternatives.'));
+    }).finally(() => {
+      if (requestId === alternativeRequestId.current) setAlternativesLoading(false);
+    });
+  }, [activeTab, hasMoreStock, isLoading, inventorySignature, productsLoading, stockItems]);
+
   const refresh = async () => {
     setIsRefreshing(true);
-    try { await Promise.all([fetchStock(), fetchProducts()]); }
+    try {
+      await Promise.all([fetchStock(), fetchProducts()]);
+    }
     finally { setIsRefreshing(false); }
   };
 
@@ -143,7 +190,7 @@ const StockScreen = () => {
     } catch (error) {
       const data = error.response?.data;
       const details = Object.values(data?.errors || {}).flat().join('\n');
-      Alert.alert('Could not adjust stock', details || data?.message || 'Please try again.');
+      Alert.alert('Could not adjust stock', details || data?.message || getApiErrorMessage(error));
     } finally { setIsAdjusting(false); }
   };
 
@@ -174,7 +221,11 @@ const StockScreen = () => {
     });
     if (result.didCancel) return;
     if (result.errorCode) {
-      Alert.alert('Could not open photos', result.errorMessage || 'Please try again.');
+      const permissionError = /permission|access/i.test(`${result.errorCode} ${result.errorMessage || ''}`);
+      Alert.alert(
+        permissionError ? 'Photo Permission Required' : 'Could not open photos',
+        permissionError ? 'Allow photo access in your device settings, then try again.' : result.errorMessage || 'Please try again.',
+      );
       return;
     }
     const asset = result.assets?.[0];
@@ -204,7 +255,7 @@ const StockScreen = () => {
 
   const apiErrorMessage = error => {
     const data = error.response?.data;
-    return Object.values(data?.errors || {}).flat().join('\n') || data?.message || 'Please try again.';
+    return Object.values(data?.errors || {}).flat().join('\n') || data?.message || getApiErrorMessage(error);
   };
 
   const saveProduct = async () => {
@@ -289,6 +340,7 @@ const StockScreen = () => {
 
   const renderProductItem = ({item}) => {
     const available = item.is_available !== false;
+    const hasMissingIngredient = alternativeItems.some(shortage => shortage.products.some(product => Number(product.id) === Number(item.id)));
     return (
       <TouchableOpacity style={styles.card} onPress={() => setSelectedProduct(item)} activeOpacity={0.75}>
         <View style={styles.iconBox}>
@@ -299,6 +351,7 @@ const StockScreen = () => {
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle}>{item.name}</Text>
           <Text style={styles.cardSubtitle}>{item.category || 'Uncategorized'} · ₱{Number(item.price || 0).toFixed(2)}</Text>
+          {hasMissingIngredient ? <Text style={styles.stockAlertText}>Ingredient out of stock</Text> : null}
         </View>
         <View style={[styles.badge, available ? styles.badgeOk : styles.badgeOut]}>
           <Text style={[styles.badgeText, available ? styles.badgeOkText : styles.badgeOutText]}>{available ? 'Available' : 'Unavailable'}</Text>
@@ -344,13 +397,44 @@ const StockScreen = () => {
         <TextInput style={styles.searchInput} placeholder={`Search ${activeTab === 'stock' ? 'stock items' : 'products'}...`} value={search} onChangeText={setSearch} />
       </View>
 
-      {isLoading && !isRefreshing && filteredItems.length === 0 ? (
+      <ApiErrorBanner
+        message={activeTab === 'stock' ? stockError : productError}
+        onRetry={() => activeTab === 'stock' ? fetchStock() : fetchProducts()}
+      />
+      {activeTab === 'stock' ? <ApiErrorBanner message={alternativesError} onRetry={() => {
+        lastStockSignature.current = null;
+        fetchStock();
+      }} /> : null}
+
+      {listLoading && !isRefreshing && filteredItems.length === 0 ? (
         <View style={styles.centerState}><ActivityIndicator color={COLORS.accent} size="large" /><Text style={styles.stateText}>Loading inventory...</Text></View>
       ) : (
         <FlatList
           data={filteredItems}
           keyExtractor={item => String(item.id)}
           renderItem={activeTab === 'stock' ? renderStockItem : renderProductItem}
+          ListHeaderComponent={activeTab === 'stock' && (alternativesLoading || alternativeItems.length > 0) ? (
+            <View style={styles.alternativesPanel}>
+              <View style={styles.alternativesHeading}>
+                <Icon name="lightbulb-on-outline" size={21} color={COLORS.accentDark} />
+                <Text style={styles.alternativesTitle}>Out-of-stock ingredients</Text>
+                {alternativesLoading ? <ActivityIndicator size="small" color={COLORS.accent} /> : null}
+              </View>
+              {alternativesLoading && !alternativeItems.length ? <Text style={styles.alternativesHint}>Checking affected products and available stock...</Text> : null}
+              {alternativeItems.map(item => (
+                <View key={item.stock_id} style={styles.alternativeItem}>
+                  <Text style={styles.alternativeIngredient}>{item.ingredient} is out of stock</Text>
+                  <Text style={styles.alternativesHint}>Used in: {item.products.map(product => product.name).join(', ')}</Text>
+                  {item.alternatives.length ? (
+                    <Text style={styles.alternativeSuggestion}>Possible alternative: {item.alternatives.map(alternative => alternative.name).join(', ')}</Text>
+                  ) : (
+                    <Text style={styles.alternativesHint}>{alternativesStatus === 'unavailable' ? 'AI suggestions are unavailable. Restock or review the recipe manually.' : 'No suitable alternative found in available stock.'}</Text>
+                  )}
+                </View>
+              ))}
+              {alternativeItems.length ? <Text style={styles.alternativesDisclaimer}>Suggestions only. Check taste, allergens, portions, and cost with the owner before changing a recipe. Nothing is changed automatically.</Text> : null}
+            </View>
+          ) : null}
           contentContainerStyle={filteredItems.length ? styles.list : styles.emptyList}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} colors={[COLORS.accent]} />}
           ListEmptyComponent={<View style={styles.centerState}>
@@ -439,6 +523,15 @@ const StockScreen = () => {
                 <Text style={styles.ingredientName}>{ingredient.name || 'Stock item'}</Text><Text style={styles.ingredientQuantity}>{ingredient.quantity}</Text>
               </View>
             )) : <Text style={styles.ownerNote}>No recipe ingredients configured.</Text>}
+            {alternativeItems.filter(shortage => shortage.products.some(product => Number(product.id) === Number(selectedProduct.id))).map(shortage => (
+              <View key={shortage.stock_id} style={styles.productShortage}>
+                <Text style={styles.alternativeIngredient}>{shortage.ingredient} is out of stock</Text>
+                <Text style={styles.alternativeSuggestion}>{shortage.alternatives.length
+                  ? `Possible alternative: ${shortage.alternatives.map(alternative => alternative.name).join(', ')}`
+                  : alternativesStatus === 'unavailable' ? 'AI suggestions unavailable. Restock or review manually.' : 'No suitable stocked alternative found.'}</Text>
+                <Text style={styles.alternativesHint}>Confirm recipe, allergen, taste, and cost changes with the owner. No substitution is applied automatically.</Text>
+              </View>
+            ))}
             <View style={styles.productActions}>
               <TouchableOpacity style={styles.secondaryButton} onPress={() => openEditProduct(selectedProduct)}>
                 <Icon name="pencil-outline" size={18} color={COLORS.accentDark} />
@@ -552,6 +645,16 @@ const styles = StyleSheet.create({
   productHero: {height: 190, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'}, productHeroImage: {width: '100%', height: '100%', resizeMode: 'cover'}, noImage: {alignItems: 'center'}, noImageText: {fontSize: 12, color: COLORS.textGray, marginTop: 6},
   detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 14},
   ingredientRow: {flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.surfaceMuted, borderRadius: 9, padding: 11, marginBottom: 7}, ingredientName: {fontSize: 13, color: COLORS.textDark}, ingredientQuantity: {fontSize: 13, fontWeight: '700', color: COLORS.accent},
+  alternativesPanel: {backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 15, padding: 14, marginBottom: 15},
+  alternativesHeading: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  alternativesTitle: {flex: 1, fontSize: 15, fontWeight: '800', color: COLORS.textDark},
+  alternativeItem: {borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 12, paddingTop: 12},
+  alternativeIngredient: {fontSize: 13, fontWeight: '700', color: COLORS.danger},
+  alternativesHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 5},
+  alternativeSuggestion: {fontSize: 12, lineHeight: 18, fontWeight: '700', color: COLORS.accentDark, marginTop: 7},
+  alternativesDisclaimer: {fontSize: 11, lineHeight: 16, color: COLORS.textGray, marginTop: 13},
+  productShortage: {backgroundColor: '#FFF8ED', borderRadius: 12, padding: 12, marginTop: 12},
+  stockAlertText: {fontSize: 11, fontWeight: '700', color: COLORS.danger, marginTop: 3},
   productActions: {gap: 9, marginTop: 20},
   secondaryButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
   secondaryButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},

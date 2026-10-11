@@ -13,6 +13,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useFocusEffect} from '@react-navigation/native';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useTransactions} from '../../context/TransactionContext';
+import {getApiErrorMessage} from '../../services/apiErrors';
+import ApiErrorBanner from '../../components/ApiErrorBanner';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 
 const TransactionOptionsScreen = ({navigation, route}) => {
@@ -24,6 +26,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
     TRANSACTION_SOURCES,
     transactionOptions,
     optionsLoading,
+    optionsError,
     fetchTransactionOptions,
     addTransactionOption,
     updateTransactionOption,
@@ -53,10 +56,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
   );
 
   const errorMessage = error => {
-    const data = error?.response?.data;
-    return Object.values(data?.errors || {}).flat().join('\n')
-      || data?.message
-      || 'Please check your connection and try again.';
+    return getApiErrorMessage(error);
   };
 
   const saveOption = async () => {
@@ -162,6 +162,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
           </View>
         </View>
 
+        <ApiErrorBanner message={optionsError} onRetry={fetchTransactionOptions} />
         {optionsLoading ? <ActivityIndicator style={styles.loader} color={COLORS.accent} /> : groups.map(group => (
           <View key={group.key} style={styles.listCard}>
             <Text style={styles.sectionTitle}>{group.title}</Text>

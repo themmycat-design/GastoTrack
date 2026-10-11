@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\Business;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class BusinessSeeder extends Seeder
 {
@@ -14,53 +13,48 @@ class BusinessSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create a sample business
-        $business = Business::create([
-            'name' => 'GastoTrack Milk Tea Shop',
-            'address' => '123 Main St, Manila, Philippines',
-            'phone' => '+63 917 123 4567',
-            'email' => 'info@gastotrack-milktea.com',
-            'business_type' => 'cafe',
-            'active' => true,
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->warn('Demo business seeding is available only in local/testing environments.');
+            return;
+        }
+
+        $business = Business::updateOrCreate(
+            ['email' => 'info@gastotrack-milktea.com'],
+            [
+                'name' => 'GastoTrack Milk Tea Shop',
+                'address' => '123 Main St, Manila, Philippines',
+                'phone' => '+63 917 123 4567',
+                'business_type' => 'cafe',
+                'active' => true,
+                'status' => 'active',
+            ]
+        );
+
+        $owner = User::updateOrCreate(
+            ['email' => 'owner@gastotrack.com'],
+            [
+                'name' => 'Juan Dela Cruz',
+                'password' => 'password',
+                'role' => 'owner',
+                'business_id' => $business->id,
+                'phone' => '+63 917 111 1111',
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ]
+        );
+        $business->update(['owner_id' => $owner->id]);
+
+        User::updateOrCreate(['email' => 'staff1@gastotrack.com'], [
+            'name' => 'Maria Santos', 'password' => 'password', 'role' => 'staff',
+            'business_id' => $business->id, 'phone' => '+63 917 222 2222',
+            'status' => 'active', 'email_verified_at' => now(),
+        ]);
+        User::updateOrCreate(['email' => 'staff2@gastotrack.com'], [
+            'name' => 'Pedro Reyes', 'password' => 'password', 'role' => 'staff',
+            'business_id' => $business->id, 'phone' => '+63 917 333 3333',
+            'status' => 'active', 'email_verified_at' => now(),
         ]);
 
-        // Create owner user
-        $owner = User::create([
-            'name' => 'Juan Dela Cruz',
-            'email' => 'owner@gastotrack.com',
-            'password' => Hash::make('password'),
-            'role' => 'owner',
-            'business_id' => $business->id,
-            'phone' => '+63 917 111 1111',
-            'email_verified_at' => now(),
-        ]);
-
-        $business->update(['owner_id' => $owner->id, 'status' => 'active']);
-
-        // Create staff users
-        $staff1 = User::create([
-            'name' => 'Maria Santos',
-            'email' => 'staff1@gastotrack.com',
-            'password' => Hash::make('password'),
-            'role' => 'staff',
-            'business_id' => $business->id,
-            'phone' => '+63 917 222 2222',
-            'email_verified_at' => now(),
-        ]);
-
-        $staff2 = User::create([
-            'name' => 'Pedro Reyes',
-            'email' => 'staff2@gastotrack.com',
-            'password' => Hash::make('password'),
-            'role' => 'staff',
-            'business_id' => $business->id,
-            'phone' => '+63 917 333 3333',
-            'email_verified_at' => now(),
-        ]);
-
-        $this->command->info('Business and users created successfully!');
-        $this->command->info('Owner: owner@gastotrack.com / password');
-        $this->command->info('Staff1: staff1@gastotrack.com / password');
-        $this->command->info('Staff2: staff2@gastotrack.com / password');
+        $this->command?->info('Repeatable local demo business and accounts are ready. Credentials are listed in docs/ALPHA_SETUP.md.');
     }
 }

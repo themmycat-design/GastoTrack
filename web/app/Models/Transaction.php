@@ -12,7 +12,7 @@ class Transaction extends Model
     protected $fillable = [
         'business_id', 'user_id', 'amount', 'type',
         'source', 'category', 'transaction_date', 'description', 'receipt_image',
-        'entry_method', 'metadata', 'client_id', 'synced'
+        'entry_method', 'metadata', 'client_id', 'order_id', 'reversal_of_id', 'synced'
     ];
 
     protected $casts = [
@@ -35,5 +35,15 @@ class Transaction extends Model
     public function recordedBy()
     {
         return $this->user();
+    }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function reversalOf()
+    {
+        return $this->belongsTo(self::class, 'reversal_of_id');
     }
 }

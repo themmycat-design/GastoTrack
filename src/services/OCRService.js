@@ -47,7 +47,6 @@ export const scanReceipt = async (imageUri) => {
       method: 'mlkit',
     };
   } catch (error) {
-    console.error('OCR Error:', error);
     return {
       success: false,
       error: error.message,
@@ -283,7 +282,7 @@ export const formatForTransaction = (parsed) => {
     source: parsed.source,
     category: parsed.category || '',
     date: parsed.date || new Date().toISOString().split('T')[0],
-    notes: parsed.merchant ? `From: ${parsed.merchant}` : '',
+    notes: parsed.merchant && parsed.merchant !== 'Unknown Merchant' ? parsed.merchant : '',
     entryMethod: 'OCR',
     confidence: parsed.confidence,
   };

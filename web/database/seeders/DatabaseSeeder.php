@@ -15,8 +15,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(SuperAdminSeeder::class);
+
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->warn('Demo business, staff, products, orders, and financial records were skipped outside local/testing.');
+            return;
+        }
+
         $this->call([
-            SuperAdminSeeder::class,
             BusinessSeeder::class,
             ProductDataSeeder::class,
         ]);

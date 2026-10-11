@@ -4,7 +4,7 @@
             <div class="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-white/10"></div>
             <div class="absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-emerald-300/10"></div>
 
-            <a href="{{ url('/') }}" class="relative text-2xl font-extrabold tracking-tight">GastoTrack</a>
+            <a href="{{ url('/') }}" class="relative inline-flex items-center gap-3 text-2xl font-extrabold tracking-tight"><img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-11 w-11 object-contain">GastoTrack</a>
 
             <div class="relative max-w-lg">
                 <p class="mb-4 text-sm font-bold uppercase tracking-[.2em] text-emerald-200">Set up your business</p>
@@ -33,7 +33,7 @@
         <section class="flex min-h-screen items-center justify-center bg-[#f4f8f7] px-5 py-10 sm:px-10">
             <div class="w-full max-w-xl">
                 <div class="mb-8 flex items-center justify-between lg:hidden">
-                    <a href="{{ url('/') }}" class="text-2xl font-extrabold text-emerald-700">GastoTrack</a>
+                    <a href="{{ url('/') }}" class="inline-flex items-center gap-2 text-2xl font-extrabold text-emerald-700"><img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-9 w-9 object-contain">GastoTrack</a>
                     <a href="{{ url('/') }}" class="text-sm font-semibold text-gray-500 hover:text-emerald-700">Back home</a>
                 </div>
 

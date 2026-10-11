@@ -6,7 +6,10 @@ use App\Models\ActivityLog;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Transaction;
+use App\Services\OwnerStockAlerts;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\View\View as BladeView;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +26,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::composer(['layouts.owner-navigation', 'layouts.owner-topbar'], function (BladeView $view): void {
+            $owner = auth()->user();
+
+            if ($owner?->isOwner() && $owner->business_id) {
+                $cacheKey = 'owner_stock_alerts_'.$owner->business_id;
+                $request = request();
+                $alerts = $request->attributes->get($cacheKey);
+
+                if ($alerts === null) {
+                    $alerts = app(OwnerStockAlerts::class)->forBusiness((int) $owner->business_id);
+                    $request->attributes->set($cacheKey, $alerts);
+                }
+
+                $view->with('ownerStockAlerts', $alerts);
+            }
+        });
+
         foreach ([Transaction::class, Product::class, Order::class] as $model) {
             $model::created(fn ($record) => $this->logActivity('created', $record));
             $model::updated(fn ($record) => $this->logActivity('updated', $record));

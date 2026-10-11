@@ -51,6 +51,117 @@
     background: linear-gradient(135deg, #0A2E2A 0%, #08745D 65%, #00A87E 130%);
 }
 
+.gt-welcome-frame {
+    width: 100%;
+    max-width: 1920px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4.5vw, 5rem);
+}
+
+.gt-welcome-hero {
+    background:
+        radial-gradient(circle at 50% 8%, rgba(0, 200, 151, .16), transparent 32rem),
+        linear-gradient(145deg, #071C19 0%, #061310 55%, #09241E 100%);
+}
+
+.gt-welcome-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 36rem 25rem at -10% 90%, transparent 58%, rgba(101, 221, 182, .22) 58.2%, transparent 58.5%),
+        radial-gradient(ellipse 36rem 25rem at 110% 90%, transparent 58%, rgba(101, 221, 182, .22) 58.2%, transparent 58.5%);
+    pointer-events: none;
+}
+
+.gt-welcome-title {
+    max-width: 880px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(3.1rem, 6.3vw, 6.5rem);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -.045em;
+    text-wrap: balance;
+}
+
+.gt-welcome-scroll {
+    scroll-behavior: smooth;
+}
+
+.gt-welcome-back-to-top {
+    position: fixed;
+    z-index: 40;
+    right: clamp(1rem, 3vw, 2rem);
+    bottom: clamp(1rem, 3vw, 2rem);
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 999px;
+    padding: .75rem 1rem;
+    background: #08745D;
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(10, 46, 42, .22);
+    font-size: .875rem;
+    font-weight: 700;
+    transition: transform .2s ease, background .2s ease;
+}
+
+.gt-welcome-back-to-top:hover {
+    transform: translateY(-3px);
+    background: #005C49;
+}
+
+.gt-welcome-back-to-top[hidden] {
+    display: none;
+}
+
+.gt-reveal-ready .gt-scroll-reveal {
+    transition: opacity .65s ease var(--gt-reveal-delay, 0ms),
+        translate .65s cubic-bezier(.2, .75, .25, 1) var(--gt-reveal-delay, 0ms);
+}
+
+.gt-reveal-ready .gt-scroll-reveal:not(.is-visible) {
+    opacity: 0;
+    translate: 0 24px;
+}
+
+.gt-welcome-preview {
+    border-color: #cfe7de;
+    background: linear-gradient(155deg, #fff 62%, #f8fcfa 100%);
+    box-shadow: 0 32px 75px rgba(10, 46, 42, .12), 0 2px 8px rgba(10, 46, 42, .04);
+}
+
+.gt-welcome-feature,
+.gt-welcome-step {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #fff 65%, #f9fcfa);
+}
+
+.gt-welcome-feature::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: linear-gradient(90deg, #00A87E, #7bddbc);
+    opacity: 0;
+    transform: scaleX(.35);
+    transform-origin: left;
+    transition: opacity .22s ease, transform .22s ease;
+}
+
+.gt-welcome-feature:hover::before {
+    opacity: 1;
+    transform: scaleX(1);
+}
+
+.gt-welcome-cta {
+    background:
+        radial-gradient(circle at 80% 15%, rgba(85, 223, 169, .22), transparent 27rem),
+        linear-gradient(110deg, #0A2E2A 0%, #075b4a 65%, #08745D 100%);
+    box-shadow: 0 24px 60px rgba(10, 46, 42, .17);
+}
+
 .gt-owner-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
 .gt-owner-page select,
 .gt-owner-page textarea {
@@ -80,7 +191,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .gt-welcome-scroll { scroll-behavior: auto; }
     .gt-enter { animation: none; }
     .gt-lift { transition: none; }
     .gt-lift:hover { transform: none; }
+    .gt-welcome-back-to-top { transition: none; }
+    .gt-reveal-ready .gt-scroll-reveal { transition: none; }
 }

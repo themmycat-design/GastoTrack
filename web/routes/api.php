@@ -48,6 +48,13 @@ $registerProtectedRoutes = function (): void {
     Route::get('/stock/{stock}/movements', [StockController::class, 'movements']);
     Route::post('/stock/{stock}/adjust', [StockController::class, 'adjust']);
     Route::apiResource('stock', StockController::class);
+    Route::post('/orders/{order}/payments/detected', [OrderController::class, 'detectPayment'])->whereNumber('order');
+    Route::post('/orders/{order}/payments/confirm', [OrderController::class, 'confirmPayment'])->whereNumber('order');
+    Route::post('/orders/{order}/payments/fail', [OrderController::class, 'failPayment'])->whereNumber('order');
+    Route::post('/orders/{order}/payments/retry', [OrderController::class, 'retryPayment'])->whereNumber('order');
+    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel'])->whereNumber('order');
+    Route::post('/orders/{order}/refund/request', [OrderController::class, 'requestRefund'])->whereNumber('order');
+    Route::post('/orders/{order}/refund/confirm', [OrderController::class, 'confirmRefund'])->whereNumber('order');
     Route::apiResource('orders', OrderController::class);
 
     Route::post('/goals/{goal}/complete', [GoalController::class, 'complete']);
@@ -67,18 +74,20 @@ $registerProtectedRoutes = function (): void {
         Route::get('/stock-value', [AnalyticsController::class, 'stockValue']);
         Route::get('/trends', [AnalyticsController::class, 'trends']);
     });
-    Route::post('/sync', [SyncController::class, 'sync'])->middleware('throttle:10,1');
-    Route::post('/ai/chat', [AiAssistantController::class, 'chat'])->middleware('throttle:20,1');
+    Route::post('/sync', [SyncController::class, 'sync'])->middleware('throttle:10,1,api-sync');
+    Route::post('/ai/chat', [AiAssistantController::class, 'chat'])->middleware('throttle:20,1,ai-chat');
+    Route::post('/ai/transaction-category', [AiAssistantController::class, 'suggestTransactionCategory'])->middleware('throttle:20,1,ai-category');
+    Route::get('/ai/stock-alternatives', [AiAssistantController::class, 'stockAlternatives'])->middleware('throttle:10,1,ai-stock');
 };
 
 $registerPublicRoutes();
-Route::middleware(['auth:sanctum', 'business.active', 'throttle:300,1'])
+Route::middleware(['auth:sanctum', 'business.active', 'throttle:300,1,api-global'])
     ->name('api.')
     ->group($registerProtectedRoutes);
 
 Route::prefix('v1')->name('v1.')->group(function () use ($registerPublicRoutes, $registerProtectedRoutes): void {
     $registerPublicRoutes();
-    Route::middleware(['auth:sanctum', 'business.active', 'throttle:300,1'])
+    Route::middleware(['auth:sanctum', 'business.active', 'throttle:300,1,api-global'])
         ->name('api.')
         ->group($registerProtectedRoutes);
 });

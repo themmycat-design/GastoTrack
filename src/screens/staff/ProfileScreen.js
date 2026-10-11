@@ -8,7 +8,7 @@ import {useAuth} from '../../context/AuthContext';
 import {COLORS} from '../../theme';
 
 const ProfileScreen = ({navigation}) => {
-  const {user, userRole, logout} = useAuth();
+  const {user, userRole, business, logout} = useAuth();
 
   const handleLogout = () => {
     Alert.alert('Sign out?', 'You will need to sign in again to continue.', [
@@ -43,6 +43,7 @@ const ProfileScreen = ({navigation}) => {
           <Text style={styles.role}>
             {userRole === 'staff' ? 'Staff / Cashier' : userRole || 'Staff'}
           </Text>
+          {!!business?.name && <Text style={styles.businessName}>{business.name}</Text>}
         </View>
 
         <View style={styles.profileOptions}>
@@ -93,6 +94,7 @@ const styles = StyleSheet.create({
   avatarText: {fontSize: 28, fontWeight: 'bold', color: COLORS.accent},
   name: {fontSize: 20, fontWeight: 'bold', color: COLORS.textWhite},
   role: {fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4},
+  businessName: {fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.92)', marginTop: 10, textAlign: 'center'},
   profileOptions: {marginHorizontal: 20, marginTop: 7},
   optionCard: {
     minHeight: 68,

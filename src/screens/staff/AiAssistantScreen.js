@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../services/api';
+import {getAiErrorMessage} from '../../services/aiErrors';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 
@@ -32,11 +33,13 @@ const AiAssistantScreen = ({navigation}) => {
   const [messages, setMessages] = useState([welcomeMessage]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const sendingRef = useRef(false);
   const listRef = useRef(null);
 
   const sendMessage = async suggestedText => {
     const text = (suggestedText || input).trim();
-    if (!text || isSending) return;
+    if (!text || sendingRef.current) return;
+    sendingRef.current = true;
 
     const userMessage = {id: `user-${Date.now()}`, role: 'user', text};
     const nextMessages = [...messages, userMessage];
@@ -56,14 +59,18 @@ const AiAssistantScreen = ({navigation}) => {
         text: response.data.reply,
       }]);
     } catch (error) {
-      setMessages(current => [...current, {
+      setInput(text);
+      setMessages(current => [...current.map(message => message.id === userMessage.id
+        ? {...message, localOnly: true}
+        : message), {
         id: `error-${Date.now()}`,
         role: 'assistant',
         isError: true,
         localOnly: true,
-        text: error.response?.data?.message || 'I could not connect right now. Please try again.',
+        text: getAiErrorMessage(error),
       }]);
     } finally {
+      sendingRef.current = false;
       setIsSending(false);
     }
   };

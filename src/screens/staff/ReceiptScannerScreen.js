@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,12 @@ import {
   Alert,
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import { scanReceipt, parseReceiptData, formatForTransaction } from '../../services/OCRService';
 import { useTransactions } from '../../context/TransactionContext';
-import { COLORS } from '../../theme';
+import {getApiErrorMessage} from '../../services/apiErrors';
+import { COLORS, SHADOWS } from '../../theme';
 
 const ReceiptScannerScreen = ({ navigation }) => {
   const {
@@ -31,6 +34,9 @@ const ReceiptScannerScreen = ({ navigation }) => {
   const [parsedData, setParsedData] = useState(null);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSelectingImage, setIsSelectingImage] = useState(false);
+  const [showExtractedText, setShowExtractedText] = useState(false);
+  const savingRef = useRef(false);
 
   // Form state for review/edit
   const [amount, setAmount] = useState('');
@@ -66,77 +72,100 @@ const ReceiptScannerScreen = ({ navigation }) => {
   };
 
   const handleTakePhoto = async () => {
-    // Request permission first
-    const hasPermission = await requestCameraPermission();
+    if (isSelectingImage || scanning || isSaving) return;
+    setIsSelectingImage(true);
+    try {
+      // Request permission first
+      const hasPermission = await requestCameraPermission();
 
-    if (!hasPermission) {
-      Alert.alert(
-        'Camera Permission Required',
-        'Please enable camera permission in your device settings to scan receipts.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+      if (!hasPermission) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please enable camera permission in your device settings to scan receipts.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
-    const result = await launchCamera({
-      mediaType: 'photo',
-      quality: 0.8,
-      saveToPhotos: false,
-      cameraType: 'back',
-    });
+      let result;
+      try {
+        result = await launchCamera({
+          mediaType: 'photo',
+          quality: 0.8,
+          saveToPhotos: false,
+          cameraType: 'back',
+        });
+      } catch {
+        Alert.alert('Camera unavailable', 'GastoTrack could not open the camera. Check camera permission in your device settings and try again.');
+        return;
+      }
 
-    if (result.didCancel) {
-      console.log('User cancelled camera');
-      return;
-    }
+      if (result.didCancel) return;
 
-    if (result.errorCode) {
-      console.error('Camera Error:', result.errorCode, result.errorMessage);
-      Alert.alert(
-        'Camera Error',
-        result.errorMessage || 'Failed to open camera. Please try again.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+      if (result.errorCode) {
+        const permissionError = /permission|access/i.test(`${result.errorCode} ${result.errorMessage || ''}`);
+        Alert.alert(
+          permissionError ? 'Camera Permission Required' : 'Camera Error',
+          permissionError
+            ? 'Allow camera access in your device settings, then try again.'
+            : result.errorMessage || 'Failed to open camera. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
-    if (result.assets && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setImageUri(uri);
-      await processImage(uri);
+      if (result.assets && result.assets[0]) {
+        const uri = result.assets[0].uri;
+        setImageUri(uri);
+        await processImage(uri);
+      }
+    } finally {
+      setIsSelectingImage(false);
     }
   };
 
   const handlePickImage = async () => {
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.8,
-    });
+    if (isSelectingImage || scanning || isSaving) return;
+    setIsSelectingImage(true);
+    try {
+      let result;
+      try {
+        result = await launchImageLibrary({
+          mediaType: 'photo',
+          quality: 0.8,
+        });
+      } catch {
+        Alert.alert('Photo access unavailable', 'GastoTrack could not open your photos. Allow photo access in your device settings and try again.');
+        return;
+      }
 
-    if (result.didCancel) {
-      console.log('User cancelled image picker');
-      return;
-    }
+      if (result.didCancel) return;
 
-    if (result.errorCode) {
-      console.error('Image Picker Error:', result.errorCode, result.errorMessage);
-      Alert.alert(
-        'Error',
-        result.errorMessage || 'Failed to pick image. Please try again.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+      if (result.errorCode) {
+        const permissionError = /permission|access/i.test(`${result.errorCode} ${result.errorMessage || ''}`);
+        Alert.alert(
+          permissionError ? 'Photo Permission Required' : 'Photo Picker Error',
+          permissionError
+            ? 'Allow GastoTrack to access photos in your device settings, then try again.'
+            : result.errorMessage || 'Failed to pick an image. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
-    if (result.assets && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setImageUri(uri);
-      await processImage(uri);
+      if (result.assets && result.assets[0]) {
+        const uri = result.assets[0].uri;
+        setImageUri(uri);
+        await processImage(uri);
+      }
+    } finally {
+      setIsSelectingImage(false);
     }
   };
 
   const processImage = async (uri) => {
     setScanning(true);
+    setShowExtractedText(false);
     setOcrResult(null);
     setParsedData(null);
 
@@ -174,8 +203,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
       setScanning(false);
       setReviewModalVisible(true);
 
-    } catch (error) {
-      console.error('Processing error:', error);
+    } catch {
       Alert.alert(
         'Processing Error',
         'Error processing receipt. Please try again.',
@@ -186,6 +214,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
   };
 
   const handleSaveTransaction = async () => {
+    if (savingRef.current) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       Alert.alert('Validation Error', 'Please enter a valid amount.', [{ text: 'OK' }]);
@@ -193,6 +222,10 @@ const ReceiptScannerScreen = ({ navigation }) => {
     }
     if (!category) {
       Alert.alert('Validation Error', 'Please select a category.', [{ text: 'OK' }]);
+      return;
+    }
+    if (!notes.trim()) {
+      Alert.alert('Name required', 'Enter a name for this transaction before saving.');
       return;
     }
 
@@ -209,28 +242,34 @@ const ReceiptScannerScreen = ({ navigation }) => {
       return;
     }
 
+    savingRef.current = true;
     setIsSaving(true);
-    const result = await addTransaction({
-      amount: numericAmount,
-      type,
-      source,
-      category,
-      date,
-      notes,
-      entryMethod: 'ocr',
-      metadata: {
-        ocr_confidence: parsedData?.confidence ?? null,
-        ocr_provider: ocrResult?.provider || ocrResult?.method || 'device_ocr',
-      },
-    });
-    setIsSaving(false);
+    let result;
+    try {
+      result = await addTransaction({
+        amount: numericAmount,
+        type,
+        source,
+        category,
+        date,
+        notes: notes.trim(),
+        entryMethod: 'ocr',
+        metadata: {
+          ocr_confidence: parsedData?.confidence ?? null,
+          ocr_provider: ocrResult?.provider || ocrResult?.method || 'device_ocr',
+        },
+      });
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
 
     if (!result.success) {
       const responseData = result.error?.response?.data;
       const validationMessage = Object.values(responseData?.errors || {}).flat().join('\n');
       Alert.alert(
         'Could not save transaction',
-        validationMessage || responseData?.message || 'Please check your connection and try again.',
+        validationMessage || responseData?.message || getApiErrorMessage(result.error),
       );
       return;
     }
@@ -255,6 +294,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
     setCategory('');
     setDate('');
     setNotes('');
+    setShowExtractedText(false);
   };
 
   const getConfidenceColor = (confidence) => {
@@ -272,52 +312,76 @@ const ReceiptScannerScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Scan Receipt</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <StaffScreenHeader
+        title="Scan receipt"
+        leftIcon="arrow-left"
+        leftLabel="Back"
+        onLeftPress={() => navigation.goBack()}
+        centered
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-
-        {/* Instructions */}
-        <View style={styles.instructionBox}>
-          <Text style={styles.instructionIcon}>📸</Text>
-          <Text style={styles.instructionTitle}>How to scan a receipt</Text>
-          <Text style={styles.instructionText}>
-            1. Take a clear photo of the receipt{'\n'}
-            2. Ensure all text is visible and not blurry{'\n'}
-            3. Review and edit the extracted data{'\n'}
-            4. Save the transaction
-          </Text>
+        <View style={styles.heroCard}>
+          <View style={styles.heroIcon}><Icon name="line-scan" size={30} color={COLORS.textWhite} /></View>
+          <Text style={styles.heroTitle}>Scan receipt</Text>
+          <View style={styles.stepList}>
+            <View style={styles.stepRow}>
+              <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+              <View style={styles.stepCopy}>
+                <Text style={styles.stepTitle}>Take or choose a photo</Text>
+                <Text style={styles.stepDescription}>Keep the full receipt visible and the text clear.</Text>
+              </View>
+            </View>
+            <View style={styles.stepRow}>
+              <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+              <View style={styles.stepCopy}>
+                <Text style={styles.stepTitle}>Scan the receipt</Text>
+                <Text style={styles.stepDescription}>The app reads the text and fills in transaction details.</Text>
+              </View>
+            </View>
+            <View style={styles.stepRow}>
+              <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+              <View style={styles.stepCopy}>
+                <Text style={styles.stepTitle}>Review and save</Text>
+                <Text style={styles.stepDescription}>Check the amount, source, category, and date before saving.</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleTakePhoto}>
-            <Text style={styles.actionButtonIcon}>📷</Text>
-            <Text style={styles.actionButtonText}>Take Photo</Text>
+        <View style={styles.buttonColumn}>
+          <TouchableOpacity
+            style={[styles.primaryAction, (isSelectingImage || scanning || isSaving) && styles.actionButtonDisabled]}
+            disabled={isSelectingImage || scanning || isSaving}
+            onPress={handleTakePhoto}
+            activeOpacity={0.78}
+            accessibilityRole="button"
+            accessibilityLabel="Take a receipt photo">
+            <View style={styles.primaryActionIcon}><Icon name="camera-outline" size={34} color={COLORS.textWhite} /></View>
+            <Text style={styles.primaryActionTitle}>Take photo</Text>
+            <Text style={styles.primaryActionHint}>Open camera</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handlePickImage}>
-            <Text style={styles.actionButtonIcon}>🖼️</Text>
-            <Text style={styles.actionButtonText}>Choose from Gallery</Text>
+          <TouchableOpacity
+            style={[styles.secondaryAction, (isSelectingImage || scanning || isSaving) && styles.actionButtonDisabled]}
+            disabled={isSelectingImage || scanning || isSaving}
+            onPress={handlePickImage}
+            activeOpacity={0.78}
+            accessibilityRole="button"
+            accessibilityLabel="Choose a receipt from photos">
+            <View style={styles.secondaryActionIcon}><Icon name="image-outline" size={34} color={COLORS.accentDark} /></View>
+            <Text style={styles.secondaryActionTitle}>Choose photo</Text>
+            <Text style={styles.secondaryActionHint}>Open gallery</Text>
           </TouchableOpacity>
         </View>
 
         {/* Image Preview */}
         {imageUri && (
           <View style={styles.previewSection}>
-            <Text style={styles.sectionTitle}>Receipt Image</Text>
+            <View style={styles.sectionHeading}>
+              <Text style={styles.sectionTitle}>Receipt preview</Text>
+              {!scanning ? <Text style={styles.sectionHint}>Choose another photo to rescan</Text> : null}
+            </View>
             <Image 
               source={{ uri: imageUri }} 
               style={styles.previewImage}
@@ -326,26 +390,16 @@ const ReceiptScannerScreen = ({ navigation }) => {
             {scanning && (
               <View style={styles.scanningOverlay}>
                 <ActivityIndicator size="large" color={COLORS.accent} />
-                <Text style={styles.scanningText}>Scanning receipt...</Text>
+                <Text style={styles.scanningText}>Reading receipt text...</Text>
               </View>
             )}
           </View>
         )}
 
-        {/* OCR Result Preview */}
-        {ocrResult && !scanning && (
-          <View style={styles.resultSection}>
-            <Text style={styles.sectionTitle}>Extracted Text</Text>
-            <View style={styles.textBox}>
-              <Text style={styles.extractedText}>{ocrResult.text}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Parsed Data Preview */}
         {parsedData && !scanning && (
           <View style={styles.resultSection}>
-            <Text style={styles.sectionTitle}>Detected Information</Text>
+            <Text style={styles.sectionTitle}>Detected details</Text>
+            <Text style={styles.resultHint}>These values may be wrong. Review and correct them before saving.</Text>
             <View style={styles.dataCard}>
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Amount:</Text>
@@ -382,10 +436,21 @@ const ReceiptScannerScreen = ({ navigation }) => {
             <TouchableOpacity 
               style={styles.reviewButton}
               onPress={() => setReviewModalVisible(true)}>
-              <Text style={styles.reviewButtonText}>Review & Save Transaction</Text>
+              <Text style={styles.reviewButtonText}>Review transaction</Text>
+              <Icon name="arrow-right" size={20} color={COLORS.textWhite} />
             </TouchableOpacity>
           </View>
         )}
+
+        {ocrResult && !scanning ? (
+          <View style={styles.extractedCard}>
+            <TouchableOpacity style={styles.extractedToggle} onPress={() => setShowExtractedText(value => !value)} accessibilityRole="button" accessibilityLabel={showExtractedText ? 'Hide extracted text' : 'Show extracted text'}>
+              <Text style={styles.extractedToggleText}>Extracted text</Text>
+              <Icon name={showExtractedText ? 'chevron-up' : 'chevron-down'} size={21} color={COLORS.textGray} />
+            </TouchableOpacity>
+            {showExtractedText ? <Text style={styles.extractedText}>{ocrResult.text || 'No text found.'}</Text> : null}
+          </View>
+        ) : null}
 
       </ScrollView>
 
@@ -399,9 +464,12 @@ const ReceiptScannerScreen = ({ navigation }) => {
           <View style={styles.modalContainer}>
             
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Review Transaction</Text>
-              <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
-                <Text style={styles.modalClose}>✕</Text>
+              <View style={styles.modalHeadingCopy}>
+                <Text style={styles.modalTitle}>Review receipt</Text>
+                <Text style={styles.modalSubtitle}>Nothing is saved until you confirm below.</Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setReviewModalVisible(false)} accessibilityLabel="Close receipt review" accessibilityRole="button">
+                <Icon name="close" size={22} color={COLORS.textDark} />
               </TouchableOpacity>
             </View>
 
@@ -413,13 +481,9 @@ const ReceiptScannerScreen = ({ navigation }) => {
                   styles.confidenceBox,
                   { backgroundColor: getConfidenceColor(parsedData.confidence) + '20' },
                 ]}>
-                  <Text style={styles.confidenceBoxLabel}>
-                    OCR Confidence: {getConfidenceLabel(parsedData.confidence)} ({parsedData.confidence}%)
-                  </Text>
+                  <Text style={styles.confidenceBoxLabel}>Text detection: {getConfidenceLabel(parsedData.confidence)} ({parsedData.confidence}%)</Text>
                   <Text style={styles.confidenceBoxHint}>
-                    {parsedData.confidence >= 80 
-                      ? '✅ Data looks accurate' 
-                      : '⚠️ Please verify the details below'}
+                    Check each detail against the receipt. Text detection can make mistakes.
                   </Text>
                 </View>
               )}
@@ -505,11 +569,10 @@ const ReceiptScannerScreen = ({ navigation }) => {
                 onChangeText={setDate}
               />
 
-              {/* Notes */}
-              <Text style={styles.fieldLabel}>Notes</Text>
+              <Text style={styles.fieldLabel}>{type === 'Expense' ? 'Expense name' : 'Income name'}</Text>
               <TextInput
                 style={[styles.input, styles.notesInput]}
-                placeholder="Add notes..."
+                placeholder="What was this transaction for?"
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -521,7 +584,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
                 disabled={isSaving}>
                 {isSaving
                   ? <ActivityIndicator color="#FFFFFF" />
-                  : <Text style={styles.saveButtonText}>Save Transaction</Text>}
+                  : <Text style={styles.saveButtonText}>Save transaction</Text>}
               </TouchableOpacity>
 
             </ScrollView>
@@ -537,93 +600,51 @@ const ReceiptScannerScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    backgroundColor: COLORS.bgDark,
-    padding: 20,
-    paddingTop: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-  },
-  backIcon: {
-    fontSize: 24,
-    color: COLORS.textDark,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.textDark,
-  },
-  placeholder: {
-    width: 40,
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 120,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
-  instructionBox: {
-    backgroundColor: '#E8FBF5',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  instructionIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  instructionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textDark,
-    marginBottom: 8,
-  },
-  instructionText: {
-    fontSize: 13,
-    color: '#666666',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: COLORS.accent,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  actionButtonIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
+  heroCard: {backgroundColor: COLORS.textDark, borderRadius: 20, padding: 20, marginBottom: 24, ...SHADOWS.card},
+  heroIcon: {width: 52, height: 52, borderRadius: 15, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 16},
+  heroTitle: {fontSize: 20, fontWeight: '800', color: COLORS.textWhite, lineHeight: 25, textAlign: 'center'},
+  stepList: {gap: 14, marginTop: 22},
+  stepRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 12},
+  stepNumber: {width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center'},
+  stepNumberText: {fontSize: 12, fontWeight: '800', color: COLORS.textWhite},
+  stepCopy: {flex: 1},
+  stepTitle: {fontSize: 13, fontWeight: '800', color: COLORS.textWhite},
+  stepDescription: {fontSize: 11, lineHeight: 16, color: '#C7E2D9', marginTop: 3},
+  buttonColumn: {flexDirection: 'row', gap: 12, marginBottom: 24},
+  primaryAction: {flex: 1, minHeight: 154, alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: COLORS.accentDark, borderRadius: 17, ...SHADOWS.card},
+  secondaryAction: {flex: 1, minHeight: 154, alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 17},
+  primaryActionIcon: {width: 58, height: 58, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.17)', alignItems: 'center', justifyContent: 'center', marginBottom: 12},
+  secondaryActionIcon: {width: 58, height: 58, borderRadius: 17, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12},
+  primaryActionTitle: {fontSize: 14, fontWeight: '800', color: COLORS.textWhite, textAlign: 'center'},
+  primaryActionHint: {fontSize: 11, color: '#E5F6F0', marginTop: 4, textAlign: 'center'},
+  secondaryActionTitle: {fontSize: 14, fontWeight: '800', color: COLORS.textDark, textAlign: 'center'},
+  secondaryActionHint: {fontSize: 11, color: COLORS.textGray, marginTop: 4, textAlign: 'center'},
+  actionButtonDisabled: {opacity: 0.55},
   previewSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
+  sectionHeading: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10},
+  sectionHint: {flex: 1, textAlign: 'right', fontSize: 11, color: COLORS.textGray},
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    marginBottom: 12,
   },
   previewImage: {
     width: '100%',
-    height: 300,
-    borderRadius: 12,
-    backgroundColor: '#E0E0E0',
+    height: 260,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   scanningOverlay: {
     position: 'absolute',
@@ -632,7 +653,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 12,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -642,27 +663,25 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   resultSection: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  textBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
+  resultHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 12},
+  extractedCard: {backgroundColor: COLORS.surface, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, marginBottom: 20},
+  extractedToggle: {minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  extractedToggleText: {fontSize: 13, fontWeight: '700', color: COLORS.textDark},
   extractedText: {
     fontSize: 12,
-    color: '#333333',
+    color: COLORS.textGray,
     lineHeight: 18,
+    paddingBottom: 14,
   },
   dataCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginBottom: 12,
+    borderColor: COLORS.border,
+    marginBottom: 14,
   },
   dataRow: {
     flexDirection: 'row',
@@ -670,17 +689,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: COLORS.border,
   },
   dataLabel: {
     fontSize: 13,
-    color: '#888888',
+    color: COLORS.textGray,
     fontWeight: '500',
   },
   dataValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: COLORS.textDark,
   },
   confidenceBadge: {
     paddingHorizontal: 10,
@@ -693,10 +712,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   reviewButton: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
     borderRadius: 12,
-    padding: 14,
+    minHeight: 50,
+    paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 9,
   },
   reviewButtonText: {
     fontSize: 15,
@@ -709,7 +732,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -719,17 +742,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
+  modalHeadingCopy: {flex: 1, paddingRight: 12},
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    fontWeight: '800',
+    color: COLORS.textDark,
   },
-  modalClose: {
-    fontSize: 24,
-    color: '#888888',
-  },
+  modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
+  modalCloseButton: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted},
   confidenceBox: {
     borderRadius: 12,
     padding: 12,
@@ -738,17 +760,17 @@ const styles = StyleSheet.create({
   confidenceBoxLabel: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#333333',
+    color: COLORS.textDark,
   },
   confidenceBoxHint: {
     fontSize: 12,
-    color: '#666666',
+    color: COLORS.textGray,
     marginTop: 4,
   },
   fieldLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#555555',
+    color: COLORS.textGray,
     marginTop: 14,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -761,8 +783,8 @@ const styles = StyleSheet.create({
   toggleButton: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+    backgroundColor: COLORS.surfaceMuted,
     alignItems: 'center',
   },
   toggleActiveIncome: {
@@ -773,41 +795,41 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 14,
-    color: '#888888',
+    color: COLORS.textGray,
     fontWeight: 'bold',
   },
   toggleTextActive: {
-    color: '#1A1A1A',
+    color: COLORS.textDark,
   },
   amountInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: COLORS.border,
   },
   pesoSign: {
     fontSize: 18,
-    color: '#1A1A1A',
+    color: COLORS.textDark,
     marginRight: 6,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
     paddingVertical: 10,
-    color: '#1A1A1A',
+    color: COLORS.textDark,
   },
   input: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#1A1A1A',
+    color: COLORS.textDark,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: COLORS.border,
   },
   notesInput: {
     height: 80,
@@ -822,9 +844,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     borderWidth: 1.5,
-    borderColor: '#CCCCCC',
+    borderColor: COLORS.border,
   },
   chipActive: {
     backgroundColor: COLORS.accent,
@@ -832,7 +854,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 13,
-    color: '#333333',
+    color: COLORS.textDark,
     fontWeight: '500',
   },
   chipTextActive: {
@@ -840,9 +862,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   saveButton: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
     borderRadius: 12,
-    padding: 14,
+    minHeight: 50,
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
   },

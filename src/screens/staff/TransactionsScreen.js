@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,9 +14,14 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import ApiErrorBanner from '../../components/ApiErrorBanner';
 import {useAuth} from '../../context/AuthContext';
 import {useTransactions} from '../../context/TransactionContext';
+import {getApiErrorMessage} from '../../services/apiErrors';
+import api from '../../services/api';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
+import {transactionDisplayName} from '../../utils/transactionDisplay';
+import {useStaffDay} from '../../utils/useStaffDay';
 
 const localDate = () => {
   const now = new Date();
@@ -46,10 +51,7 @@ const emptyForm = (type = 'Income') => ({
 const getErrorMessage = result => {
   const error = result?.error;
   if (typeof error === 'string') return error;
-  const data = error?.response?.data;
-  return Object.values(data?.errors || {}).flat().join('\n')
-    || data?.message
-    || 'Please check your connection and try again.';
+  return getApiErrorMessage(error);
 };
 
 const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
@@ -58,8 +60,12 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
   const [category, setCategory] = useState('All');
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [hasAppliedFilters, setHasAppliedFilters] = useState(false);
   const categoryRequestId = useRef(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => onApply({search: search.trim(), source, category}), 350);
+    return () => clearTimeout(timer);
+  }, [search, source, category, onApply]);
 
   const renderChips = (values, selected, onSelect) => (
     <ScrollView
@@ -97,12 +103,6 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
     }
   };
 
-  const apply = () => {
-    const filters = {search: search.trim(), source, category};
-    setHasAppliedFilters(Boolean(filters.search || source !== 'All' || category !== 'All'));
-    onApply(filters);
-  };
-
   const clear = () => {
     categoryRequestId.current += 1;
     setSearch('');
@@ -110,11 +110,9 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
     setCategory('All');
     setCategories([]);
     setCategoriesLoading(false);
-    setHasAppliedFilters(false);
-    onApply({search: '', source: 'All', category: 'All'});
   };
 
-  const showClear = hasAppliedFilters || search.trim() || source !== 'All' || category !== 'All';
+  const showClear = Boolean(search.trim() || source !== 'All' || category !== 'All');
 
   return (
     <View style={styles.filters}>
@@ -139,10 +137,6 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
           : renderChips(['All', ...categories], category, setCategory)}
       </> : <Text style={styles.categoryHint}>Choose a source to view category filters.</Text>}
       <View style={styles.filterActions}>
-        <TouchableOpacity style={styles.applyFilterButton} onPress={apply} accessibilityRole="button">
-          <Icon name="filter-check-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.applyFilterText}>Apply filters</Text>
-        </TouchableOpacity>
         {showClear ? (
           <TouchableOpacity style={styles.clearFilterButton} onPress={clear} accessibilityRole="button">
             <Text style={styles.clearFilterText}>Clear</Text>
@@ -173,9 +167,8 @@ const TransactionActivityList = React.memo(({
           <Icon name={income ? 'arrow-down-left' : 'arrow-up-right'} size={22} color={income ? COLORS.success : COLORS.danger} />
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>{item.category || 'Uncategorized'}</Text>
+          <Text style={styles.cardTitle} numberOfLines={2}>{transactionDisplayName(item)}</Text>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
-          {item.notes ? <Text style={styles.cardNote} numberOfLines={1}>{item.notes}</Text> : null}
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
           {income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
@@ -221,9 +214,12 @@ const TransactionActivityList = React.memo(({
 
 const TransactionsScreen = ({route}) => {
   const {user} = useAuth();
+  const staffDay = useStaffDay();
+  const [showHistory, setShowHistory] = useState(false);
   const {
     transactions,
     isLoading,
+    loadError,
     isLoadingMore,
     hasMoreTransactions,
     fetchTransactions,
@@ -240,7 +236,7 @@ const TransactionsScreen = ({route}) => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [activityFilter, setActivityFilter] = useState({search: '', source: 'All', category: 'All'});
-  const [activityTransactions, setActivityTransactions] = useState(null);
+  const [activityTransactions, setActivityTransactions] = useState([]);
   const [activityPagination, setActivityPagination] = useState(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityLoadingMore, setActivityLoadingMore] = useState(false);
@@ -249,6 +245,11 @@ const TransactionsScreen = ({route}) => {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [categorySuggestion, setCategorySuggestion] = useState(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState(null);
+  const suggestionRequestId = useRef(0);
+  const categoryChoiceRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -276,13 +277,54 @@ const TransactionsScreen = ({route}) => {
     [TRANSACTION_SOURCES],
   );
   const sources = form.type === 'Income' ? incomeSources : TRANSACTION_SOURCES;
+
+  useEffect(() => {
+    const requestId = ++suggestionRequestId.current;
+    setCategorySuggestion(null);
+    setSuggestionError(null);
+    setSuggestionLoading(false);
+    if (!editorVisible || form.type !== 'Expense' || !form.source || form.notes.trim().length < 4) return;
+
+    const timer = setTimeout(async () => {
+      setSuggestionLoading(true);
+      try {
+        const response = await api.post('/ai/transaction-category', {
+          type: form.type.toLowerCase(),
+          source: form.source,
+          description: form.notes.trim(),
+        });
+        if (requestId !== suggestionRequestId.current) return;
+        const suggested = categories.find(item => item.toLowerCase() === String(response.data?.category || '').toLowerCase());
+        setCategorySuggestion(suggested || null);
+        if (suggested && categoryChoiceRef.current !== 'manual') {
+          categoryChoiceRef.current = 'auto';
+          setForm(current => ({...current, category: suggested}));
+        }
+      } catch (error) {
+        if (requestId === suggestionRequestId.current) {
+          setSuggestionError(getApiErrorMessage(error, 'AI suggestion unavailable. Choose a category manually.'));
+        }
+      } finally {
+        if (requestId === suggestionRequestId.current) setSuggestionLoading(false);
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [editorVisible, form.type, form.source, form.notes, categories]);
   const displayedTransactions = activityTransactions ?? transactions;
-  const hasAppliedFilters = Boolean(activityFilter.search || activityFilter.source !== 'All' || activityFilter.category !== 'All');
+  const hasAppliedFilters = Boolean(activityFilter.search || activityFilter.source !== 'All' || activityFilter.category !== 'All' || !showHistory);
   const hasMoreActivity = activityTransactions === null
     ? hasMoreTransactions
     : Number(activityPagination?.currentPage || 0) < Number(activityPagination?.lastPage || 1);
 
   const setField = (field, value) => setForm(current => ({...current, [field]: value}));
+  const setExpenseName = value => {
+    categoryChoiceRef.current = null;
+    setForm(current => ({...current, notes: value, category: ''}));
+  };
+  const selectCategory = value => {
+    categoryChoiceRef.current = 'manual';
+    setField('category', value);
+  };
 
   const openDatePicker = () => {
     const selectedDate = parseLocalDate(form.date);
@@ -300,6 +342,7 @@ const TransactionsScreen = ({route}) => {
   };
 
   const openAdd = useCallback(() => {
+    categoryChoiceRef.current = null;
     setEditingTransaction(null);
     setForm(emptyForm(route?.params?.initialType === 'Expense' ? 'Expense' : 'Income'));
     setEditorVisible(true);
@@ -316,6 +359,7 @@ const TransactionsScreen = ({route}) => {
 
   const openEdit = transaction => {
     if (!canEdit(transaction)) return;
+    categoryChoiceRef.current = 'manual';
     setEditingTransaction(transaction);
     setForm({
       amount: String(transaction.amount ?? ''),
@@ -357,6 +401,10 @@ const TransactionsScreen = ({route}) => {
   };
 
   const save = async () => {
+    if (!form.notes.trim()) {
+      Alert.alert('Name required', `Enter a name for this ${form.type.toLowerCase()} transaction.`);
+      return;
+    }
     const amount = Number(form.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert('Invalid amount', 'Enter an amount greater than zero.');
@@ -376,7 +424,7 @@ const TransactionsScreen = ({route}) => {
     }
 
     setSaving(true);
-    const payload = {...form, amount, entryMethod: editingTransaction?.entryMethod || 'manual'};
+    const payload = {...form, notes: form.notes.trim(), amount, entryMethod: editingTransaction?.entryMethod || 'manual'};
     const result = editingTransaction
       ? await updateTransaction({...editingTransaction, ...payload})
       : await addTransaction(payload);
@@ -393,12 +441,17 @@ const TransactionsScreen = ({route}) => {
   };
 
   const refreshFilteredActivity = useCallback(async () => {
-    const result = await queryTransactions({page: 1, ...activityFilter});
+    const requestId = ++activityRequestId.current;
+    const result = await queryTransactions({page: 1, ...activityFilter, ...(!showHistory ? {from: staffDay, to: staffDay} : {})});
+    if (requestId !== activityRequestId.current) return;
+    setActivityLoading(false);
     if (result.success) {
       setActivityTransactions(result.transactions);
       setActivityPagination(result.pagination);
+    } else {
+      Alert.alert('Could not refresh transactions', getErrorMessage(result));
     }
-  }, [activityFilter, queryTransactions]);
+  }, [activityFilter, queryTransactions, showHistory, staffDay]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -419,7 +472,7 @@ const TransactionsScreen = ({route}) => {
       source: nextFilter.source || 'All',
       category: nextFilter.category || 'All',
     };
-    if (!normalizedFilter.search && normalizedFilter.source === 'All' && normalizedFilter.category === 'All') {
+    if (showHistory && !normalizedFilter.search && normalizedFilter.source === 'All' && normalizedFilter.category === 'All') {
       activityRequestId.current += 1;
       setActivityFilter(normalizedFilter);
       setActivityTransactions(null);
@@ -430,7 +483,7 @@ const TransactionsScreen = ({route}) => {
 
     const requestId = ++activityRequestId.current;
     setActivityLoading(true);
-    const result = await queryTransactions({page: 1, ...normalizedFilter});
+    const result = await queryTransactions({page: 1, ...normalizedFilter, ...(!showHistory ? {from: staffDay, to: staffDay} : {})});
     if (requestId !== activityRequestId.current) return;
     setActivityLoading(false);
     if (!result.success) {
@@ -441,7 +494,16 @@ const TransactionsScreen = ({route}) => {
     setActivityFilter(normalizedFilter);
     setActivityTransactions(result.transactions);
     setActivityPagination(result.pagination);
-  }, [queryTransactions]);
+  }, [queryTransactions, showHistory, staffDay]);
+
+  const lastScope = useRef(null);
+  useEffect(() => {
+    const scope = `${staffDay}:${showHistory}`;
+    if (lastScope.current === scope) return;
+    lastScope.current = scope;
+    if (!showHistory) setActivityTransactions([]);
+    applyActivityFilters(activityFilter);
+  }, [activityFilter, applyActivityFilters, showHistory, staffDay]);
 
   const loadMoreActivity = useCallback(async () => {
     if (activityTransactions === null) {
@@ -450,9 +512,11 @@ const TransactionsScreen = ({route}) => {
     if (activityLoadingMore || !hasMoreActivity) return;
 
     const nextPage = Number(activityPagination?.currentPage || 1) + 1;
+    const requestId = activityRequestId.current;
     setActivityLoadingMore(true);
-    const result = await queryTransactions({page: nextPage, ...activityFilter});
+    const result = await queryTransactions({page: nextPage, ...activityFilter, ...(!showHistory ? {from: staffDay, to: staffDay} : {})});
     setActivityLoadingMore(false);
+    if (requestId !== activityRequestId.current) return;
     if (result.success) {
       setActivityTransactions(current => [
         ...(current || []),
@@ -462,7 +526,7 @@ const TransactionsScreen = ({route}) => {
     } else {
       Alert.alert('Could not load more activity', getErrorMessage(result));
     }
-  }, [activityFilter, activityLoadingMore, activityPagination, activityTransactions, hasMoreActivity, loadMoreTransactions, queryTransactions]);
+  }, [activityFilter, activityLoadingMore, activityPagination, activityTransactions, hasMoreActivity, loadMoreTransactions, queryTransactions, showHistory, staffDay]);
 
   const renderTransaction = useCallback(({item}) => {
     const income = item.type?.toLowerCase() === 'income';
@@ -472,9 +536,8 @@ const TransactionsScreen = ({route}) => {
           <Icon name={income ? 'arrow-down-left' : 'arrow-up-right'} size={22} color={income ? COLORS.success : COLORS.danger} />
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>{item.category || 'Uncategorized'}</Text>
+          <Text style={styles.cardTitle} numberOfLines={2}>{transactionDisplayName(item)}</Text>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
-          {item.notes ? <Text style={styles.cardNote} numberOfLines={1}>{item.notes}</Text> : null}
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
           {income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
@@ -506,11 +569,24 @@ const TransactionsScreen = ({route}) => {
         onActionPress={openAdd}
       />
 
+      <View style={styles.dayScopeRow}>
+        <TouchableOpacity style={[styles.dayScopeButton, !showHistory && styles.dayScopeActive]} onPress={() => setShowHistory(false)} accessibilityRole="button" accessibilityState={{selected: !showHistory}}>
+          <Text style={[styles.dayScopeText, !showHistory && styles.dayScopeTextActive]}>Today</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.dayScopeButton, showHistory && styles.dayScopeActive]} onPress={() => setShowHistory(true)} accessibilityRole="button" accessibilityState={{selected: showHistory}}>
+          <Text style={[styles.dayScopeText, showHistory && styles.dayScopeTextActive]}>History</Text>
+        </TouchableOpacity>
+      </View>
+
       <TransactionFilters
         sources={TRANSACTION_SOURCES}
         fetchCategories={fetchTransactionCategories}
         onApply={applyActivityFilters}
       />
+
+      {activityTransactions === null ? (
+        <ApiErrorBanner message={loadError} onRetry={fetchTransactions} />
+      ) : null}
 
       {isLoading && !transactions.length ? (
         <View style={styles.centerState}>
@@ -546,14 +622,31 @@ const TransactionsScreen = ({route}) => {
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Transaction type</Text>
-              {renderChips(['Income', 'Expense'], form.type, value => setForm(current => ({...current, type: value, source: '', category: ''})))}
+              {renderChips(['Income', 'Expense'], form.type, value => {
+                categoryChoiceRef.current = null;
+                setForm(current => ({...current, type: value, source: '', category: ''}));
+              })}
 
               <Text style={styles.label}>Source</Text>
-              {renderChips(sources, form.source, value => setForm(current => ({...current, source: value, category: ''})))}
+              {renderChips(sources, form.source, value => {
+                categoryChoiceRef.current = null;
+                setForm(current => ({...current, source: value, category: ''}));
+              })}
+
+              <Text style={styles.label}>{form.type === 'Expense' ? 'Expense name' : 'Income name'}</Text>
+              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={form.type === 'Expense' ? setExpenseName : value => setField('notes', value)} placeholder={form.type === 'Expense' ? 'e.g. milk and sugar' : 'e.g. catering payment'} multiline />
 
               {form.source ? <>
                 <Text style={styles.label}>Category</Text>
-                {renderChips(categories, form.category, value => setField('category', value))}
+                {form.type === 'Expense' && suggestionLoading ? <Text style={styles.suggestionText}>Categorizing expense...</Text> : null}
+                {form.type === 'Expense' && categorySuggestion ? (
+                  <View style={styles.suggestionButton}>
+                    <Icon name="creation" size={17} color={COLORS.accentDark} />
+                    <Text style={styles.suggestionText}>AI category: {categorySuggestion}{categoryChoiceRef.current === 'manual' ? ' (manual choice kept)' : ' (selected automatically)'}</Text>
+                  </View>
+                ) : null}
+                {form.type === 'Expense' && suggestionError ? <Text style={styles.suggestionText}>{suggestionError}</Text> : null}
+                {renderChips(categories, form.category, selectCategory)}
               </> : <View style={styles.sourceHint}>
                 <Icon name="information-outline" size={17} color={COLORS.accentDark} />
                 <Text style={styles.sourceHintText}>Select a source to show the available categories.</Text>
@@ -570,9 +663,6 @@ const TransactionsScreen = ({route}) => {
                 <Text style={styles.dateValue}>{form.date}</Text>
                 <Icon name="calendar-month-outline" size={20} color={COLORS.accentDark} />
               </TouchableOpacity>
-
-              <Text style={styles.label}>Description (optional)</Text>
-              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={value => setField('notes', value)} placeholder="Add a short description" multiline />
 
               <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={save} disabled={saving}>
                 {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{editingTransaction ? 'Save changes' : 'Save transaction'}</Text>}
@@ -598,7 +688,7 @@ const TransactionsScreen = ({route}) => {
               <View style={[styles.detailHero, selectedTransaction.type?.toLowerCase() === 'income' ? styles.detailHeroIncome : styles.detailHeroExpense]}>
                 <View style={styles.detailHeroIcon}><Icon name={selectedTransaction.type?.toLowerCase() === 'income' ? 'arrow-down-left' : 'arrow-up-right'} size={23} color="#FFFFFF" /></View>
                 <View style={styles.detailHeroText}>
-                  <Text style={styles.detailCategory}>{selectedTransaction.category || 'Uncategorized'}</Text>
+                  <Text style={styles.detailCategory}>{transactionDisplayName(selectedTransaction)}</Text>
                   <Text style={styles.detailType}>{selectedTransaction.source || 'Unknown source'} · {selectedTransaction.date}</Text>
                 </View>
               </View>
@@ -612,7 +702,6 @@ const TransactionsScreen = ({route}) => {
                 ['Category', selectedTransaction.category],
                 ['Source', selectedTransaction.source],
                 ['Date', selectedTransaction.date],
-                [selectedTransaction.entryMethod === 'order_system' ? 'Products ordered' : 'Description', selectedTransaction.notes || 'None'],
               ].map(([label, value]) => <View key={label} style={styles.detailRow}>
                 <Text style={styles.detailLabel}>{label}</Text>
                 <Text style={styles.detailValue}>{value}</Text>
@@ -713,6 +802,11 @@ const TransactionsScreen = ({route}) => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
+  dayScopeRow: {flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: COLORS.surface},
+  dayScopeButton: {flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border},
+  dayScopeActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent},
+  dayScopeText: {fontSize: 12, fontWeight: '700', color: COLORS.textGray},
+  dayScopeTextActive: {color: '#FFFFFF'},
   filters: {backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 15},
   searchBox: {minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.border, borderRadius: 13, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13},
   searchInput: {flex: 1, fontSize: 14, color: COLORS.textDark, paddingVertical: 10},
@@ -720,8 +814,6 @@ const styles = StyleSheet.create({
   categoryHint: {fontSize: 12, color: COLORS.textMuted, marginTop: 11},
   categoryLoader: {alignSelf: 'flex-start', marginVertical: 10},
   filterActions: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14},
-  applyFilterButton: {minHeight: 42, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: COLORS.accent, borderRadius: 11, paddingHorizontal: 14},
-  applyFilterText: {fontSize: 13, fontWeight: '700', color: '#FFFFFF'},
   clearFilterButton: {minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 16, backgroundColor: COLORS.surface},
   clearFilterText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray},
   list: {paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28},
@@ -763,6 +855,8 @@ const styles = StyleSheet.create({
   calendarCancelText: {color: COLORS.accentDark, fontSize: 14, fontWeight: '700'},
   chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
   sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 11, marginTop: 12}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
+  suggestionButton: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#E8F7F1', borderRadius: 10, padding: 10, marginBottom: 9},
+  suggestionText: {fontSize: 12, color: COLORS.accentDark, marginBottom: 7},
   saveButton: {minHeight: 50, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 22, marginBottom: 8}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
   detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 14}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 11}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 3}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 14}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 11}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
   editButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20}, editButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},

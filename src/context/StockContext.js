@@ -1,6 +1,7 @@
 import React, {createContext, useCallback, useContext, useEffect, useState} from 'react';
 import api from '../services/api';
 import {AuthContext} from './AuthContext';
+import {getApiErrorMessage} from '../services/apiErrors';
 
 const StockContext = createContext();
 
@@ -20,6 +21,7 @@ export const StockProvider = ({children}) => {
   const [stockItems, setStockItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
   const {userToken} = useContext(AuthContext);
 
@@ -34,8 +36,11 @@ export const StockProvider = ({children}) => {
         : normalized,
       );
       setPagination(normalizePagination(response.data?.meta, page, normalized.length));
+      setLoadError(null);
+      return {success: true};
     } catch (error) {
-      console.log('Error fetching stock:', error.response?.data || error.message);
+      setLoadError(getApiErrorMessage(error));
+      return {success: false, error};
     } finally {
       append ? setIsLoadingMore(false) : setIsLoading(false);
     }
@@ -54,6 +59,7 @@ export const StockProvider = ({children}) => {
       fetchStock();
     } else {
       setStockItems([]);
+      setLoadError(null);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
     }
   }, [fetchStock, userToken]);
@@ -77,6 +83,7 @@ export const StockProvider = ({children}) => {
 
   return <StockContext.Provider value={{
     stockItems,
+    loadError,
     stockTotal: pagination.total,
     isLoading,
     isLoadingMore,

@@ -82,7 +82,7 @@ class TransactionController extends Controller
             'type'         => 'required|in:income,expense',
             'source'       => 'required|string',
             'category'     => 'required|string',
-            'date'         => 'required|date|before_or_equal:today',
+            'date'         => 'required|date|before_or_equal:'.now(config('business.timezone'))->toDateString(),
             'notes'        => 'nullable|string',
             'entry_method' => ['nullable', Rule::in(['manual', 'ocr', 'notification_capture'])],
             'metadata' => 'nullable|array',
@@ -138,7 +138,7 @@ class TransactionController extends Controller
             'type'     => 'sometimes|in:income,expense',
             'source'   => 'sometimes|string',
             'category' => 'sometimes|string',
-            'date'     => 'sometimes|date|before_or_equal:today',
+            'date'     => 'sometimes|date|before_or_equal:'.now(config('business.timezone'))->toDateString(),
             'notes'    => 'nullable|string',
         ]);
 
@@ -205,7 +205,7 @@ class TransactionController extends Controller
             'transactions.*.type' => 'required|in:income,expense',
             'transactions.*.source' => 'nullable|string|max:255',
             'transactions.*.category' => 'required|string|max:255',
-            'transactions.*.date' => 'required|date|before_or_equal:today',
+            'transactions.*.date' => 'required|date|before_or_equal:'.now(config('business.timezone'))->toDateString(),
             'transactions.*.notes' => 'nullable|string',
             'transactions.*.client_id' => 'nullable|uuid',
         ]);
@@ -221,7 +221,7 @@ class TransactionController extends Controller
     private function ensureMutable(Transaction $transaction): void
     {
         abort_if(
-            $transaction->entry_method === 'order_system',
+            in_array($transaction->entry_method, ['order_system', 'order_reversal'], true),
             409,
             'Order-generated transactions cannot be edited or deleted. Use an order refund or reversal instead.'
         );

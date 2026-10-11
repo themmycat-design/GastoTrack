@@ -1,6 +1,5 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {Image, StyleSheet, Text, View} from 'react-native';
 
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {COLORS, SHADOWS} from '../../theme';
@@ -17,7 +16,7 @@ const AboutScreen = ({navigation}) => (
     <View style={styles.content}>
       <View style={styles.card}>
         <View style={styles.logo}>
-          <Icon name="wallet-outline" size={36} color={COLORS.textWhite} />
+          <Image source={require('../../../assets/brand/gastotrack-logo.png')} style={styles.logoImage} resizeMode="contain" accessibilityLabel="GastoTrack logo" />
         </View>
         <Text style={styles.title}>GastoTrack</Text>
         <Text style={styles.description}>
@@ -59,10 +58,11 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 20,
-    backgroundColor: COLORS.accent,
+    backgroundColor: '#EAF8F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  logoImage: {width: 64, height: 64},
   title: {fontSize: 22, fontWeight: '800', color: COLORS.textDark, marginTop: 16},
   description: {
     alignSelf: 'stretch',

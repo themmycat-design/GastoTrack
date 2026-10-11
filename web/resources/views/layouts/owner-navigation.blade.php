@@ -2,6 +2,7 @@
     $ownerNavItems = [
         ['route' => 'dashboard', 'label' => 'Overview', 'icon' => 'overview'],
         ['route' => 'transactions.index', 'label' => 'Transactions', 'icon' => 'transactions'],
+        ['route' => 'orders.index', 'label' => 'Orders', 'icon' => 'orders'],
         ['route' => 'stock.index', 'label' => 'Inventory', 'icon' => 'inventory'],
         ['route' => 'staff.index', 'label' => 'Staff', 'icon' => 'staff'],
         ['route' => 'analytics.index', 'label' => 'Analytics', 'icon' => 'analytics'],
@@ -18,9 +19,7 @@
 <div class="border-b border-[#DDE9E5] bg-white lg:hidden">
     <div class="flex items-center justify-between gap-4 px-5 py-3.5">
         <a href="{{ route('dashboard') }}" class="gt-focus inline-flex items-center gap-2.5 rounded-lg text-lg font-extrabold tracking-tight text-[#0A2E2A]">
-            <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#00C897] text-white">
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M8 4c0 1 1 1.2 1 2.2M12 3c0 1 1 1.2 1 2.2"/></svg>
-            </span>
+            <img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-9 w-9 object-contain">
             GastoTrack
         </a>
         <a href="{{ route('profile.edit') }}" class="gt-focus flex h-9 w-9 items-center justify-center rounded-full bg-[#EAF8F2] text-sm font-extrabold text-[#08745D]" aria-label="Open profile">
@@ -29,8 +28,15 @@
     </div>
     <nav class="flex min-w-0 gap-2 overflow-x-auto border-t border-[#EAF2EF] px-4 py-2.5" aria-label="Owner navigation">
         @foreach($ownerNavItems as $item)
-            <a href="{{ route($item['route']) }}" aria-current="{{ request()->routeIs($item['route']) ? 'page' : 'false' }}" class="gt-focus shrink-0 rounded-full px-3.5 py-2 text-xs font-bold transition {{ request()->routeIs($item['route']) ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-600 hover:bg-[#EAF8F2] hover:text-[#08745D]' }}">
+            @php
+                $active = request()->routeIs($item['route']) || ($item['route'] === 'orders.index' && request()->routeIs('orders.show'));
+                $inventoryAlert = $item['icon'] === 'inventory' && ($ownerStockAlerts['total'] ?? 0) > 0;
+            @endphp
+            <a href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" aria-label="{{ $inventoryAlert ? 'Inventory, '.$ownerStockAlerts['outOfStock'].' out of stock and '.$ownerStockAlerts['lowStock'].' low stock' : $item['label'] }}" class="gt-focus inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold transition {{ $inventoryAlert ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200' : ($active ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-600 hover:bg-[#EAF8F2] hover:text-[#08745D]') }}">
                 {{ $item['label'] }}
+                @if($inventoryAlert)
+                    <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white">{{ $ownerStockAlerts['total'] > 99 ? '99+' : $ownerStockAlerts['total'] }}</span>
+                @endif
             </a>
         @endforeach
     </nav>
@@ -39,9 +45,7 @@
 <aside class="hidden w-64 shrink-0 border-r border-[#DDE9E5] bg-white lg:flex lg:flex-col">
     <div class="border-b border-[#EAF2EF] px-6 py-6">
         <a href="{{ route('dashboard') }}" class="gt-focus inline-flex items-center gap-3 rounded-lg">
-            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00C897] text-white shadow-sm">
-                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M8 4c0 1 1 1.2 1 2.2M12 3c0 1 1 1.2 1 2.2"/></svg>
-            </span>
+            <img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-11 w-11 object-contain">
             <span>
                 <span class="block text-xl font-extrabold tracking-tight text-[#0A2E2A]">GastoTrack</span>
                 <span class="mt-0.5 block text-xs font-medium text-slate-500">Owner workspace</span>
@@ -52,13 +56,18 @@
     <nav class="flex-1 space-y-1 px-3 py-5" aria-label="Owner navigation">
         <p class="px-3 pb-2 text-[10px] font-extrabold uppercase tracking-[.16em] text-slate-400">Manage your shop</p>
         @foreach($ownerNavItems as $item)
-            @php $active = request()->routeIs($item['route']); @endphp
-            <a href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" class="gt-focus group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition {{ $active ? 'bg-[#EAF8F2] text-[#08745D] ring-1 ring-inset ring-[#C8DED7]' : 'text-slate-600 hover:bg-[#F4F8F7] hover:text-[#08745D]' }}">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition {{ $active ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-500 group-hover:bg-[#EAF8F2] group-hover:text-[#08745D]' }}">
+            @php
+                $active = request()->routeIs($item['route']) || ($item['route'] === 'orders.index' && request()->routeIs('orders.show'));
+                $inventoryAlert = $item['icon'] === 'inventory' && ($ownerStockAlerts['total'] ?? 0) > 0;
+            @endphp
+            <a href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" aria-label="{{ $inventoryAlert ? 'Inventory, '.$ownerStockAlerts['outOfStock'].' out of stock and '.$ownerStockAlerts['lowStock'].' low stock' : $item['label'] }}" class="gt-focus group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition {{ $inventoryAlert ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200' : ($active ? 'bg-[#EAF8F2] text-[#08745D] ring-1 ring-inset ring-[#C8DED7]' : 'text-slate-600 hover:bg-[#F4F8F7] hover:text-[#08745D]') }}">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition {{ $inventoryAlert ? 'bg-rose-100 text-rose-700' : ($active ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-500 group-hover:bg-[#EAF8F2] group-hover:text-[#08745D]') }}">
                     @if($item['icon'] === 'overview')
                         <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.5"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
                     @elseif($item['icon'] === 'transactions')
                         <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3.5h7l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V5a1.5 1.5 0 0 1 1-1.5Z"/><path d="M14 4v4h4M9 13h6M9 16.5h6"/></svg>
+                    @elseif($item['icon'] === 'orders')
+                        <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z"/><path d="M8.5 8h7M8.5 12h7M8.5 16h3"/></svg>
                     @elseif($item['icon'] === 'inventory')
                         <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Z"/><path d="m4.5 7.5 7.5 4 7.5-4M12 12v8.5"/></svg>
                     @elseif($item['icon'] === 'staff')
@@ -68,7 +77,11 @@
                     @endif
                 </span>
                 <span class="flex-1">{{ $item['label'] }}</span>
-                @if($active)<span class="h-1.5 w-1.5 rounded-full bg-[#00A87E]"></span>@endif
+                @if($inventoryAlert)
+                    <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-rose-600 px-1.5 text-xs font-extrabold text-white">{{ $ownerStockAlerts['total'] > 99 ? '99+' : $ownerStockAlerts['total'] }}</span>
+                @elseif($active)
+                    <span class="h-1.5 w-1.5 rounded-full bg-[#00A87E]"></span>
+                @endif
             </a>
         @endforeach
     </nav>

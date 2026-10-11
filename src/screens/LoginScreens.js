@@ -2,6 +2,7 @@ import React, {useContext, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +15,7 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const {login} = useContext(AuthContext);
+  const {login, startupError} = useContext(AuthContext);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -33,10 +34,14 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
+      <View style={styles.logoTile}>
+        <Image source={require('../../assets/brand/gastotrack-logo.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="GastoTrack logo" />
+      </View>
       <Text style={styles.title}>GastoTrack</Text>
       <Text style={styles.subtitle}>Staff workspace</Text>
 
       <View style={styles.card}>
+        {startupError ? <Text style={styles.startupError} accessibilityRole="alert">{startupError}</Text> : null}
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
@@ -87,6 +92,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  logoTile: {
+    width: 88,
+    height: 88,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  logo: {width: 76, height: 76},
   title: {
     fontSize: 34,
     fontWeight: '800',
@@ -105,6 +121,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     elevation: 5,
+  },
+  startupError: {
+    color: '#9C2F24',
+    backgroundColor: '#FFF1EE',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
