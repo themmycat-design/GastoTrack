@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Services\MonthlySalesGoals;
+use App\Services\SalesGoals;
 
 class Goal extends Model
 {
@@ -40,6 +40,11 @@ class Goal extends Model
         return $this->belongsTo(Business::class);
     }
 
+    public function isAutomaticSalesGoal(): bool
+    {
+        return SalesGoals::isAutomaticType($this->goal_type);
+    }
+
     /**
      * Get the progress percentage
      */
@@ -49,8 +54,8 @@ class Goal extends Model
             return 0;
         }
         
-        $current = $this->goal_type === 'monthly_confirmed_sales'
-            ? app(MonthlySalesGoals::class)->recordedSales($this)
+        $current = SalesGoals::isAutomaticType($this->goal_type)
+            ? app(SalesGoals::class)->recordedSales($this)
             : (float) $this->current_amount;
 
         return min(($current / (float) $this->target_amount) * 100, 100);
@@ -61,8 +66,8 @@ class Goal extends Model
      */
     public function isCompleted(): bool
     {
-        if ($this->goal_type === 'monthly_confirmed_sales') {
-            return app(MonthlySalesGoals::class)->recordedSales($this) >= (float) $this->target_amount;
+        if (SalesGoals::isAutomaticType($this->goal_type)) {
+            return app(SalesGoals::class)->recordedSales($this) >= (float) $this->target_amount;
         }
 
         return $this->status === 'completed' || $this->current_amount >= $this->target_amount;

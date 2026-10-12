@@ -35,6 +35,7 @@
                 <a href="{{ route('products.index') }}" class="gt-focus inline-flex items-center gap-2 rounded-xl bg-[#00A87E] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#08745D]">Manage products</a>
                 @endunless
             </section>
+            <div class="grid gap-4 md:grid-cols-2">
             <section class="gt-card gt-enter flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6" aria-label="Monthly confirmed sales goal">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Monthly sales goal</p>
@@ -47,6 +48,20 @@
                 </div>
                 <a href="{{ route('goals.index') }}" class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">{{ $monthlyGoal ? 'View goal' : 'Set target' }} →</a>
             </section>
+
+                <section class="gt-card gt-enter flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6" aria-label="Weekly confirmed sales goal">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Weekly sales goal</p>
+                        @if($weeklyGoal)
+                            <p class="mt-2 text-xl font-extrabold text-[#0A2E2A]">{{ $currencyPrefix }}{{ number_format((float) $weeklyGoal['current_amount'], 2) }} <span class="text-sm font-medium text-slate-500">of {{ $currencyPrefix }}{{ number_format((float) $weeklyGoal['target_amount'], 2) }}</span></p>
+                            <p class="mt-1 text-xs text-slate-500">{{ $weeklyGoal['target_reached'] ? 'Target reached' : number_format($weeklyGoal['progress_percentage'], 1).'% complete' }} &middot; {{ $currentWeekStart->format('M j') }} - {{ $currentWeekEnd->format('M j, Y') }}</p>
+                        @else
+                            <p class="mt-2 text-sm text-slate-500">Set a target for this week ({{ $currentWeekStart->format('M j') }} - {{ $currentWeekEnd->format('M j') }}).</p>
+                        @endif
+                    </div>
+                    <a href="{{ route('goals.index') }}" class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">{{ $weeklyGoal ? 'View goal' : 'Set target' }} &rarr;</a>
+                </section>
+            </div>
 
             <div class="{{ $needsSetup ? '' : 'grid items-start gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]' }}">
                 <div class="min-w-0 space-y-6">

@@ -7,7 +7,7 @@ use App\Models\Goal;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Services\MonthlySalesGoals;
+use App\Services\SalesGoals;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -42,10 +42,10 @@ class MonthlySalesGoalTest extends TestCase
         ])->assertForbidden();
 
         $this->actingAs($owner)->post(route('goals.store'), [
-            'month' => '2026-10', 'target_amount' => 1000,
+            'goal_type' => SalesGoals::MONTHLY, 'month' => '2026-10', 'target_amount' => 1000,
         ])->assertRedirect(route('goals.index'));
         $this->actingAs($owner)->post(route('goals.store'), [
-            'month' => '2026-10', 'target_amount' => 1200,
+            'goal_type' => SalesGoals::MONTHLY, 'month' => '2026-10', 'target_amount' => 1200,
         ])->assertRedirect(route('goals.index'));
 
         $this->assertDatabaseCount('goals', 1);
@@ -58,9 +58,79 @@ class MonthlySalesGoalTest extends TestCase
         ]);
 
         $this->actingAs($owner)->post(route('goals.store'), [
-            'month' => '2026-09', 'target_amount' => 500,
+            'goal_type' => SalesGoals::MONTHLY, 'month' => '2026-09', 'target_amount' => 500,
         ])->assertSessionHasErrors('month');
         $this->assertDatabaseCount('goals', 1);
+    }
+
+    public function test_owner_can_set_and_update_weekly_targets_and_cannot_change_a_past_week(): void
+    {
+        [$business, $owner, $staff] = $this->accounts();
+
+        $this->actingAs($staff)->post(route('goals.store'), [
+            'goal_type' => SalesGoals::WEEKLY, 'week_date' => '2026-10-11', 'target_amount' => 1000,
+        ])->assertForbidden();
+
+        $this->actingAs($owner)->post(route('goals.store'), [
+            'goal_type' => SalesGoals::WEEKLY, 'week_date' => '2026-10-11', 'target_amount' => 1000,
+        ])->assertRedirect(route('goals.index'));
+        $this->actingAs($owner)->post(route('goals.store'), [
+            'goal_type' => SalesGoals::WEEKLY, 'week_date' => '2026-10-05', 'target_amount' => 1200,
+        ])->assertRedirect(route('goals.index'));
+
+        $this->assertDatabaseCount('goals', 1);
+        $this->assertDatabaseHas('goals', [
+            'business_id' => $business->id,
+            'goal_type' => SalesGoals::WEEKLY,
+            'period_start' => '2026-10-05',
+            'deadline' => '2026-10-11',
+            'target_amount' => 1200,
+            'current_amount' => 0,
+        ]);
+
+        $this->actingAs($owner)->get(route('goals.index'))
+            ->assertOk()
+            ->assertViewHas('currentWeekGoal', fn (?array $value) => $value['target_amount'] === '1200.00')
+            ->assertSee('Weekly target');
+
+        $this->actingAs($owner)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Weekly sales goal')
+            ->assertSee('1,200.00');
+
+        $this->actingAs($owner)->post(route('goals.store'), [
+            'goal_type' => SalesGoals::WEEKLY, 'week_date' => '2026-10-04', 'target_amount' => 500,
+        ])->assertSessionHasErrors('week_date');
+        $this->assertDatabaseCount('goals', 1);
+    }
+
+    public function test_weekly_progress_uses_monday_to_sunday_confirmed_sales_in_shop_timezone(): void
+    {
+        [$business, , $staff] = $this->accounts();
+        $goal = Goal::create([
+            'business_id' => $business->id,
+            'goal_type' => SalesGoals::WEEKLY,
+            'period_start' => '2026-10-05',
+            'name' => 'Weekly confirmed sales',
+            'target_amount' => 190,
+        ]);
+
+        $this->order($business, $staff, 100, 'confirmed', ['completed_at' => '2026-10-04 16:00:00']);
+        $this->order($business, $staff, 50, 'confirmed', ['completed_at' => '2026-10-11 15:59:59']);
+        $pendingRefund = $this->order($business, $staff, 40, 'refund_pending');
+        $this->order($business, $staff, 500, 'confirmed', ['completed_at' => '2026-10-04 15:59:59']);
+        $this->order($business, $staff, 600, 'confirmed', ['completed_at' => '2026-10-11 16:00:00']);
+        $this->order($business, $staff, 700, 'pending');
+        $this->order($business, $staff, 800, 'confirmed', ['status' => 'cancelled']);
+
+        $salesGoals = app(SalesGoals::class);
+        $this->assertSame(190.0, $salesGoals->recordedSales($goal));
+        $this->assertSame('2026-10-11', $salesGoals->present($goal)['period_end']);
+        $this->assertTrue($goal->isCompleted());
+
+        $pendingRefund->update(['payment_status' => 'refunded']);
+        $this->assertSame(150.0, $salesGoals->recordedSales($goal));
+        $this->assertFalse($goal->isCompleted());
     }
 
     public function test_progress_counts_only_completed_confirmed_committed_sales_and_adjusts_after_refund(): void
@@ -99,7 +169,7 @@ class MonthlySalesGoalTest extends TestCase
         [$otherBusiness, $otherOwner, $otherStaff] = $this->accounts();
         $this->order($otherBusiness, $otherStaff, 10000, 'confirmed');
 
-        $salesGoals = app(MonthlySalesGoals::class);
+        $salesGoals = app(SalesGoals::class);
         $this->assertSame(150.0, $salesGoals->recordedSales($goal));
         $this->assertTrue($salesGoals->present($goal)['target_reached']);
         $this->assertTrue($goal->isCompleted());
@@ -108,7 +178,7 @@ class MonthlySalesGoalTest extends TestCase
 
         $this->actingAs($owner)->get(route('goals.index'))
             ->assertOk()
-            ->assertViewHas('currentGoal', fn (?array $value) => $value['current_amount'] === '150.00');
+            ->assertViewHas('currentMonthGoal', fn (?array $value) => $value['current_amount'] === '150.00');
 
         $this->actingAs($owner)->getJson('/api/v1/goals/'.$goal->id)
             ->assertOk()
@@ -127,7 +197,7 @@ class MonthlySalesGoalTest extends TestCase
         $this->assertDatabaseHas('goals', ['id' => $goal->id, 'current_amount' => 0]);
     }
 
-    public function test_monthly_progress_cannot_be_edited_or_completed_manually(): void
+    public function test_automatic_sales_targets_cannot_be_edited_completed_or_deleted_through_api(): void
     {
         [$business, $owner] = $this->accounts();
         $goal = Goal::create([
@@ -144,6 +214,21 @@ class MonthlySalesGoalTest extends TestCase
         ])->assertUnprocessable();
         $this->actingAs($owner)->postJson('/api/v1/goals/'.$goal->id.'/complete')->assertStatus(409);
         $this->assertDatabaseHas('goals', ['id' => $goal->id, 'current_amount' => 0, 'status' => 'active']);
+
+        $weeklyGoal = Goal::create([
+            'business_id' => $business->id,
+            'goal_type' => SalesGoals::WEEKLY,
+            'period_start' => '2026-10-05',
+            'name' => 'Weekly confirmed sales',
+            'target_amount' => 800,
+        ]);
+        $this->actingAs($owner)->putJson('/api/v1/goals/'.$weeklyGoal->id, [
+            'target_amount' => 800,
+            'current_amount' => 800,
+        ])->assertUnprocessable();
+        $this->actingAs($owner)->postJson('/api/v1/goals/'.$weeklyGoal->id.'/complete')->assertStatus(409);
+        $this->actingAs($owner)->deleteJson('/api/v1/goals/'.$weeklyGoal->id)->assertStatus(409);
+        $this->assertDatabaseHas('goals', ['id' => $weeklyGoal->id, 'current_amount' => 0, 'status' => 'active']);
     }
 
     public function test_existing_manual_goals_remain_separate_and_can_still_be_completed(): void

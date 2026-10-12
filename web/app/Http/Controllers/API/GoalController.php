@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Goal;
-use App\Services\MonthlySalesGoals;
+use App\Services\SalesGoals;
 use Illuminate\Http\Request;
 
 class GoalController extends Controller
@@ -19,7 +19,7 @@ class GoalController extends Controller
         return Goal::where('business_id', $request->user()->business_id)->findOrFail($id);
     }
 
-    public function index(Request $request, MonthlySalesGoals $salesGoals)
+    public function index(Request $request, SalesGoals $salesGoals)
     {
         $this->owner($request);
         $goals = Goal::where('business_id', $request->user()->business_id)
@@ -30,18 +30,18 @@ class GoalController extends Controller
         return response()->json(['goals' => $goals]);
     }
 
-    public function show(Request $request, int $id, MonthlySalesGoals $salesGoals)
+    public function show(Request $request, int $id, SalesGoals $salesGoals)
     {
         $this->owner($request);
 
         return response()->json(['goal' => $salesGoals->present($this->businessGoal($request, $id))]);
     }
 
-    public function store(Request $request, MonthlySalesGoals $salesGoals)
+    public function store(Request $request, SalesGoals $salesGoals)
     {
         $this->owner($request);
-        // Existing manual goals remain supported. Monthly sales goals use
-        // the dedicated owner-only monthly target form.
+        // Existing manual goals remain supported. Automatic sales targets use
+        // the owner-only website form.
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
@@ -56,11 +56,11 @@ class GoalController extends Controller
         return response()->json(['message' => 'Goal created', 'goal' => $salesGoals->present($goal)], 201);
     }
 
-    public function update(Request $request, int $id, MonthlySalesGoals $salesGoals)
+    public function update(Request $request, int $id, SalesGoals $salesGoals)
     {
         $this->owner($request);
         $goal = $this->businessGoal($request, $id);
-        if ($goal->goal_type === 'monthly_confirmed_sales') {
+        if ($goal->isAutomaticSalesGoal()) {
             $data = $request->validate([
                 'target_amount' => 'required|numeric|min:0.01|max:99999999.99',
                 'current_amount' => 'prohibited',
@@ -69,7 +69,11 @@ class GoalController extends Controller
                 'goal_type' => 'prohibited',
                 'deadline' => 'prohibited',
             ]);
-            abort_if($goal->period_start->lt($salesGoals->monthStart()), 409, 'Past monthly targets cannot be changed.');
+            abort_if(
+                $goal->period_start->lt($salesGoals->currentPeriodStart($goal->goal_type)),
+                409,
+                'Past sales targets cannot be changed.',
+            );
         } else {
             $data = $request->validate([
                 'name' => 'sometimes|string|max:255',
@@ -88,11 +92,11 @@ class GoalController extends Controller
         return response()->json(['message' => 'Goal updated', 'goal' => $salesGoals->present($goal->fresh())]);
     }
 
-    public function complete(Request $request, int $id, MonthlySalesGoals $salesGoals)
+    public function complete(Request $request, int $id, SalesGoals $salesGoals)
     {
         $this->owner($request);
         $goal = $this->businessGoal($request, $id);
-        abort_if($goal->goal_type === 'monthly_confirmed_sales', 409, 'Monthly sales progress cannot be completed manually.');
+        abort_if($goal->isAutomaticSalesGoal(), 409, 'Sales target progress cannot be completed manually.');
         $goal->update(['status' => 'completed', 'current_amount' => $goal->target_amount, 'completed_at' => now()]);
 
         return response()->json(['message' => 'Goal completed', 'goal' => $salesGoals->present($goal->fresh())]);
@@ -102,7 +106,7 @@ class GoalController extends Controller
     {
         $this->owner($request);
         $goal = $this->businessGoal($request, $id);
-        abort_if($goal->goal_type === 'monthly_confirmed_sales', 409, 'Monthly sales target history cannot be deleted.');
+        abort_if($goal->isAutomaticSalesGoal(), 409, 'Sales target history cannot be deleted.');
         $goal->delete();
 
         return response()->json(['message' => 'Goal deleted']);

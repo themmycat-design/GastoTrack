@@ -7,8 +7,17 @@ use App\Models\Order;
 use App\Models\Transaction;
 use Carbon\CarbonImmutable;
 
-class MonthlySalesGoals
+class SalesGoals
 {
+    public const MONTHLY = 'monthly_confirmed_sales';
+
+    public const WEEKLY = 'weekly_confirmed_sales';
+
+    public static function isAutomaticType(?string $type): bool
+    {
+        return in_array($type, [self::MONTHLY, self::WEEKLY], true);
+    }
+
     public function monthStart(?string $month = null): CarbonImmutable
     {
         $timezone = config('business.timezone', 'Asia/Manila');
@@ -18,17 +27,51 @@ class MonthlySalesGoals
             : CarbonImmutable::now($timezone)->startOfMonth();
     }
 
+    public function weekStart(?string $date = null): CarbonImmutable
+    {
+        $timezone = config('business.timezone', 'Asia/Manila');
+        $day = $date ? CarbonImmutable::parse($date, $timezone) : CarbonImmutable::now($timezone);
+
+        return $day->startOfWeek(CarbonImmutable::MONDAY)->startOfDay();
+    }
+
+    public function currentPeriodStart(string $goalType): CarbonImmutable
+    {
+        return match ($goalType) {
+            self::MONTHLY => $this->monthStart(),
+            self::WEEKLY => $this->weekStart(),
+            default => throw new \InvalidArgumentException('Unsupported automatic sales goal type.'),
+        };
+    }
+
+    public function periodEndExclusive(Goal $goal): CarbonImmutable
+    {
+        $start = CarbonImmutable::parse(
+            $goal->period_start->format('Y-m-d'),
+            config('business.timezone', 'Asia/Manila'),
+        )->startOfDay();
+
+        return match ($goal->goal_type) {
+            self::MONTHLY => $start->addMonth(),
+            self::WEEKLY => $start->addWeek(),
+            default => $start,
+        };
+    }
+
     public function recordedSales(Goal $goal): float
     {
-        if ($goal->goal_type !== 'monthly_confirmed_sales' || !$goal->period_start) {
+        if (!self::isAutomaticType($goal->goal_type) || !$goal->period_start) {
             return (float) $goal->current_amount;
         }
 
-        $start = CarbonImmutable::parse($goal->period_start->format('Y-m-d'), config('business.timezone'))->startOfDay();
-        $end = $start->addMonth();
+        $start = CarbonImmutable::parse(
+            $goal->period_start->format('Y-m-d'),
+            config('business.timezone', 'Asia/Manila'),
+        )->startOfDay();
+        $end = $this->periodEndExclusive($goal);
 
-        // A confirmed refund removes the original sale from its original month.
-        // A pending refund remains counted until its accounting reversal is saved.
+        // A confirmed refund removes the original sale from its original week or month.
+        // Pending refunds remain counted until their accounting reversal is saved.
         $orders = Order::query()
             ->where('business_id', $goal->business_id)
             ->where('status', 'completed')
@@ -82,6 +125,10 @@ class MonthlySalesGoals
         $data['current_amount'] = number_format($current, 2, '.', '');
         $data['progress_percentage'] = $target > 0 ? round(min(100, $current / $target * 100), 1) : 0;
         $data['target_reached'] = $target > 0 && $current >= $target;
+
+        if (self::isAutomaticType($goal->goal_type) && $goal->period_start) {
+            $data['period_end'] = $this->periodEndExclusive($goal)->subDay()->toDateString();
+        }
 
         return $data;
     }
