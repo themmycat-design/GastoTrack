@@ -113,7 +113,7 @@
                                 @endphp
                                 <tr class="align-top transition hover:bg-[#F8FCFA]">
                                     <td class="px-5 py-4 sm:pl-6">
-                                        <a href="{{ route('orders.show', $order->id) }}" class="gt-focus font-extrabold text-[#08745D] hover:underline" aria-label="View order details">View order</a>
+                                        <a href="{{ route('orders.show', $order->id) }}" class="gt-focus font-extrabold text-[#08745D] hover:underline" aria-label="View order {{ $order->order_number }}">{{ $order->order_number }}</a>
                                         <span class="mt-1 block whitespace-nowrap text-xs text-slate-500">{{ $order->created_at?->format('M j, Y · g:i A') ?: 'Date unavailable' }}</span>
                                     </td>
                                     <td class="max-w-[240px] px-5 py-4 text-slate-600">

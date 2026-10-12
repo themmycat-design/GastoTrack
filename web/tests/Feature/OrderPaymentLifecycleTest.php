@@ -128,6 +128,76 @@ class OrderPaymentLifecycleTest extends TestCase
         ]);
     }
 
+    public function test_exact_wallet_notification_match_auto_confirms_and_commits_order_once(): void
+    {
+        $created = $this->postJson('/api/v1/orders', [
+            'client_id' => '8ac29654-54ec-4fee-b0cf-8b4ecdd52d3a',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'gcash',
+        ])->assertCreated()->json('order');
+
+        $signal = [
+            'amount' => 120,
+            'currency' => 'PHP',
+            'source' => 'gcash',
+            'notification_id' => 'device-event-20261012-01',
+        ];
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', $signal)
+            ->assertOk()
+            ->assertJsonPath('payment_verified', false)
+            ->assertJsonPath('payment_auto_matched', true)
+            ->assertJsonPath('order.status', 'completed')
+            ->assertJsonPath('order.payment_status', 'confirmed');
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', $signal)
+            ->assertOk()
+            ->assertJsonPath('order.payment_status', 'confirmed');
+
+        $this->assertSame(800.0, (float) $this->stock->fresh()->current_quantity);
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertDatabaseCount('stock_movements', 1);
+        $event = DB::table('order_payment_events')
+            ->where('order_id', $created['id'])
+            ->where('event_type', 'device_payment_notification_auto_confirmed')
+            ->first();
+        $this->assertNotNull($event);
+        $details = json_decode($event->details, true);
+        $this->assertFalse($details['provider_api_verified']);
+        $this->assertFalse($details['authoritative']);
+    }
+
+    public function test_wallet_notification_auto_confirmation_requires_exact_order_wallet_and_amount(): void
+    {
+        $created = $this->postJson('/api/v1/orders', [
+            'client_id' => '192a4ee5-cded-4da0-bef1-d8146585e2de',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'gcash',
+        ])->assertCreated()->json('order');
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
+            'amount' => 119,
+            'currency' => 'PHP',
+            'source' => 'gcash',
+            'notification_id' => 'device-event-20261012-02',
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
+            'amount' => 120,
+            'currency' => 'PHP',
+            'source' => 'maya',
+            'notification_id' => 'device-event-20261012-03',
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $created['id'],
+            'payment_status' => 'pending',
+            'status' => 'pending',
+        ]);
+        $this->assertSame(1000.0, (float) $this->stock->fresh()->current_quantity);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
     public function test_four_digit_order_numbers_are_consecutive_per_business_and_retries_reuse_the_number(): void
     {
         $payload = [
@@ -136,23 +206,23 @@ class OrderPaymentLifecycleTest extends TestCase
             'payment_method' => 'cash',
         ];
         $first = $this->postJson('/api/v1/orders', $payload)
-            ->assertCreated()->assertJsonPath('order.order_number', '0001')->json('order');
+            ->assertCreated()->assertJsonPath('order.order_number', '1001')->json('order');
         $this->postJson('/api/v1/orders', $payload)
             ->assertOk()->assertJsonPath('order.id', $first['id'])
-            ->assertJsonPath('order.order_number', '0001');
+            ->assertJsonPath('order.order_number', '1001');
 
         $this->postJson('/api/v1/orders', [
             'client_id' => 'd06b949f-1eeb-47a9-ace8-67643638029d',
             'items' => $payload['items'],
             'payment_method' => 'cash',
-        ])->assertCreated()->assertJsonPath('order.order_number', '0002');
+        ])->assertCreated()->assertJsonPath('order.order_number', '1002');
 
         Order::findOrFail($first['id'])->delete();
         $this->postJson('/api/v1/orders', [
             'client_id' => '2449526a-dd5a-4b71-bb48-8ea5d2611fbe',
             'items' => $payload['items'],
             'payment_method' => 'cash',
-        ])->assertCreated()->assertJsonPath('order.order_number', '0003');
+        ])->assertCreated()->assertJsonPath('order.order_number', '1003');
 
         $otherBusiness = Business::create(['name' => 'Second Coffee Shop', 'status' => 'active', 'active' => true]);
         $otherStaff = User::factory()->staff()->create(['business_id' => $otherBusiness->id]);
@@ -164,10 +234,10 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->postJson('/api/v1/orders', [
             'items' => [['product_id' => $otherProduct->id, 'quantity' => 1]],
             'payment_method' => 'cash',
-        ])->assertCreated()->assertJsonPath('order.order_number', '0001');
+        ])->assertCreated()->assertJsonPath('order.order_number', '1001');
 
-        $this->assertSame(4, (int) DB::table('businesses')->where('id', $this->business->id)->value('next_order_number'));
-        $this->assertSame(2, (int) DB::table('businesses')->where('id', $otherBusiness->id)->value('next_order_number'));
+        $this->assertSame(1004, (int) DB::table('businesses')->where('id', $this->business->id)->value('next_order_number'));
+        $this->assertSame(1002, (int) DB::table('businesses')->where('id', $otherBusiness->id)->value('next_order_number'));
     }
 
     public function test_four_digit_sequence_stops_after_9999_without_creating_an_order(): void

@@ -92,7 +92,8 @@ export const scanReceipt = async (imageUri) => {
  * Parse receipt text and extract transaction data
  */
 export const parseReceiptData = (ocrText) => {
-  const lines = ocrText.split('\n').map(line => line.trim()).filter(Boolean);
+  const text = String(ocrText || '');
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   
   const parsed = {
     amount: null,
@@ -102,7 +103,7 @@ export const parseReceiptData = (ocrText) => {
     category: null,
     type: 'Expense', // Default to expense
     confidence: 0,
-    rawText: ocrText,
+    rawText: text,
   };
 
   // Extract amount
@@ -117,12 +118,12 @@ export const parseReceiptData = (ocrText) => {
   parsed.merchant = extractMerchant(lines);
   
   // Detect payment source
-  const detectedSource = detectPaymentSource(ocrText);
+  const detectedSource = detectPaymentSource(text);
   parsed.source = detectedSource || 'Cash';
   parsed.sourceDetected = Boolean(detectedSource);
   
   // Detect category and type
-  const categoryResult = detectCategory(ocrText);
+  const categoryResult = detectCategory(text);
   parsed.category = categoryResult.category;
   parsed.type = categoryResult.type;
   
@@ -216,16 +217,36 @@ const extractDate = (lines) => {
  * Extract merchant/store name
  */
 const extractMerchant = (lines) => {
-  // First line is usually merchant name
-  if (lines.length > 0) {
-    const firstLine = lines[0];
-    // Clean up common receipt header text
-    return firstLine
-      .replace(/receipt|invoice|bill/gi, '')
-      .trim()
-      .substring(0, 50);
-  }
-  return 'Unknown Merchant';
+  const headerNoise = /\b(?:official receipt|sales invoice|receipt\s*(?:no|number|#)|invoice\s*(?:no|number|#)|or\s*(?:no|number|#)|date|time|tin|vat|telephone|tel\.?|phone|mobile|email|address|cashier|customer copy|transaction id|reference|total|subtotal|amount|change|cash|gcash|maya|tax|discount|quantity|price)\b/i;
+  const merchant = lines
+    .map(line => line.replace(/^(?:official\s+)?(?:receipt|invoice|bill)\b\s*[:#-]?\s*/i, '').trim())
+    .find(line => (
+      line.length >= 2
+      && /[a-z]/i.test(line)
+      && !headerNoise.test(line)
+      && !/\b\d{8,}\b/.test(line)
+    ));
+
+  return merchant?.substring(0, 80) || 'Unknown Merchant';
+};
+
+/**
+ * Keep receipt classification on the server while limiting the OCR text sent
+ * for categorization to merchant/item details, excluding common personal and
+ * payment identifiers from the request.
+ */
+export const buildReceiptCategoryDescription = (parsed, transactionName = parsed?.merchant) => {
+  const privateLine = /(?:\b(?:address|phone|mobile|telephone|email|e-mail|tin|vat\s*(?:reg|registration)?|(?:or|receipt|invoice)\s*(?:no|number|#)|reference|transaction\s*(?:id|no|number)|card\s*(?:no|number)|cashier|customer(?:\s*(?:name|id))?|serial\s*(?:no|number)|terminal\s*(?:id|no|number)|approval\s*(?:code|no)|auth(?:orization)?\s*code)\b|[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?63|0)\d(?:[\s-]?\d){8,}\b|\b\d{10,}\b)/i;
+  const receiptNoise = /\b(?:sub\s*total|grand\s*total|total\s*(?:due|paid)?|amount\s*(?:due|paid)|cash tendered|change|paid via|payment method|gcash|maya|cash|receipt|invoice|date|time|reference)\b/i;
+  const dateOnly = /^\s*(?:20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\s*$/;
+  const merchant = String(transactionName || '').trim();
+  const itemLines = String(parsed?.rawText || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length >= 2 && !privateLine.test(line) && !receiptNoise.test(line) && !dateOnly.test(line))
+    .slice(0, 12);
+
+  return [...new Set([merchant, ...itemLines].filter(Boolean))].join(' | ').slice(0, 500);
 };
 
 /**
@@ -264,11 +285,10 @@ const detectCategory = (text) => {
 const calculateConfidence = (parsed) => {
   let score = 0;
   const weights = {
-    amount: 40,
-    date: 20,
-    merchant: 15,
+    amount: 45,
+    date: 25,
+    merchant: 20,
     source: 10,
-    category: 15,
   };
   
   if (parsed.amount) score += weights.amount;
@@ -277,8 +297,6 @@ const calculateConfidence = (parsed) => {
     score += weights.merchant;
   }
   if (parsed.sourceDetected) score += weights.source;
-  if (parsed.category) score += weights.category;
-  
   return score;
 };
 
@@ -301,5 +319,6 @@ export const formatForTransaction = (parsed, availableCategories) => {
 export default {
   scanReceipt,
   parseReceiptData,
+  buildReceiptCategoryDescription,
   formatForTransaction,
 };

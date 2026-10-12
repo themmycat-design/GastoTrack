@@ -110,7 +110,7 @@
                         @endphp
                         <a href="{{ route('orders.show', $order->id) }}" class="gt-focus flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-[#F8FCFA] sm:px-6">
                             <span class="min-w-0">
-                                <span class="block text-sm font-bold text-[#0A2E2A]">{{ $order->customer_name ?: 'Walk-in order' }}</span>
+                                <span class="block text-sm font-bold text-[#0A2E2A]">{{ $order->customer_name ?: 'Walk-in order' }} <span class="text-xs font-bold text-[#08745D]">· {{ $order->order_number }}</span></span>
                                 <span class="mt-1 block text-xs text-slate-500">{{ $order->completed_at?->format('M j, Y · g:i A') ?: $order->created_at?->format('M j, Y · g:i A') }} · {{ $paymentLabel }}</span>
                             </span>
                             <span class="shrink-0 text-sm font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $order->total, 2) }}</span>

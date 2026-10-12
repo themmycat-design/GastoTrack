@@ -25,8 +25,8 @@ class DemoSeederSafetyTest extends TestCase
         $this->assertDatabaseCount('orders', 2);
         $this->assertDatabaseCount('transactions', 3);
         $this->assertDatabaseCount('order_payment_events', 2);
-        $this->assertDatabaseHas('orders', ['order_number' => '0001', 'status' => 'completed', 'payment_status' => 'confirmed']);
-        $this->assertDatabaseHas('orders', ['order_number' => '0002', 'status' => 'completed', 'payment_status' => 'confirmed']);
+        $this->assertDatabaseHas('orders', ['order_number' => '1001', 'status' => 'completed', 'payment_status' => 'confirmed']);
+        $this->assertDatabaseHas('orders', ['order_number' => '1002', 'status' => 'completed', 'payment_status' => 'confirmed']);
         $this->assertDatabaseHas('transactions', ['category' => 'Utilities', 'type' => 'expense', 'amount' => 1250]);
         $this->assertDatabaseCount('stock_movements', 7);
     }

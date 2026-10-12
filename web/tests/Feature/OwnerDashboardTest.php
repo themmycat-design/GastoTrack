@@ -492,7 +492,7 @@ class OwnerDashboardTest extends TestCase
         $business = $this->business('Old Reference Cafe');
         $owner = User::factory()->owner()->create(['business_id' => $business->id]);
         $staff = User::factory()->staff()->create(['business_id' => $business->id]);
-        $order = $this->order($business, $staff, ['order_number' => '0001']);
+        $order = $this->order($business, $staff, ['order_number' => '1001']);
         $order->forceFill(['legacy_order_number' => 'ORD-OLD-REFERENCE'])->save();
 
         $this->actingAs($owner)
@@ -500,7 +500,12 @@ class OwnerDashboardTest extends TestCase
             ->assertOk()
             ->assertViewHas('orders', fn ($orders): bool => $orders->total() === 1
                 && $orders->first()->id === $order->id)
-            ->assertSee('0001');
+            ->assertSee('1001');
+
+        $this->actingAs($owner)
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('Order 1001');
     }
 
     public function test_transaction_and_staff_pages_do_not_expose_another_business_records(): void

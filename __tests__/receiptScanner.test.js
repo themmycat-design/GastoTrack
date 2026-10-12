@@ -1,5 +1,5 @@
 import TextRecognition from '@react-native-ml-kit/text-recognition';
-import {formatForTransaction, parseReceiptData, scanReceipt, suggestReceiptCategory} from '../src/services/OCRService';
+import {buildReceiptCategoryDescription, formatForTransaction, parseReceiptData, scanReceipt, suggestReceiptCategory} from '../src/services/OCRService';
 
 jest.mock('@react-native-ml-kit/text-recognition', () => ({
   __esModule: true,
@@ -60,6 +60,38 @@ describe('receipt scanning and review suggestions', () => {
     expect(undated.sourceDetected).toBe(false);
     expect(undated.confidence).toBeLessThan(dated.confidence);
     expect(parseReceiptData('Maya Cafe\nCASH TENDERED PHP 100.00\nTOTAL PHP 85.00').source).toBe('Cash');
+  });
+
+  it('extracts a useful receipt name while skipping receipt headers and identifiers', () => {
+    const parsed = parseReceiptData('OFFICIAL RECEIPT\nReceipt No: 1234567890\nFresh Start Cafe\nAddress: 42 Main Road\n2026-10-10\nIced Latte 2 x 90.00\nTOTAL PHP 180.00');
+    expect(parsed.merchant).toBe('Fresh Start Cafe');
+    expect(parsed.date).toBe('2026-10-10');
+    expect(parsed.amount).toBe(180);
+  });
+
+  it('sends only receipt name and item details for server-side AI categorization', () => {
+    const parsed = parseReceiptData([
+      'Fresh Start Cafe',
+      'Receipt No: 1234567890',
+      'Address: 42 Main Road',
+      'Phone: 09171234567',
+      'Customer: Juan Dela Cruz',
+      '2026-10-10',
+      'Iced Latte 2 x 90.00',
+      'TOTAL PHP 180.00',
+      'Cash tendered PHP 500.00',
+      'GCash Ref: 987654321012',
+    ].join('\n'));
+    const description = buildReceiptCategoryDescription(parsed);
+    expect(description).toContain('Fresh Start Cafe');
+    expect(description).toContain('Iced Latte');
+    expect(description).not.toContain('1234567890');
+    expect(description).not.toContain('42 Main Road');
+    expect(description).not.toContain('09171234567');
+    expect(description).not.toContain('Juan Dela Cruz');
+    expect(description).not.toContain('2026-10-10');
+    expect(description).not.toContain('180.00');
+    expect(description).not.toContain('987654321012');
   });
 
   it('recognizes explicit income and leaves unknown categories for review', () => {

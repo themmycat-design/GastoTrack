@@ -13,14 +13,14 @@ return new class extends Migration
         $tooMany = DB::table('orders')
             ->select('business_id')
             ->groupBy('business_id')
-            ->havingRaw('COUNT(*) > 9999')
+            ->havingRaw('COUNT(*) > 8999')
             ->first();
         if ($tooMany) {
-            throw new RuntimeException('Business '.$tooMany->business_id.' has more than 9999 historical orders; four-digit numbering cannot be applied safely.');
+            throw new RuntimeException('Business '.$tooMany->business_id.' has more than 8999 historical orders; numbering from 1001 to 9999 cannot be applied safely.');
         }
 
         Schema::table('businesses', function (Blueprint $table): void {
-            $table->unsignedInteger('next_order_number')->default(1);
+            $table->unsignedInteger('next_order_number')->default(1001);
         });
         Schema::table('orders', function (Blueprint $table): void {
             $table->string('legacy_order_number')->nullable();
@@ -31,7 +31,7 @@ return new class extends Migration
         DB::table('orders')->update(['legacy_order_number' => DB::raw('order_number')]);
 
         foreach (DB::table('businesses')->orderBy('id')->pluck('id') as $businessId) {
-            $next = 1;
+            $next = 1001;
             $orders = DB::table('orders')
                 ->where('business_id', $businessId)
                 ->orderBy('created_at')
@@ -39,7 +39,7 @@ return new class extends Migration
                 ->pluck('id');
             foreach ($orders as $orderId) {
                 DB::table('orders')->where('id', $orderId)
-                    ->update(['order_number' => str_pad((string) $next++, 4, '0', STR_PAD_LEFT)]);
+                    ->update(['order_number' => (string) $next++]);
             }
             DB::table('businesses')->where('id', $businessId)
                 ->update(['next_order_number' => $next]);

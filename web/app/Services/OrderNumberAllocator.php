@@ -21,11 +21,11 @@ class OrderNumberAllocator
         abort_unless($business, 404, 'Business not found.');
 
         $number = (int) $business->next_order_number;
-        abort_if($number < 1 || $number > 9999, 409, 'This business has used all 9999 four-digit order numbers. A longer numbering format is required before more orders can be placed.');
+        abort_if($number < 1001 || $number > 9999, 409, 'This business has used all four-digit order numbers from 1001 to 9999. A longer numbering format is required before more orders can be placed.');
 
         DB::table('businesses')->where('id', $businessId)
             ->update(['next_order_number' => $number + 1]);
 
-        return str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+        return (string) $number;
     }
 }

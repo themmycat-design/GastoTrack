@@ -120,8 +120,32 @@ class AiAssistantTest extends TestCase
 
         Http::assertSent(function (Request $request) {
             $body = json_encode($request->data());
-            return str_contains($body, 'Ingredients') && !str_contains($body, 'Private rent');
+            $generationConfig = $request->data()['generationConfig'] ?? [];
+            return str_contains($body, 'Ingredients')
+                && !str_contains($body, 'Private rent')
+                && !array_key_exists('temperature', $generationConfig);
         });
+    }
+
+    public function test_receipt_category_retries_once_after_a_temporary_gemini_503(): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(['error' => ['message' => 'Temporarily unavailable']], 503)
+                ->push(['candidates' => [['content' => ['parts' => [['text' => 'Ingredients']]]]]], 200),
+        ]);
+        $business = Business::create(['name' => 'Cafe Retry', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        TransactionOption::create(['business_id' => $business->id, 'kind' => 'source', 'transaction_type' => 'all', 'name' => 'Cash']);
+        TransactionOption::create(['business_id' => $business->id, 'kind' => 'category', 'transaction_type' => 'expense', 'name' => 'Ingredients']);
+        Sanctum::actingAs($staff);
+
+        $this->postJson('/api/v1/ai/transaction-category', [
+            'type' => 'expense', 'source' => 'Cash', 'description' => 'Bought milk and sugar',
+        ])->assertOk()->assertJsonPath('category', 'Ingredients');
+
+        Http::assertSentCount(2);
     }
 
     public function test_ai_category_suggestion_rejects_unknown_model_category_and_missing_key(): void

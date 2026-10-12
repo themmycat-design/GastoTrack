@@ -352,6 +352,9 @@ export const OrderProvider = ({children}) => {
   const recordPaymentDetection = useCallback((orderId, signal) =>
     postOrderAction(orderId, 'payments/detected', signal), [postOrderAction]);
 
+  const confirmPaymentFromNotification = useCallback((orderId, signal) =>
+    postOrderAction(orderId, 'payments/confirm-notification', signal, {financialsChanged: true}), [postOrderAction]);
+
   const confirmPayment = useCallback((orderId, paymentDetails) =>
     postOrderAction(orderId, 'payments/confirm', paymentDetails, {financialsChanged: true}), [postOrderAction]);
 
@@ -404,6 +407,7 @@ export const OrderProvider = ({children}) => {
       loadMoreOrders,
       createOrder,
       recordPaymentDetection,
+    confirmPaymentFromNotification,
       confirmPayment,
       markPaymentFailed,
       retryPayment,

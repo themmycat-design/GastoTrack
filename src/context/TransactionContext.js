@@ -55,6 +55,7 @@ const toApiPayload = transaction => ({
   category: transaction.category,
   date: transaction.date,
   notes: transaction.notes || null,
+  client_id: transaction.clientId || transaction.client_id || undefined,
   entry_method: String(transaction.entryMethod || transaction.entry_method || 'manual')
     .toLowerCase()
     .replace(/\s+/g, '_'),

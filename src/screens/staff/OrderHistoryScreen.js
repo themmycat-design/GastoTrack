@@ -170,6 +170,7 @@ const OrderHistoryScreen = ({navigation}) => {
           </View>
           <View style={styles.orderInfo}>
             <Text style={styles.orderTitle}>{item.customerName || item.customer_name || 'Order'}</Text>
+            <Text style={styles.orderNumber}>Order {item.orderNumber || item.order_number || '—'}</Text>
             <Text style={styles.orderDate}>{formatOrderDate(item.createdAt || item.created_at)}</Text>
           </View>
           <Text style={styles.orderTotal}>₱{Number(item.total || 0).toFixed(2)}</Text>
@@ -348,6 +349,7 @@ const styles = StyleSheet.create({
   orderIcon: {width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted},
   orderInfo: {flex: 1, marginHorizontal: 10},
   orderTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
+  orderNumber: {fontSize: 11, fontWeight: '700', color: COLORS.accentDark, marginTop: 2},
   orderDate: {fontSize: 11, color: COLORS.textGray, marginTop: 3},
   orderTotal: {fontSize: 15, fontWeight: '700', color: COLORS.accentDark},
   orderItems: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 12},

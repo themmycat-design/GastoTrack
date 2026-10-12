@@ -289,6 +289,87 @@ class OrderController extends Controller
         ]);
     }
 
+    public function confirmNotificationPayment(Request $request, int $id): JsonResponse
+    {
+        $this->staffOnly($request);
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
+            'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'source' => ['required', Rule::in(['gcash', 'maya'])],
+            'notification_id' => ['required', 'string', 'min:8', 'max:120', 'regex:/^[A-Za-z0-9._:-]+$/'],
+        ]);
+
+        $reference = 'DEVICE-'.strtoupper($validated['source']).'-'.substr(hash('sha256', $validated['notification_id']), 0, 48);
+
+        try {
+            $order = DB::transaction(function () use ($request, $id, $validated, $reference): Order {
+                $order = $this->lockBusinessOrder($request, $id);
+                abort_unless($order->payment_type === 'cashless', 409, 'Wallet notifications are only supported for cashless orders.');
+                abort_unless($validated['source'] === $order->payment_method, 422, 'The detected wallet does not match this order.');
+                abort_unless($validated['currency'] === $order->payment_currency, 422, 'The notification currency does not match the order currency.');
+                abort_unless($this->amountsMatch($validated['amount'], $order->total), 422, 'The detected payment amount does not match the order total.');
+
+                if ($order->payment_status === 'confirmed') {
+                    abort_unless($order->payment_reference === $reference, 409, 'This order was already saved from a different payment notification.');
+                    return $order->load('items');
+                }
+
+                abort_unless($order->status === 'pending', 409, 'This order is no longer awaiting payment.');
+                abort_unless(in_array($order->payment_status, ['pending', 'detected'], true), 409, 'This payment attempt is not awaiting a notification.');
+
+                $previousPaymentStatus = $order->payment_status;
+                $now = now();
+                $order->update([
+                    'payment_status' => 'confirmed',
+                    'payment_reference' => $reference,
+                    'payment_confirmed_by' => $request->user()->id,
+                    'payment_confirmed_at' => $now,
+                    'detected_payment_amount' => $validated['amount'],
+                    'detected_payment_currency' => $validated['currency'],
+                    'payment_detected_at' => $now,
+                    'status' => 'completed',
+                    'completed_at' => $order->completed_at ?: $now,
+                ]);
+
+                $this->recordEvent(
+                    $order,
+                    $request->user(),
+                    'device_payment_notification_auto_confirmed',
+                    'pending',
+                    'completed',
+                    $previousPaymentStatus,
+                    'confirmed',
+                    amount: $validated['amount'],
+                    currency: $validated['currency'],
+                    reference: $reference,
+                    details: [
+                        'confirmation_method' => 'device_notification_exact_wallet_amount_match',
+                        'source' => $validated['source'],
+                        'notification_id_hash' => hash('sha256', $validated['notification_id']),
+                        'amount_matches_order' => true,
+                        'authoritative' => false,
+                        'provider_api_verified' => false,
+                    ]
+                );
+
+                $this->commitOrderFinancials($order, $request->user());
+
+                return $order->load('items');
+            });
+        } catch (QueryException $exception) {
+            return response()->json([
+                'message' => 'This payment notification was already used or the payment update conflicted. Refresh order history before retrying.',
+            ], 409);
+        }
+
+        return response()->json([
+            'message' => 'The wallet notification matched the order wallet and exact amount. The order was saved automatically; GastoTrack did not verify payment with the wallet provider.',
+            'order' => $order,
+            'payment_verified' => false,
+            'payment_auto_matched' => true,
+        ]);
+    }
+
     public function confirmPayment(Request $request, int $id): JsonResponse
     {
         $this->staffOnly($request);

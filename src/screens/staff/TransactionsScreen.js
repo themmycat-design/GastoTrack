@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {useIsFocused} from '@react-navigation/native';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
 import {useAuth} from '../../context/AuthContext';
@@ -260,6 +261,7 @@ const TransactionActivityList = React.memo(({
 });
 
 const TransactionsScreen = ({route}) => {
+  const isFocused = useIsFocused();
   const {user} = useAuth();
   const staffDay = useStaffDay();
   const [showHistory, setShowHistory] = useState(false);
@@ -316,6 +318,8 @@ const TransactionsScreen = ({route}) => {
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const activityRequestId = useRef(0);
+  const wasFocused = useRef(isFocused);
+  const refreshOnFocus = useRef(null);
 
   const calendarDays = useMemo(() => {
     const startOffset = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
@@ -630,6 +634,23 @@ const TransactionsScreen = ({route}) => {
       }
     }
   }, [rawSearch, rawSource, showHistory, staffDay]);
+
+  refreshOnFocus.current = () => {
+    if (activityMode === 'raw') return fetchRaw(1);
+    if (activityTransactions !== null) return refreshFilteredActivity();
+    return fetchTransactions();
+  };
+
+  useEffect(() => {
+    if (!isFocused) {
+      wasFocused.current = false;
+      return;
+    }
+    if (wasFocused.current) return;
+
+    wasFocused.current = true;
+    refreshOnFocus.current?.();
+  }, [isFocused]);
 
   useEffect(() => {
     if (activityMode !== 'raw') return;

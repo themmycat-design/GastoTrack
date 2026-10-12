@@ -17,6 +17,13 @@ describe('API error messages', () => {
       .toBe('The GastoTrack server is temporarily unavailable. Please try again shortly.');
   });
 
+  it('shows the server guidance for an unavailable AI provider', () => {
+    expect(getApiErrorMessage({response: {
+      status: 503,
+      data: {message: 'AI category suggestions are temporarily unavailable. Choose a category manually.'},
+    }})).toBe('AI category suggestions are temporarily unavailable. Choose a category manually.');
+  });
+
   it('uses the rate-limit retry time when the API provides one', () => {
     expect(getApiErrorMessage({response: {status: 429, headers: {'retry-after': '42'}}}))
       .toBe('Too many requests. Try again in 42 seconds.');

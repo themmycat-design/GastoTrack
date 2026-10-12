@@ -84,13 +84,14 @@ class TransactionController extends Controller
             'category'     => 'required|string',
             'date'         => 'required|date|before_or_equal:'.now(config('business.timezone'))->toDateString(),
             'notes'        => 'nullable|string',
+            'client_id'    => 'nullable|uuid',
             'entry_method' => ['nullable', Rule::in(['manual', 'ocr', 'notification_capture'])],
             'metadata' => 'nullable|array',
             'metadata.ocr_confidence' => 'nullable|numeric|min:0|max:100',
             'metadata.ocr_provider' => 'nullable|string|max:100',
         ]);
 
-        $transaction = Transaction::create([
+        $values = [
             'business_id'  => $request->user()->business_id,
             'user_id'      => $request->user()->id,
             'amount'       => $validated['amount'],
@@ -101,7 +102,13 @@ class TransactionController extends Controller
             'description'  => $validated['notes'] ?? null,
             'entry_method' => $validated['entry_method'] ?? 'manual',
             'metadata'     => $validated['metadata'] ?? null,
-        ]);
+        ];
+        $transaction = isset($validated['client_id'])
+            ? Transaction::firstOrCreate([
+                'business_id' => $request->user()->business_id,
+                'client_id' => $validated['client_id'],
+            ], $values)
+            : Transaction::create($values);
 
         return response()->json([
             'message'     => 'Transaction saved',

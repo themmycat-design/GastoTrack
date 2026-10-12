@@ -38,6 +38,7 @@
                     <div>
                         <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Order details</p>
                         <h2 class="mt-1 text-2xl font-extrabold tracking-tight">{{ $order->customer_name ?: 'Walk-in order' }}</h2>
+                        <p class="mt-1 text-sm font-bold text-[#08745D]">Order {{ $order->order_number }}</p>
                         <p class="mt-2 text-sm text-slate-500">Placed {{ optional($order->created_at)->format('M j, Y · g:i A') }}</p>
                     </div>
                     <div class="flex flex-wrap gap-2">

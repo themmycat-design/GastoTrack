@@ -132,8 +132,17 @@ class BackendApiTest extends TestCase
             'amount' => 85, 'type' => 'expense', 'source' => 'Cash',
             'category' => 'Supplies', 'date' => now()->toDateString(),
             'notes' => 'Scanned receipt', 'entry_method' => 'ocr',
+            'client_id' => '914a4e80-7ac0-4ccf-a37a-3ee0b83bcf13',
             'metadata' => ['ocr_confidence' => 91, 'ocr_provider' => 'device_ocr'],
         ], $staffHeaders)->assertCreated()->assertJsonPath('transaction.entry_method', 'ocr')->json('transaction');
+        $this->postJson('/api/v1/transactions', [
+            'amount' => 85, 'type' => 'expense', 'source' => 'Cash',
+            'category' => 'Supplies', 'date' => now()->toDateString(),
+            'notes' => 'Scanned receipt', 'entry_method' => 'ocr',
+            'client_id' => '914a4e80-7ac0-4ccf-a37a-3ee0b83bcf13',
+            'metadata' => ['ocr_confidence' => 91, 'ocr_provider' => 'device_ocr'],
+        ], $staffHeaders)->assertCreated()->assertJsonPath('transaction.id', $ocrTransaction['id']);
+        $this->assertDatabaseCount('transactions', 2);
         $this->putJson('/api/v1/transactions/'.$ocrTransaction['id'], [
             'amount' => 90,
         ], $staffHeaders)->assertOk()->assertJsonPath('transaction.amount', '90.00');

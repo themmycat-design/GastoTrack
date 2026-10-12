@@ -53,6 +53,7 @@ $registerProtectedRoutes = function (): void {
     Route::post('/stock/{stock}/adjust', [StockController::class, 'adjust']);
     Route::apiResource('stock', StockController::class);
     Route::post('/orders/{order}/payments/detected', [OrderController::class, 'detectPayment'])->whereNumber('order');
+    Route::post('/orders/{order}/payments/confirm-notification', [OrderController::class, 'confirmNotificationPayment'])->whereNumber('order');
     Route::post('/orders/{order}/payments/confirm', [OrderController::class, 'confirmPayment'])->whereNumber('order');
     Route::post('/orders/{order}/payments/fail', [OrderController::class, 'failPayment'])->whereNumber('order');
     Route::post('/orders/{order}/payments/retry', [OrderController::class, 'retryPayment'])->whereNumber('order');

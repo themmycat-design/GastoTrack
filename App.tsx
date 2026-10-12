@@ -61,20 +61,20 @@ const AppNav = () => {
 const App = () => (
   <SafeAreaProvider>
     <AuthProvider>
-      <WalletCaptureSync />
-      <StockProvider>
-        <ProductProvider>
-          <TransactionProvider>
-            <OrderProvider>
-              <NavigationContainer>
-                <AppErrorBoundary>
+      <AppErrorBoundary>
+        <WalletCaptureSync />
+        <StockProvider>
+          <ProductProvider>
+            <TransactionProvider>
+              <OrderProvider>
+                <NavigationContainer>
                   <AppNav />
-                </AppErrorBoundary>
-              </NavigationContainer>
-            </OrderProvider>
-          </TransactionProvider>
-        </ProductProvider>
-      </StockProvider>
+                </NavigationContainer>
+              </OrderProvider>
+            </TransactionProvider>
+          </ProductProvider>
+        </StockProvider>
+      </AppErrorBoundary>
     </AuthProvider>
   </SafeAreaProvider>
 );

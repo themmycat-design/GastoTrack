@@ -38,6 +38,9 @@ export const getApiErrorMessage = (error, fallback = 'The request could not be c
       ? `Too many requests. Try again in ${Math.ceil(retryAfter)} seconds.`
       : 'Too many requests. Wait a moment, then try again.';
   }
+  if (status === 503) {
+    return responseData?.message || 'The GastoTrack server is temporarily unavailable. Please try again shortly.';
+  }
   if (status >= 500) {
     return 'The GastoTrack server is temporarily unavailable. Please try again shortly.';
   }

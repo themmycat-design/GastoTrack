@@ -1,8 +1,10 @@
-export const createOrderIdempotencyKey = () =>
+export const createIdempotencyKey = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
     const value = Math.floor(Math.random() * 16);
     return (character === 'x' ? value : (value % 4) + 8).toString(16);
   });
+
+export const createOrderIdempotencyKey = createIdempotencyKey;
 
 export const orderRequestSignature = payload => JSON.stringify({
   items: [...(payload.items || [])]

@@ -2,7 +2,51 @@
 
 GastoTrack is a staff-facing React Native POS and financial-recording app backed by a Laravel API. Staff can browse products, place orders, track inventory, record income and expenses, scan receipts with on-device OCR, and ask the business-scoped AI assistant for read-only guidance. Business owners use the Laravel web dashboard; the mobile app does not provide owner management screens.
 
-Start with [docs/ALPHA_SETUP.md](docs/ALPHA_SETUP.md) for backend and mobile setup, device networking, demo accounts, Gemini configuration, tests, and Android signing. The app requires a live API for account data and order/transaction changes; a saved cart can be restored, but this is not offline synchronization.
+The app requires a live API for account data and order/transaction changes; a saved cart can be restored, but this is not offline synchronization.
+
+## Quick access (Windows)
+
+GastoTrack has two entry points: owners use the website, and staff use the Android app. For local development, keep Laravel running while using either one.
+
+### Owner website (this PC)
+
+1. Make sure MySQL is running and the database settings in `web/.env` are correct.
+2. Open PowerShell and start Laravel:
+
+   ```powershell
+   Set-Location C:\Users\Chris\GastoTrack\web
+   php artisan serve --host=127.0.0.1 --port=8000
+   ```
+
+3. On this PC, open [the GastoTrack website](http://127.0.0.1:8000). Sign in at [http://127.0.0.1:8000/login](http://127.0.0.1:8000/login), or create an account at [http://127.0.0.1:8000/register](http://127.0.0.1:8000/register).
+
+Leave this terminal open while using the website or mobile app. This local website address is for this PC; it is not a public hosted link.
+
+### Staff app (real Android phone)
+
+After pairing and connecting the phone over Wireless debugging, run these commands in **PowerShell** (not Command Prompt):
+
+```powershell
+Set-Location C:\Users\Chris\GastoTrack
+adb devices -l
+$phone = Read-Host "Paste the phone serial shown by adb devices -l"
+.\scripts\connect-android-wireless.ps1 -Serial $phone
+npm.cmd run android -- --device $phone
+```
+
+Keep the Laravel terminal above running. The helper connects the selected phone to Laravel on port `8000` and Metro on port `8081`; the Android development build uses `http://127.0.0.1:8000/api/v1` through that tunnel. The Android command builds, installs, and opens the app. If more than one device is listed, paste the exact serial for your phone, not the emulator.
+
+## First-time wireless setup
+
+The development API defaults to `http://127.0.0.1:8000/api/v1`. ADB reverse tunnels that phone-local address to this PC, so you do not need to enter the PC's changing Wi-Fi IP into the app. The debug build allows HTTP; release builds require HTTPS.
+
+1. Put the phone and PC on the same Wi-Fi. On Android, open **Developer options > Wireless debugging > Pair device with pairing code**.
+2. In PowerShell, run the `adb pair` command shown on the phone (it looks like `adb pair PHONE_IP:PAIRING_PORT`) and enter the displayed pairing code.
+3. On the main Wireless debugging screen, use the other address/port to connect (not the pairing port): `adb connect PHONE_IP:DEBUG_PORT`. Then continue with **Staff app (real Android phone)** above.
+
+Pairing is usually a one-time step. If Wireless debugging reconnects with a new port, run `adb connect` again and use the new serial from `adb devices -l`. Keep using PowerShell for the `$phone` variable and `.ps1` helper; those commands do not work when pasted into Command Prompt.
+
+If the phone shows a Metro HTTP 500 mentioning `DependencyGraph.js` or `Cannot read properties of undefined (reading 'get')`, stop the existing Metro process with **Ctrl+C**, then restart Metro from the repository root with `npm.cmd start -- --reset-cache`. Wait for **Dev server ready**, keep that terminal open, and tap **Reload** in the app. This is a Metro bundle failure; rebuilding or reinstalling the APK is not normally needed.
 
 Quick checks:
 
@@ -13,7 +57,7 @@ Set-Location android
 .\gradlew.bat :app:assembleDebug
 ```
 
-The project intentionally does not include real payment-provider integration or release signing credentials. Do not use manual payment confirmation as proof from GCash/Maya; see the alpha limitations in the setup guide.
+The project intentionally does not include real payment-provider integration or release signing credentials. Do not use manual payment confirmation as proof from GCash/Maya.
 
 Staff daily workspace: Today views refresh when the device date changes and when the screen is reopened. An unfinished cart is cleared on the next local day, except when an order submission has an unresolved retry identifier; that cart remains available to prevent a duplicate sale. Cancelled cashless orders disappear from Today, but remain in History with their audit trail. Pending cashless payments are never automatically cancelled or treated as paid: staff must check the official wallet and cancel an unpaid order when the customer changes their mind. Inventory and owner records are not reset.
 
