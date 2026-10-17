@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\StockItem;
+use App\Models\StockMovement;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -168,6 +169,26 @@ class OwnerDashboardMetrics
                     : 0;
             });
 
+        $productCosts = $this->productCostSummary($businessId, $start, $end, $productSalesTotal);
+        foreach ($topSellingProducts as $product) {
+            $cost = $productCosts['products'][(string) $product->product_id] ?? null;
+            $product->ingredient_cost = $cost && $cost['has_recipe']
+                ? round($cost['ingredient_cost'], 2)
+                : null;
+            $product->gross_margin = $cost && $cost['fully_costed']
+                ? round($product->sales_amount - $cost['cost_amount'], 2)
+                : null;
+            $product->cost_amount = $cost && $cost['fully_costed']
+                ? round($cost['cost_amount'], 2)
+                : null;
+            $product->gross_margin_percent = $cost && $cost['fully_costed'] && $product->sales_amount > 0
+                ? round(($product->gross_margin / $product->sales_amount) * 100, 1)
+                : null;
+            $product->cost_basis = $cost['cost_basis'] ?? 'Missing cost';
+        }
+
+        $wasteCosts = $this->wasteCostSummary($businessId, $start, $end);
+
         return [
             'current' => $current,
             'comparison' => $comparison,
@@ -188,7 +209,274 @@ class OwnerDashboardMetrics
                 'expenses' => $expenseValues,
             ],
             'topSellingProducts' => $topSellingProducts,
+            'costInsights' => [
+                'ingredientCost' => round($productCosts['ingredient_cost'], 2),
+                'ingredientCostCoveragePercent' => $productSalesTotal > 0
+                    ? round($productCosts['ingredient_costed_sales'] / $productSalesTotal * 100, 1)
+                    : 0,
+                'grossMargin' => round($productCosts['gross_margin'], 2),
+                'costedSales' => round($productCosts['costed_sales'], 2),
+                'costCoveragePercent' => $productSalesTotal > 0
+                    ? round($productCosts['costed_sales'] / $productSalesTotal * 100, 1)
+                    : 0,
+                'ingredientCostEstimated' => $productCosts['ingredient_cost_estimated'],
+                'wasteCost' => $wasteCosts['total'],
+                'wasteCostEstimated' => $wasteCosts['estimated'],
+                'wasteItems' => $wasteCosts['items'],
+            ],
         ];
+    }
+
+    /**
+     * Cost sold items from their sale-time recipe/unit-cost snapshots. Older
+     * orders fall back to the current recipe and are explicitly marked estimated.
+     */
+    private function productCostSummary(
+        int $businessId,
+        CarbonImmutable $start,
+        CarbonImmutable $end,
+        float $eligibleSales,
+    ): array {
+        $products = [];
+        $ingredientCostTotal = 0.0;
+        $grossMarginTotal = 0.0;
+        $costedSalesTotal = 0.0;
+        $ingredientCostedSalesTotal = 0.0;
+        $ingredientCostEstimated = false;
+
+        $orders = Order::query()
+            ->where('business_id', $businessId)
+            ->whereNull('deleted_at')
+            ->where('status', 'completed')
+            ->whereIn('payment_status', ['confirmed', 'refund_pending', 'refunded'])
+            ->whereNotNull('payment_confirmed_at')
+            ->whereNotNull('financials_committed_at')
+            ->whereBetween('completed_at', [$start, $end])
+            ->whereExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('transactions')
+                    ->whereColumn('transactions.business_id', 'orders.business_id')
+                    ->where('transactions.type', 'income')
+                    ->whereNull('transactions.deleted_at')
+                    ->whereNull('transactions.reversal_of_id')
+                    ->where(function ($linked): void {
+                        $linked->whereColumn('transactions.order_id', 'orders.id')
+                            ->orWhereColumn('transactions.metadata->order_id', 'orders.id');
+                    });
+            })
+            ->with('items')
+            ->orderBy('id');
+
+        $orders->chunkById(100, function ($batch) use (
+            $businessId,
+            &$products,
+            &$ingredientCostTotal,
+            &$grossMarginTotal,
+            &$costedSalesTotal,
+            &$ingredientCostedSalesTotal,
+            &$ingredientCostEstimated,
+        ): void {
+            $items = $batch->flatMap->items;
+            if ($items->isEmpty()) {
+                return;
+            }
+
+            $productIds = $items->pluck('product_id')->filter()->unique()->values();
+            $currentProductCosts = DB::table('products')
+                ->where('business_id', $businessId)
+                ->whereIn('id', $productIds)
+                ->pluck('cost', 'id');
+            $currentRecipes = DB::table('product_ingredients')
+                ->join('stock_items', 'stock_items.id', '=', 'product_ingredients.stock_item_id')
+                ->join('products', 'products.id', '=', 'product_ingredients.product_id')
+                ->where('products.business_id', $businessId)
+                ->where('stock_items.business_id', $businessId)
+                ->whereIn('product_ingredients.product_id', $productIds)
+                ->select([
+                    'product_ingredients.product_id',
+                    'product_ingredients.stock_item_id',
+                    'product_ingredients.quantity',
+                    'stock_items.unit_cost',
+                ])
+                ->get()
+                ->groupBy('product_id');
+
+            $snapshotStockIds = $items->flatMap(function ($item): array {
+                return collect($item->ingredients_snapshot ?? [])
+                    ->filter(fn ($ingredient): bool =>
+                        !array_key_exists('unit_cost', $ingredient)
+                        || $ingredient['unit_cost'] === null
+                        || (float) $ingredient['unit_cost'] <= 0
+                    )
+                    ->pluck('stock_item_id')
+                    ->filter()
+                    ->all();
+            })->unique()->values();
+            $currentStockCosts = $snapshotStockIds->isEmpty()
+                ? collect()
+                : DB::table('stock_items')
+                    ->where('business_id', $businessId)
+                    ->whereIn('id', $snapshotStockIds)
+                    ->pluck('unit_cost', 'id');
+
+            foreach ($batch as $order) {
+                foreach ($order->items as $item) {
+                    // A confirmed refund removes the sale. If stock was returned,
+                    // it also removes the product cost; otherwise the consumed
+                    // ingredients remain a real cost with zero net sales.
+                    if ($order->payment_status === 'refunded' && $order->refund_restocked) {
+                        continue;
+                    }
+
+                    $productId = (string) $item->product_id;
+                    $quantity = max(0, (int) $item->quantity);
+                    $lineSales = $order->payment_status !== 'refunded' && (float) $order->subtotal > 0
+                        ? (float) $item->subtotal * (float) $order->total / (float) $order->subtotal
+                        : 0.0;
+                    $snapshot = $item->ingredients_snapshot;
+                    $recipe = is_array($snapshot)
+                        ? collect($snapshot)
+                        : collect($currentRecipes->get($item->product_id, []))->map(fn ($ingredient): array => [
+                            'stock_item_id' => $ingredient->stock_item_id,
+                            'quantity' => $ingredient->quantity,
+                            'unit_cost' => $ingredient->unit_cost,
+                        ]);
+
+                    $hasRecipe = $recipe->isNotEmpty();
+                    $recipeCostPerUnit = 0.0;
+                    $recipeCostComplete = $hasRecipe;
+                    $recipeCostUsesCurrentValues = !is_array($snapshot);
+
+                    foreach ($recipe as $ingredient) {
+                        $unitCost = $ingredient['unit_cost'] ?? null;
+                        if ($unitCost === null || (float) $unitCost <= 0) {
+                            $unitCost = $currentStockCosts->get($ingredient['stock_item_id'] ?? null);
+                            $recipeCostUsesCurrentValues = true;
+                        }
+                        if ($unitCost === null || (float) $unitCost <= 0) {
+                            $recipeCostComplete = false;
+                            continue;
+                        }
+
+                        $recipeCostPerUnit += (float) ($ingredient['quantity'] ?? 0) * (float) $unitCost;
+                    }
+
+                    $ingredientLineCost = $recipeCostComplete
+                        ? $recipeCostPerUnit * $quantity
+                        : null;
+                    $productCostPerUnit = null;
+                    $costBasis = null;
+                    if ($recipeCostComplete) {
+                        $productCostPerUnit = $recipeCostPerUnit;
+                        $costBasis = $recipeCostUsesCurrentValues ? 'Estimated recipe cost' : 'Recipe cost';
+                    } else {
+                        $snapshotProductCost = $item->product_cost_snapshot;
+                        $currentProductCost = $currentProductCosts->get($item->product_id);
+                        if ($snapshotProductCost !== null && (float) $snapshotProductCost > 0) {
+                            $productCostPerUnit = (float) $snapshotProductCost;
+                            $costBasis = 'Configured product cost';
+                        } elseif ($currentProductCost !== null && (float) $currentProductCost > 0) {
+                            $productCostPerUnit = (float) $currentProductCost;
+                            $costBasis = 'Estimated product cost';
+                        }
+                    }
+
+                    $costAmount = $productCostPerUnit === null ? null : $productCostPerUnit * $quantity;
+                    if (!isset($products[$productId])) {
+                        $products[$productId] = [
+                            'ingredient_cost' => 0.0,
+                            'has_recipe' => false,
+                            'cost_amount' => 0.0,
+                            'costed_sales' => 0.0,
+                            'all_costed' => true,
+                            'cost_bases' => [],
+                        ];
+                    }
+
+                    if ($hasRecipe && $ingredientLineCost !== null) {
+                        $products[$productId]['ingredient_cost'] += $ingredientLineCost;
+                        $products[$productId]['has_recipe'] = true;
+                        $ingredientCostTotal += $ingredientLineCost;
+                        $ingredientCostedSalesTotal += $lineSales;
+                    }
+                    if ($hasRecipe && $recipeCostUsesCurrentValues) {
+                        $ingredientCostEstimated = true;
+                    }
+
+                    if ($costAmount === null) {
+                        $products[$productId]['all_costed'] = false;
+                        continue;
+                    }
+
+                    $products[$productId]['cost_amount'] += $costAmount;
+                    $products[$productId]['costed_sales'] += $lineSales;
+                    $products[$productId]['cost_bases'][$costBasis] = true;
+                    $costedSalesTotal += $lineSales;
+                    $grossMarginTotal += $lineSales - $costAmount;
+                }
+            }
+        });
+
+        foreach ($products as &$product) {
+            $product['fully_costed'] = $product['all_costed'];
+            $product['cost_basis'] = count($product['cost_bases']) > 1
+                ? 'Mixed cost basis'
+                : (array_key_first($product['cost_bases']) ?? 'Missing cost');
+            unset($product['all_costed'], $product['cost_bases'], $product['costed_sales']);
+        }
+        unset($product);
+
+        return [
+            'products' => $products,
+            'ingredient_cost' => $ingredientCostTotal,
+            'ingredient_costed_sales' => min($ingredientCostedSalesTotal, $eligibleSales),
+            'gross_margin' => $grossMarginTotal,
+            'costed_sales' => min($costedSalesTotal, $eligibleSales),
+            'ingredient_cost_estimated' => $ingredientCostEstimated,
+        ];
+    }
+
+    private function wasteCostSummary(int $businessId, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $query = StockMovement::query()
+            ->join('stock_items', 'stock_items.id', '=', 'stock_movements.stock_item_id')
+            ->where('stock_items.business_id', $businessId)
+            ->where('stock_movements.type', 'out')
+            ->where('stock_movements.movement_category', 'waste')
+            ->whereNull('stock_movements.reversal_of_id')
+            ->whereBetween('stock_movements.created_at', [$start, $end]);
+
+        $costExpression = 'COALESCE(NULLIF(stock_movements.unit_cost_at_movement, 0), NULLIF(stock_items.unit_cost, 0), 0)';
+        $total = (float) (clone $query)
+            ->selectRaw("COALESCE(SUM(stock_movements.quantity * $costExpression), 0) as total")
+            ->value('total');
+        $estimated = (clone $query)
+            ->where(function ($builder): void {
+                $builder->whereNull('stock_movements.unit_cost_at_movement')
+                    ->orWhere('stock_movements.unit_cost_at_movement', '<=', 0)
+                    ->orWhere('stock_items.unit_cost', '<=', 0);
+            })->exists();
+        $items = (clone $query)
+            ->select('stock_items.id as stock_item_id', 'stock_items.name', 'stock_items.unit')
+            ->selectRaw('SUM(stock_movements.quantity) as quantity')
+            ->selectRaw("SUM(stock_movements.quantity * $costExpression) as cost")
+            ->groupBy('stock_items.id', 'stock_items.name', 'stock_items.unit')
+            ->orderByDesc('cost')
+            ->limit(5)
+            ->get();
+
+        return [
+            'total' => round($total, 2),
+            'estimated' => $estimated,
+            'items' => $items,
+        ];
+    }
+
+    public function wasteCostsForOwner(User $owner, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        abort_unless($owner->business_id, 403, 'An active business is required to view owner metrics.');
+
+        return $this->wasteCostSummary((int) $owner->business_id, $start, $end);
     }
 
     private function ledgerSummary(int $businessId, CarbonImmutable $start, CarbonImmutable $end): array

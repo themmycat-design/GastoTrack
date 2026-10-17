@@ -3,6 +3,7 @@
 <head>
     <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('layouts.owner-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <title>Order details | GastoTrack</title>
 </head>
@@ -30,7 +31,7 @@
     @include('layouts.owner-navigation')
     <main class="min-w-0 flex-1">
         @include('layouts.owner-topbar')
-        <div class="mx-auto max-w-[1600px] space-y-5 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <a href="{{ route('orders.index') }}" class="gt-focus inline-flex items-center gap-2 text-sm font-bold text-[#08745D] hover:underline">← Back to orders</a>
 
             <section class="gt-card gt-enter p-5 sm:p-7">

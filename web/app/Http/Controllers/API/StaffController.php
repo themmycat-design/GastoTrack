@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Rules\PasswordStrength;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -14,7 +15,12 @@ class StaffController extends Controller
     public function show(Request $request, $id) { $this->owner($request); return response()->json(['staff' => User::where('business_id', $request->user()->business_id)->where('role', 'staff')->findOrFail($id)]); }
     public function store(Request $request)
     {
-        $this->owner($request); $data = $request->validate(['name' => 'required|string|max:255', 'email' => 'required|email|unique:users,email', 'phone' => 'nullable|string|max:30', 'password' => 'required|string|min:8|confirmed']);
+        $this->owner($request); $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'phone' => 'nullable|string|max:30',
+            'password' => ['required', 'confirmed', new PasswordStrength()],
+        ]);
         $staff = User::create([
             'name' => $data['name'],
             'email' => $data['email'],

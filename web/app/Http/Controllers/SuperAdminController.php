@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\User;
+use App\Rules\PasswordStrength;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class SuperAdminController extends Controller
@@ -58,10 +61,12 @@ class SuperAdminController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhereHas('owner', function($q) use ($search) {
-                      $q->where('name', 'like', "%{$search}%");
+                      $q->whereNotNull('email_verified_at')
+                        ->where('name', 'like', "%{$search}%");
                   })
                   ->orWhereHas('assignedOwner', function($q) use ($search) {
-                      $q->where('name', 'like', "%{$search}%");
+                      $q->whereNotNull('email_verified_at')
+                        ->where('name', 'like', "%{$search}%");
                   });
             });
         }
@@ -90,7 +95,12 @@ class SuperAdminController extends Controller
 
     public function create()
     {
-        return view('super-admin.business-form', ['business' => new Business()]);
+        return view('super-admin.business-form', [
+            'business' => new Business(),
+            'ownerAccountForForm' => null,
+            'ownerDetailsHidden' => false,
+            'ownerEmailVerified' => false,
+        ]);
     }
 
     public function store(Request $request)
@@ -100,11 +110,16 @@ class SuperAdminController extends Controller
             'owner_name' => ['required', 'string', 'max:255'],
             'owner_email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'owner_phone' => ['nullable', 'string', 'max:50'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'confirmed', new PasswordStrength()],
         ]);
 
-        $business = DB::transaction(function () use ($validated, $ownerData) {
-            $validated['active'] = $validated['status'] === 'active';
+        [$business, $owner] = DB::transaction(function () use ($validated, $ownerData) {
+            // A newly created owner must verify their email before the business
+            // can be approved, regardless of the status selected in the form.
+            if ($validated['status'] === 'active') {
+                $validated['status'] = 'pending';
+            }
+            $validated['active'] = false;
             $business = Business::create($validated);
             $owner = User::create([
                 'name' => $ownerData['owner_name'],
@@ -114,42 +129,62 @@ class SuperAdminController extends Controller
                 'role' => 'owner',
                 'status' => 'active',
                 'business_id' => $business->id,
-                'email_verified_at' => now(),
             ]);
             $business->update(['owner_id' => $owner->id]);
 
-            return $business;
+            return [$business, $owner];
         });
 
+        event(new Registered($owner));
+
         return redirect()->route('super-admin.businesses.show', $business)
-            ->with('success', 'Business and owner account created.');
+            ->with('success', 'Business and owner account created. The owner must verify their email before approval.');
     }
 
     public function edit(Business $business)
     {
         $business->load('owner', 'assignedOwner');
+        $owner = $business->owner_account;
+        $ownerEmailVerified = $owner?->hasVerifiedEmail() ?? false;
+        $ownerDetailsHidden = $owner !== null && ! $owner->hasVerifiedEmail();
+        $ownerAccountForForm = $ownerDetailsHidden ? null : $owner;
 
-        return view('super-admin.business-form', compact('business'));
+        return view('super-admin.business-form', compact('business', 'ownerAccountForForm', 'ownerDetailsHidden', 'ownerEmailVerified'));
     }
 
     public function update(Request $request, Business $business)
     {
         $validated = $this->validateBusiness($request);
         $owner = $business->owner_account;
-        $ownerData = $request->validate([
+        $ownerEmailVerified = $owner?->hasVerifiedEmail() ?? false;
+        $ownerData = $ownerEmailVerified ? $request->validate([
             'owner_name' => ['required', 'string', 'max:255'],
-            'owner_email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($owner?->id)],
+            'owner_email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($owner->id)],
             'owner_phone' => ['nullable', 'string', 'max:50'],
-        ]);
+        ]) : [];
 
-        DB::transaction(function () use ($business, $validated, $owner, $ownerData) {
+        $ownerEmailChanging = $ownerEmailVerified && $request->input('owner_email') !== $owner->email;
+
+        if ($validated['status'] === 'active' && $business->status !== 'active' && (! $ownerEmailVerified || $ownerEmailChanging)) {
+            return back()->withInput()->with('error', 'The business owner must verify their email before this business can be activated.');
+        }
+
+        DB::transaction(function () use ($business, $validated, $owner, $ownerData, $ownerEmailVerified) {
             $validated['active'] = $validated['status'] === 'active';
             $business->update($validated);
-            $owner?->update([
-                'name' => $ownerData['owner_name'],
-                'email' => $ownerData['owner_email'],
-                'phone' => $ownerData['owner_phone'] ?? null,
-            ]);
+
+            if ($owner && $ownerEmailVerified) {
+                $emailChanged = $owner->email !== $ownerData['owner_email'];
+                $owner->update([
+                    'name' => $ownerData['owner_name'],
+                    'email' => $ownerData['owner_email'],
+                    'phone' => $ownerData['owner_phone'] ?? null,
+                ]);
+
+                if ($emailChanged) {
+                    $owner->forceFill(['email_verified_at' => null])->save();
+                }
+            }
         });
 
         if ($business->status !== 'active') {
@@ -184,15 +219,79 @@ class SuperAdminController extends Controller
             ->with('success', 'Business restored as inactive. Review it before reactivation.');
     }
 
+    public function forceDestroy(int $business)
+    {
+        $record = Business::onlyTrashed()->findOrFail($business);
+
+        DB::transaction(function () use ($record): void {
+            $this->revokeBusinessTokens($record);
+
+            // These audit tables restrict business deletion; remove only this
+            // tenant's rows so the rest of the business data can cascade away.
+            DB::table('order_payment_events')->where('business_id', $record->id)->delete();
+            $bugScreenshotPaths = DB::table('bug_reports')
+                ->where('business_id', $record->id)
+                ->whereNotNull('screenshot_path')
+                ->pluck('screenshot_path');
+            DB::table('bug_reports')->where('business_id', $record->id)->delete();
+
+            // Clear restrictive child references before the business cascade
+            // removes its products, orders, and stock items.
+            $transactionIds = DB::table('transactions')->where('business_id', $record->id)->pluck('id');
+            DB::table('transactions')
+                ->where('business_id', $record->id)
+                ->whereIn('reversal_of_id', $transactionIds)
+                ->update(['reversal_of_id' => null]);
+            DB::table('transactions')->whereIn('id', $transactionIds)->delete();
+
+            $orderIds = DB::table('orders')->where('business_id', $record->id)->pluck('id');
+            DB::table('order_items')->whereIn('order_id', $orderIds)->delete();
+
+            $stockItemIds = DB::table('stock_items')->where('business_id', $record->id)->pluck('id');
+            if ($stockItemIds->isNotEmpty()) {
+                $movementIds = DB::table('stock_movements')
+                    ->whereIn('stock_item_id', $stockItemIds)
+                    ->pluck('id');
+
+                DB::table('stock_movements')
+                    ->whereIn('stock_item_id', $stockItemIds)
+                    ->whereIn('reversal_of_id', $movementIds)
+                    ->update(['reversal_of_id' => null]);
+                DB::table('stock_movements')->whereIn('id', $movementIds)->delete();
+            }
+
+            // Tenant-owned users, orders, inventory, and financial records are
+            // removed by their configured foreign-key cascades.
+            $record->forceDelete();
+
+            DB::afterCommit(fn () => Storage::disk('local')->delete($bugScreenshotPaths->all()));
+        });
+
+        return redirect()->route('super-admin.businesses', ['archived' => 1])
+            ->with('success', 'The archived business and its associated records were permanently deleted.');
+    }
+
     /**
      * Show business details
      */
     public function show(Business $business)
     {
         $business->load('owner', 'assignedOwner');
+        $owner = $business->owner_account;
+        $ownerEmailVerified = $owner?->hasVerifiedEmail() ?? false;
+        $ownerAccountExists = $owner !== null;
+        $ownerDetailsHidden = $ownerAccountExists && ! $ownerEmailVerified;
+        $ownerAccountForDisplay = $ownerEmailVerified ? $owner : null;
         $staffCount = $business->users()->where('role', 'staff')->count();
 
-        return view('super-admin.show', compact('business', 'staffCount'));
+        return view('super-admin.show', compact(
+            'business',
+            'staffCount',
+            'ownerEmailVerified',
+            'ownerAccountExists',
+            'ownerDetailsHidden',
+            'ownerAccountForDisplay',
+        ));
     }
 
     /**
@@ -200,6 +299,10 @@ class SuperAdminController extends Controller
      */
     public function approve(Business $business)
     {
+        if (! ($business->owner_account?->hasVerifiedEmail() ?? false)) {
+            return redirect()->back()->with('error', 'The business owner must verify their email before this business can be approved.');
+        }
+
         $business->update([
             'status' => 'active',
             'active' => true,
@@ -234,6 +337,10 @@ class SuperAdminController extends Controller
      */
     public function reactivate(Business $business)
     {
+        if (! ($business->owner_account?->hasVerifiedEmail() ?? false)) {
+            return redirect()->back()->with('error', 'The business owner must verify their email before this business can be reactivated.');
+        }
+
         $business->update([
             'status' => 'active',
             'active' => true,

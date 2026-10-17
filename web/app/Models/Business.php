@@ -34,6 +34,20 @@ class Business extends Model
         return $this->owner ?? $this->assignedOwner;
     }
 
+    public function getVerifiedOwnerAccountAttribute(): ?User
+    {
+        $owner = $this->owner_account;
+
+        return $owner?->hasVerifiedEmail() ? $owner : null;
+    }
+
+    public function getOwnerEmailVerificationPendingAttribute(): bool
+    {
+        $owner = $this->owner_account;
+
+        return $owner !== null && ! $owner->hasVerifiedEmail();
+    }
+
     public function users()
     {
         return $this->hasMany(User::class);
@@ -64,9 +78,9 @@ class Business extends Model
         return $this->hasMany(Goal::class);
     }
 
-    public function violationReports()
+    public function bugReports()
     {
-        return $this->hasMany(ViolationReport::class);
+        return $this->hasMany(BugReport::class);
     }
 
     // Status helper methods

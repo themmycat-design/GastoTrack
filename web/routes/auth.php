@@ -5,6 +5,8 @@ use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\OwnerTwoFactorChallengeController;
+use App\Http\Controllers\Auth\OwnerTwoFactorController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -35,6 +37,14 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
+Route::get('two-factor-challenge', [OwnerTwoFactorChallengeController::class, 'create'])
+    ->middleware(['guest', 'throttle:6,1'])
+    ->name('two-factor.login');
+
+Route::post('two-factor-challenge', [OwnerTwoFactorChallengeController::class, 'store'])
+    ->middleware(['guest', 'throttle:6,1'])
+    ->name('two-factor.login.store');
+
 Route::middleware('auth')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
@@ -57,3 +67,17 @@ Route::middleware('auth')->group(function () {
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
 });
+
+Route::middleware(['auth', 'verified', 'owner', 'owner.security'])
+    ->prefix('owner/two-factor')
+    ->name('owner.two-factor.')
+    ->group(function (): void {
+        Route::get('/setup', [OwnerTwoFactorController::class, 'setup'])->name('setup');
+        Route::post('/setup/confirm', [OwnerTwoFactorController::class, 'confirm'])
+            ->middleware('throttle:6,1')
+            ->name('confirm');
+        Route::get('/recovery-codes', [OwnerTwoFactorController::class, 'recoveryCodes'])
+            ->name('recovery-codes');
+        Route::post('/recovery-codes/acknowledge', [OwnerTwoFactorController::class, 'acknowledgeRecoveryCodes'])
+            ->name('recovery-codes.acknowledge');
+    });

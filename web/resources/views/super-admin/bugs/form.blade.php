@@ -1,0 +1,24 @@
+@extends('layouts.super-admin')
+@section('title', 'Update bug report')
+@section('content')
+<div class="mb-8"><a href="{{ route('super-admin.bug-reports.index') }}" class="text-sm font-medium text-emerald-700">&larr; Bugs reports</a><h1 class="mt-2 text-3xl font-bold">Update bug report</h1></div>
+@if($errors->any())<div role="alert" class="mx-auto mb-5 max-w-3xl rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">{{ $errors->first() }}</div>@endif
+<form method="POST" enctype="multipart/form-data" action="{{ route('super-admin.bug-reports.update', $report) }}" class="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    @csrf @method('PUT')
+    @if($report->is_legacy)<div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Converted from a previous violation report. Original category: <strong>{{ str_replace('_', ' ', $report->category) }}</strong></div>@endif
+    <div class="grid gap-5 sm:grid-cols-2">
+        <label class="text-sm font-medium">Business<select name="business_id" required class="mt-1 w-full rounded-lg border-slate-300"><option value="">Select business</option>@foreach($businesses as $business)<option value="{{ $business->id }}" @selected((string) old('business_id', $report->business_id) === (string) $business->id)>{{ $business->name }}{{ $business->trashed() ? ' (archived)' : '' }}</option>@endforeach</select></label>
+        <label class="text-sm font-medium">Area<select name="area" required class="mt-1 w-full rounded-lg border-slate-300"><option value="">Select area</option>@foreach(\App\Models\BugReport::AREAS as $area)<option value="{{ $area }}" @selected(old('area', $report->area) === $area)>{{ ucwords(str_replace('_', ' ', $area)) }}</option>@endforeach</select></label>
+        <label class="sm:col-span-2 text-sm font-medium">Title<input name="subject" required maxlength="255" value="{{ old('subject', $report->subject) }}" class="mt-1 w-full rounded-lg border-slate-300"></label>
+        <label class="sm:col-span-2 text-sm font-medium">Description<textarea name="description" required maxlength="5000" rows="5" class="mt-1 w-full rounded-lg border-slate-300">{{ old('description', $report->description) }}</textarea></label>
+        <label class="sm:col-span-2 text-sm font-medium">Steps to reproduce<textarea name="steps_to_reproduce" maxlength="5000" rows="4" class="mt-1 w-full rounded-lg border-slate-300">{{ old('steps_to_reproduce', $report->steps_to_reproduce) }}</textarea></label>
+        <label class="sm:col-span-2 text-sm font-medium">Screenshot <span class="font-normal text-slate-500">Optional · JPEG, PNG, or WebP up to 5 MB</span><input type="file" name="screenshot" accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full rounded-lg border border-slate-300 p-2"><span class="mt-1 block text-xs text-slate-500">Screenshots are private and visible to authorized report viewers.</span></label>
+        @if($report->has_screenshot)<div class="sm:col-span-2"><a target="_blank" href="{{ route('super-admin.bug-reports.screenshot', $report) }}" class="text-sm font-semibold text-emerald-700 underline">View current screenshot</a></div>@endif
+        <label class="text-sm font-medium">Priority<select name="priority" required class="mt-1 w-full rounded-lg border-slate-300">@foreach(\App\Models\BugReport::PRIORITIES as $value)<option value="{{ $value }}" @selected(old('priority', $report->priority ?: 'medium') === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
+        <label class="text-sm font-medium">Status<select name="status" required class="mt-1 w-full rounded-lg border-slate-300">@foreach(\App\Models\BugReport::STATUSES as $value)<option value="{{ $value }}" @selected(old('status', $report->status ?: 'open') === $value)>{{ ucwords(str_replace('_', ' ', $value)) }}</option>@endforeach</select></label>
+        <label class="sm:col-span-2 text-sm font-medium">Update for reporter<textarea name="public_update" maxlength="5000" rows="3" class="mt-1 w-full rounded-lg border-slate-300">{{ old('public_update', $report->public_update) }}</textarea><span class="mt-1 block text-xs font-normal text-slate-500">Visible to the owner and the staff member who submitted the report.</span></label>
+        <label class="sm:col-span-2 text-sm font-medium">Internal resolution notes<textarea name="resolution_notes" maxlength="5000" rows="3" class="mt-1 w-full rounded-lg border-slate-300">{{ old('resolution_notes', $report->resolution_notes) }}</textarea><span class="mt-1 block text-xs font-normal text-slate-500">Visible to Super Admins only.</span></label>
+    </div>
+    <div class="mt-6 flex justify-end gap-3"><a href="{{ route('super-admin.bug-reports.index') }}" class="rounded-lg border px-5 py-3 font-medium">Cancel</a><button class="rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white">Save report</button></div>
+</form>
+@endsection

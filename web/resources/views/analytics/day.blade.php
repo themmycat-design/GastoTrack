@@ -4,6 +4,7 @@
     <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('layouts.owner-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <title>{{ $day->format('M j, Y') }} | Analytics | GastoTrack</title>
 </head>
@@ -20,7 +21,7 @@
                 <p class="mt-2 text-sm text-slate-500">Transactions are grouped by their recorded date. Orders are included if placed, completed, or financially committed on this day; ingredient use comes from order-linked stock movements made on this day.</p>
             </header>
 
-            <section class="grid gap-4 sm:grid-cols-2" aria-label="Recorded financial totals">
+            <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Recorded and operational totals">
                 <div class="gt-card p-5 sm:p-6">
                     <p class="text-sm font-semibold text-slate-500">Recorded income</p>
                     <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format($income, 2) }}</p>
@@ -28,6 +29,11 @@
                 <div class="gt-card p-5 sm:p-6">
                     <p class="text-sm font-semibold text-slate-500">Recorded expenses</p>
                     <p class="mt-2 text-2xl font-extrabold text-rose-600">{{ $currencyPrefix }}{{ number_format($expenses, 2) }}</p>
+                </div>
+                <div class="gt-card p-5 sm:p-6">
+                    <p class="text-sm font-semibold text-slate-500">Recorded waste cost</p>
+                    <p class="mt-2 text-2xl font-extrabold text-amber-700">{{ $currencyPrefix }}{{ number_format((float) $wasteCost, 2) }}</p>
+                    <p class="mt-2 text-xs text-slate-400">@if($wasteCostEstimated) Some waste costs use current inventory cost when available @else Explicitly marked waste / spoilage @endif</p>
                 </div>
             </section>
 

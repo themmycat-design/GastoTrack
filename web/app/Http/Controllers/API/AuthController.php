@@ -4,43 +4,13 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Business;
+use App\Rules\PasswordStrength;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
-    // ----------------------------------------------------------------
-    // Register — creates user + business in one step
-    // ----------------------------------------------------------------
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name'          => 'required|string|max:255',
-            'email'         => 'required|email|unique:users,email',
-            'password'      => 'required|string|min:8|confirmed',
-            'business_name' => 'required|string|max:255',
-        ]);
-
-        [$user, $business] = DB::transaction(function () use ($request) {
-            $business = Business::create(['name' => $request->business_name, 'status' => 'pending', 'active' => false]);
-            $user = User::create(['name' => $request->name, 'email' => $request->email, 'password' => Hash::make($request->password), 'role' => 'owner', 'business_id' => $business->id, 'status' => 'active']);
-            $business->update(['owner_id' => $user->id]);
-            return [$user, $business];
-        });
-
-        $token = $user->createToken('gastotrack-mobile')->plainTextToken;
-
-        return response()->json([
-            'message'  => 'Registration successful',
-            'user'     => $this->formatUser($user),
-            'business' => $business,
-            'token'    => $token,
-        ], 201);
-    }
-
     // ----------------------------------------------------------------
     // Login
     // ----------------------------------------------------------------
@@ -60,7 +30,7 @@ class AuthController extends Controller
         }
 
         abort_if($user->status !== 'active', 403, 'This account is inactive. Contact your business owner.');
-        abort_if($user->isSuperAdmin(), 403, 'Super Administrators sign in through the desktop web portal.');
+        abort_if(!$user->isStaff(), 403, 'Only staff accounts can sign in through the GastoTrack mobile app.');
 
         $business = $user->business;
         abort_if(!$business, 403, 'This staff account is not assigned to a business.');
@@ -112,13 +82,18 @@ class AuthController extends Controller
 
     public function refresh(Request $request)
     {
+        abort_if(!$request->user()->isStaff(), 403, 'Only staff accounts can use mobile access tokens.');
         $request->user()->currentAccessToken()?->delete();
         return response()->json(['token' => $request->user()->createToken('gastotrack-mobile')->plainTextToken]);
     }
 
     public function changePassword(Request $request)
     {
-        $data = $request->validate(['current_password' => 'required|current_password', 'password' => 'required|string|min:8|confirmed']);
+        abort_if(!$request->user()->isStaff(), 403, 'Only staff accounts can use mobile access tokens.');
+        $data = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'confirmed', new PasswordStrength()],
+        ]);
         $request->user()->update(['password' => Hash::make($data['password'])]);
         $request->user()->tokens()->delete();
         return response()->json(['message' => 'Password changed', 'token' => $request->user()->createToken('gastotrack-mobile')->plainTextToken]);

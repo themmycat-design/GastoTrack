@@ -5,11 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Inventory | GastoTrack</title>
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet">
+    @include('layouts.owner-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased" style="font-family: Inter, ui-sans-serif, system-ui, sans-serif">
+<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased">
     <div class="min-h-screen lg:flex">
         @include('layouts.owner-navigation')
 
@@ -277,11 +276,14 @@
     </div>
 
     <!-- Add/Edit Stock Modal -->
-    <div id="stockModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
-        <div class="gt-card w-full max-w-2xl p-5 shadow-2xl sm:p-7">
-            <div class="flex justify-between items-center mb-4">
-                <h2 id="modalTitle" class="text-2xl font-extrabold text-[#0A2E2A]">Add Stock Item</h2>
-                <button onclick="closeStockModal()" class="text-gray-400 hover:text-gray-600">
+    <div id="stockModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+        <div class="gt-card my-auto max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto p-5 shadow-2xl sm:p-7">
+            <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Inventory management</p>
+                    <h2 id="modalTitle" class="mt-1 text-xl font-extrabold text-[#0A2E2A] sm:text-2xl">Add stock item</h2>
+                </div>
+                <button type="button" onclick="closeStockModal()" aria-label="Close stock form" class="gt-focus flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F4F8F7] text-xl text-slate-500 transition hover:bg-[#EAF8F2] hover:text-[#08745D]">
                     <span class="text-2xl">&times;</span>
                 </button>
             </div>
@@ -291,55 +293,51 @@
                 <input type="hidden" id="stockId" name="stock_id">
                 <input type="hidden" id="formMethod" name="_method">
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
                     <!-- Item Name -->
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Item Name *</label>
-                        <input type="text" id="name" name="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="e.g., Milk Powder">
+                    <div class="sm:col-span-2">
+                        <label for="name" class="gt-label">Item name <span class="text-rose-600">*</span></label>
+                        <input type="text" id="name" name="name" required class="gt-field" placeholder="e.g., Milk Powder">
                     </div>
 
                     <!-- Unit -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Unit *</label>
-                        <input type="text" id="unit" name="unit" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="e.g., kg, liters, pieces">
+                        <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
+                        <input type="text" id="unit" name="unit" required class="gt-field" placeholder="e.g., kg, liters, pieces">
                     </div>
 
                     <!-- Unit Cost -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Unit Cost *</label>
-                        <input type="number" id="unit_cost" name="unit_cost" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="0.00">
+                        <label for="unit_cost" class="gt-label">Unit cost <span class="text-rose-600">*</span></label>
+                        <input type="number" id="unit_cost" name="unit_cost" step="0.01" required class="gt-field" placeholder="0.00">
                     </div>
 
                     <!-- Current Quantity -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Current Quantity *</label>
-                        <input type="number" id="current_quantity" name="current_quantity" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="0.00">
-                        <p id="quantity_help" class="hidden text-xs text-gray-500 mt-1">Use Adjust to change quantity after an item has been created.</p>
+                        <label for="current_quantity" class="gt-label">Current quantity <span class="text-rose-600">*</span></label>
+                        <input type="number" id="current_quantity" name="current_quantity" step="0.01" required class="gt-field" placeholder="0.00">
+                        <p id="quantity_help" class="mt-1 hidden text-xs text-slate-500">Use Adjust to change quantity after an item has been created.</p>
                     </div>
 
                     <!-- Minimum Quantity -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Minimum Quantity *</label>
-                        <input type="number" id="minimum_quantity" name="minimum_quantity" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="0.00">
+                        <label for="minimum_quantity" class="gt-label">Minimum quantity <span class="text-rose-600">*</span></label>
+                        <input type="number" id="minimum_quantity" name="minimum_quantity" step="0.01" required class="gt-field" placeholder="0.00">
                     </div>
 
                     <!-- Active Status -->
-                    <div class="md:col-span-2">
-                        <label class="flex items-center">
-                            <input type="checkbox" id="active" name="active" value="1" checked class="w-4 h-4 rounded" style="color: #00C897;">
-                            <span class="ml-2 text-sm font-medium text-gray-700">Item is active</span>
+                    <div class="sm:col-span-2">
+                        <label class="flex cursor-pointer items-center gap-2.5 rounded-xl border border-[#DDE9E5] bg-[#F8FCFA] px-4 py-3 text-sm font-semibold text-[#173F39]">
+                            <input type="checkbox" id="active" name="active" value="1" checked class="gt-field">
+                            Item is active
                         </label>
                     </div>
                 </div>
 
                 <!-- Buttons -->
-                <div class="flex space-x-3 mt-6">
-                    <button type="submit" class="gt-focus flex-1 rounded-xl bg-[#00A87E] px-5 py-3 font-bold text-white transition hover:bg-[#08745D]">
-                        Save Stock Item
-                    </button>
-                    <button type="button" onclick="closeStockModal()" class="gt-focus flex-1 rounded-xl border border-[#C8DED7] bg-white px-5 py-3 font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
-                        Cancel
-                    </button>
+                <div class="mt-6 flex flex-col-reverse gap-3 border-t border-[#EAF2EF] pt-5 sm:flex-row">
+                    <button type="button" onclick="closeStockModal()" class="gt-focus gt-btn-secondary flex-1">Cancel</button>
+                    <button type="submit" class="gt-focus gt-btn-primary flex-1">Save stock item</button>
                 </div>
             </form>
         </div>
@@ -348,9 +346,12 @@
     <!-- Adjust Stock Modal -->
     <div id="adjustModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
         <div class="gt-card w-full max-w-md p-5 shadow-2xl sm:p-7">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold text-gray-900">Adjust Stock</h2>
-                <button onclick="closeAdjustModal()" class="text-gray-400 hover:text-gray-600">
+            <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Inventory management</p>
+                    <h2 class="mt-1 text-xl font-extrabold text-[#0A2E2A] sm:text-2xl">Adjust stock</h2>
+                </div>
+                <button type="button" onclick="closeAdjustModal()" aria-label="Close adjustment form" class="gt-focus flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F4F8F7] text-xl text-slate-500 transition hover:bg-[#EAF8F2] hover:text-[#08745D]">
                     <span class="text-2xl">&times;</span>
                 </button>
             </div>
@@ -367,34 +368,39 @@
 
                 <!-- Adjustment Type -->
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Adjustment Type *</label>
-                    <select id="adjust_type" name="type" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
+                    <label for="adjust_type" class="gt-label">Adjustment type <span class="text-rose-600">*</span></label>
+                    <select id="adjust_type" name="type" required class="gt-field">
                         <option value="add">Add Stock</option>
                         <option value="subtract">Subtract Stock</option>
                         <option value="set">Set Quantity</option>
                     </select>
                 </div>
 
+                <div id="adjust_category_wrapper" class="mb-4 hidden">
+                    <label for="adjust_movement_category" class="gt-label">Deduction type</label>
+                    <select id="adjust_movement_category" name="movement_category" class="gt-field">
+                        <option value="adjustment">Stock count correction</option>
+                        <option value="waste">Waste / spoilage</option>
+                    </select>
+                    <p class="mt-1 text-xs text-slate-500">Choose waste only for ingredients discarded or spoiled. It will be counted separately in Analytics.</p>
+                </div>
+
                 <!-- Quantity -->
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
-                    <input type="number" id="adjust_quantity" name="quantity" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="0.00">
+                    <label for="adjust_quantity" class="gt-label">Quantity <span class="text-rose-600">*</span></label>
+                    <input type="number" id="adjust_quantity" name="quantity" step="0.01" required class="gt-field" placeholder="0.00">
                 </div>
 
                 <!-- Reason -->
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Reason</label>
-                    <textarea id="adjust_reason" name="reason" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="Optional notes..."></textarea>
+                    <label for="adjust_reason" class="gt-label">Reason</label>
+                    <textarea id="adjust_reason" name="reason" rows="3" class="gt-field" placeholder="Optional notes..."></textarea>
                 </div>
 
                 <!-- Buttons -->
-                <div class="flex space-x-3">
-                    <button type="submit" class="gt-focus flex-1 rounded-xl bg-[#00A87E] px-5 py-3 font-bold text-white transition hover:bg-[#08745D]">
-                        Apply Adjustment
-                    </button>
-                    <button type="button" onclick="closeAdjustModal()" class="gt-focus flex-1 rounded-xl border border-[#C8DED7] bg-white px-5 py-3 font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
-                        Cancel
-                    </button>
+                <div class="flex flex-col-reverse gap-3 border-t border-[#EAF2EF] pt-5 sm:flex-row">
+                    <button type="button" onclick="closeAdjustModal()" class="gt-focus gt-btn-secondary flex-1">Cancel</button>
+                    <button type="submit" class="gt-focus gt-btn-primary flex-1">Apply adjustment</button>
                 </div>
             </form>
         </div>
@@ -467,6 +473,8 @@
             document.getElementById('adjust_item_name').textContent = name;
             document.getElementById('adjust_current_qty').textContent = parseFloat(currentQty).toFixed(2);
             document.getElementById('adjust_type').value = 'add';
+            document.getElementById('adjust_movement_category').value = 'adjustment';
+            updateAdjustmentCategoryVisibility();
             document.getElementById('adjust_quantity').value = '';
             document.getElementById('adjust_reason').value = '';
             document.getElementById('adjustModal').classList.remove('hidden');
@@ -483,6 +491,7 @@
             const type = document.getElementById('adjust_type').value;
             const quantity = document.getElementById('adjust_quantity').value;
             const reason = document.getElementById('adjust_reason').value;
+            const movementCategory = document.getElementById('adjust_movement_category').value;
             
             fetch('/stock/' + stockId + '/adjust', {
                 method: 'POST',
@@ -494,7 +503,8 @@
                 body: JSON.stringify({
                     type: type,
                     quantity: quantity,
-                    reason: reason
+                    reason: reason,
+                    movement_category: movementCategory
                 })
             })
             .then(async response => {
@@ -515,6 +525,15 @@
                 alert(error.message || 'Unable to adjust stock.');
             });
         }
+
+        function updateAdjustmentCategoryVisibility() {
+            const wrapper = document.getElementById('adjust_category_wrapper');
+            const isDeduction = document.getElementById('adjust_type').value === 'subtract';
+            wrapper.classList.toggle('hidden', !isDeduction);
+            if (!isDeduction) document.getElementById('adjust_movement_category').value = 'adjustment';
+        }
+
+        document.getElementById('adjust_type').addEventListener('change', updateAdjustmentCategoryVisibility);
 
         function deleteStock(id) {
             if (confirm('Are you sure you want to delete this stock item? This action cannot be undone.')) {

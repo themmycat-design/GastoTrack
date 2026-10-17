@@ -38,6 +38,13 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => 'owner',
+            // Owner fixtures represent an already-enrolled production account so
+            // existing portal tests exercise business features beyond the setup gate.
+            'two_factor_secret' => app('encrypter')->encrypt('JBSWY3DPEHPK3PXP'),
+            'two_factor_recovery_codes' => app('encrypter')->encrypt(json_encode([
+                'TEST-RECOVERY-CODE-1', 'TEST-RECOVERY-CODE-2',
+            ])),
+            'two_factor_confirmed_at' => now(),
         ]);
     }
 

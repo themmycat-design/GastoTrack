@@ -1,0 +1,155 @@
+name: Android APK - Firebase App Distribution
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-distribute:
+    name: Build and distribute signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MOBILE_API_URL: ${{ vars.MOBILE_API_URL }}
+      FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+      FIREBASE_TESTER_GROUP: ${{ vars.FIREBASE_TESTER_GROUP }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: true
+          packages: "platform-tools platforms;android-37 build-tools;37.0.0 ndk;27.1.12297006 cmake;3.22.1"
+
+      - name: Validate release configuration
+        id: release
+        shell: bash
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          GASTOTRACK_STORE_PASSWORD: ${{ secrets.GASTOTRACK_STORE_PASSWORD }}
+          GASTOTRACK_KEY_ALIAS: ${{ secrets.GASTOTRACK_KEY_ALIAS }}
+          GASTOTRACK_KEY_PASSWORD: ${{ secrets.GASTOTRACK_KEY_PASSWORD }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$MOBILE_API_URL" || ! "$MOBILE_API_URL" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::Set the MOBILE_API_URL repository variable to the complete public HTTPS API base URL (for example, ending in /api/v1)."
+            exit 1
+          fi
+
+          for name in FIREBASE_APP_ID FIREBASE_TESTER_GROUP; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Set the $name repository variable before running this release workflow."
+              exit 1
+            fi
+          done
+
+          for name in ANDROID_RELEASE_KEYSTORE_BASE64 GASTOTRACK_STORE_PASSWORD GASTOTRACK_KEY_ALIAS GASTOTRACK_KEY_PASSWORD FIREBASE_SERVICE_ACCOUNT_JSON; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Set the $name GitHub Actions secret before running this release workflow."
+              exit 1
+            fi
+          done
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$ ]]; then
+              echo "::error::Release tags must use a version such as v1.2.3 or v1.2.3-beta.1."
+              exit 1
+            fi
+            version_name="${BASH_REMATCH[1]}"
+          else
+            version_name="1.0.${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "version_code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Prepare production API configuration and signing key
+        shell: bash
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf 'API_URL=%s\n' "$MOBILE_API_URL" > .env.production
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > android/gastotrack-upload.keystore
+          test -s android/gastotrack-upload.keystore
+
+      - name: Build release APK
+        shell: bash
+        env:
+          ANDROID_VERSION_CODE: ${{ steps.release.outputs.version_code }}
+          ANDROID_VERSION_NAME: ${{ steps.release.outputs.version_name }}
+          GASTOTRACK_STORE_FILE: gastotrack-upload.keystore
+          GASTOTRACK_STORE_PASSWORD: ${{ secrets.GASTOTRACK_STORE_PASSWORD }}
+          GASTOTRACK_KEY_ALIAS: ${{ secrets.GASTOTRACK_KEY_ALIAS }}
+          GASTOTRACK_KEY_PASSWORD: ${{ secrets.GASTOTRACK_KEY_PASSWORD }}
+        run: android/gradlew :app:assembleRelease --no-daemon
+
+      - name: Verify APK signature matches the release keystore
+        shell: bash
+        env:
+          GASTOTRACK_STORE_PASSWORD: ${{ secrets.GASTOTRACK_STORE_PASSWORD }}
+          GASTOTRACK_KEY_ALIAS: ${{ secrets.GASTOTRACK_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          apk="android/app/build/outputs/apk/release/app-release.apk"
+          apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          test -s "$apk"
+          "$apksigner" verify "$apk"
+
+          keystore_fingerprint="$(keytool -list -v -keystore android/gastotrack-upload.keystore -storepass "$GASTOTRACK_STORE_PASSWORD" -alias "$GASTOTRACK_KEY_ALIAS" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
+          apk_fingerprint="$("$apksigner" verify --print-certs "$apk" | awk '/Signer #1 certificate SHA-256 digest:/{print tolower($NF); exit}')"
+          if [[ -z "$keystore_fingerprint" || -z "$apk_fingerprint" || "$keystore_fingerprint" != "$apk_fingerprint" ]]; then
+            echo "::error::The APK signing certificate does not match the configured release keystore."
+            exit 1
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gastotrack-android-${{ steps.release.outputs.version_name }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Distribute APK with Firebase App Distribution
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          credentials_file="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$credentials_file"
+          chmod 600 "$credentials_file"
+          export GOOGLE_APPLICATION_CREDENTIALS="$credentials_file"
+
+          npx --yes firebase-tools@14 appdistribution:distribute \
+            android/app/build/outputs/apk/release/app-release.apk \
+            --app "$FIREBASE_APP_ID" \
+            --groups "$FIREBASE_TESTER_GROUP" \
+            --release-notes "GastoTrack ${{ steps.release.outputs.version_name }} (build ${{ steps.release.outputs.version_code }})"

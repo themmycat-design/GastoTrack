@@ -11,11 +11,64 @@ class NotificationService
 {
     public function notifyLowStock(StockItem $item): void
     {
-        if (!$item->isLowStock()) return;
-        User::where('business_id', $item->business_id)->where('role', 'owner')->each(function (User $user) use ($item) {
-            $exists = Notification::where('user_id', $user->id)->where('type', 'low_stock')->whereNull('read_at')->where('data->stock_item_id', $item->id)->exists();
-            if (!$exists) Notification::create(['user_id' => $user->id, 'business_id' => $item->business_id, 'type' => 'low_stock', 'title' => 'Low stock', 'message' => "{$item->name} is at {$item->current_quantity} {$item->unit}.", 'data' => ['stock_item_id' => $item->id]]);
-        });
+        User::where('business_id', $item->business_id)
+            ->where('role', 'owner')
+            ->each(function (User $user) use ($item): void {
+                $notifications = Notification::query()
+                    ->where('user_id', $user->id)
+                    ->where('business_id', $item->business_id)
+                    ->where('type', 'low_stock')
+                    ->where('data->stock_item_id', $item->id);
+
+                if (!$item->trashed() && $item->active && $item->isLowStock()) {
+                    $notification = (clone $notifications)
+                        ->whereNull('data->resolved_at')
+                        ->latest('id')
+                        ->first();
+
+                    if ($notification) {
+                        if ($notification->read_at === null) {
+                            $notification->update([
+                                'title' => (float) $item->current_quantity <= 0 ? 'Out of stock' : 'Low stock',
+                                'message' => "{$item->name} is at {$item->current_quantity} {$item->unit}.",
+                            ]);
+                        }
+
+                        return;
+                    }
+
+                    Notification::create([
+                        'user_id' => $user->id,
+                        'business_id' => $item->business_id,
+                        'type' => 'low_stock',
+                        'title' => (float) $item->current_quantity <= 0 ? 'Out of stock' : 'Low stock',
+                        'message' => "{$item->name} is at {$item->current_quantity} {$item->unit}.",
+                        'data' => ['stock_item_id' => $item->id],
+                    ]);
+
+                    return;
+                }
+
+                $notifications->whereNull('data->resolved_at')->get()->each(function (Notification $notification): void {
+                    $notification->update([
+                        'read_at' => $notification->read_at ?? now(),
+                        'data' => array_merge($notification->data ?? [], ['resolved_at' => now()->toIso8601String()]),
+                    ]);
+                });
+            });
+    }
+
+    public function ensureCurrentLowStockNotifications(User $user): void
+    {
+        if (!$user->business_id) {
+            return;
+        }
+
+        StockItem::query()
+            ->where('business_id', $user->business_id)
+            ->where('active', true)
+            ->whereColumn('current_quantity', '<=', 'minimum_quantity')
+            ->each(fn (StockItem $item) => $this->notifyLowStock($item));
     }
 
     public function notifyGoalDeadlines(): void

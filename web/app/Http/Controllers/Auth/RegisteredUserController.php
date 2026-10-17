@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Business;
+use App\Rules\PasswordStrength;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -37,7 +37,7 @@ class RegisteredUserController extends Controller
             'business_name' => ['required', 'string', 'max:255'],
             'business_type' => ['required', 'in:cafe,restaurant,retail,service,other'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'password' => ['required', 'confirmed', new PasswordStrength()],
         ]);
 
         $user = DB::transaction(function () use ($request) {
@@ -66,6 +66,6 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('business.status', absolute: false));
+        return redirect()->route('verification.notice');
     }
 }

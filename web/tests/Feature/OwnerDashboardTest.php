@@ -9,6 +9,7 @@ use App\Models\StockItem;
 use App\Models\StockMovement;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -121,7 +122,7 @@ class OwnerDashboardTest extends TestCase
             ->assertDontSee('Payments needing attention')
             ->assertDontSee('OTHER-SHOP-ORDER')
             ->assertSee('Inventory, 1 out of stock and 1 low stock')
-            ->assertSee('Stock notifications')
+            ->assertSee('Notifications, 2 unread')
             ->assertSee(route('stock.index', ['low_stock' => 1, 'active' => 1]))
             ->assertSee('Milk')
             ->assertSee('Coffee beans')
@@ -131,6 +132,13 @@ class OwnerDashboardTest extends TestCase
             ->assertDontSee('Recent orders')
             ->assertDontSee('50,000.00')
             ->assertDontSee('Other Shop Item');
+
+        // Following a stock-alert notification is read-only: inventory warnings
+        // remain visible until stock is actually replenished.
+        $this->get(route('stock.index', ['search' => 'Milk', 'low_stock' => 1, 'active' => 1]))
+            ->assertOk()
+            ->assertSee('Inventory, 1 out of stock and 1 low stock')
+            ->assertSee('Milk');
     }
 
     public function test_new_business_overview_shows_setup_without_duplicate_empty_panels(): void
@@ -143,7 +151,7 @@ class OwnerDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Getting started')
             ->assertSee('Set up products')
-            ->assertSee('No stock alerts right now.')
+            ->assertSee('No unread notifications. Active stock alerts remain on the Inventory tab until resolved.')
             ->assertDontSee('Recent transactions')
             ->assertDontSee('Stock needing attention');
     }
@@ -178,14 +186,16 @@ class OwnerDashboardTest extends TestCase
             ->assertDontSee('Deleted item');
 
         $outOfStock->update(['current_quantity' => 6]);
+        app(NotificationService::class)->notifyLowStock($outOfStock);
         $this->get(route('stock.index'))
             ->assertOk()
             ->assertSee('Inventory, 0 out of stock and 1 low stock');
 
         $lowStock->update(['current_quantity' => 8]);
+        app(NotificationService::class)->notifyLowStock($lowStock);
         $this->get(route('transactions.index'))
             ->assertOk()
-            ->assertSee('No stock alerts right now.')
+            ->assertSee('Notifications, none unread')
             ->assertDontSee('Inventory, 0 out of stock and 1 low stock');
     }
 

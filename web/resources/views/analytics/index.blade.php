@@ -4,6 +4,7 @@
     <link rel="icon" type="image/png" href="{{ asset('images/gastotrack-logo.png') }}">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('layouts.owner-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <title>Analytics | GastoTrack</title>
@@ -13,6 +14,7 @@
     $currencyPrefix = $currencyCode === 'PHP' ? '₱' : $currencyCode.' ';
     $current = $current ?? ['income' => 0, 'expenses' => 0, 'netRecordedMovement' => 0, 'transactionCount' => 0];
     $comparison = $comparison ?? ['income' => 0, 'expenses' => 0, 'netRecordedMovement' => 0, 'transactionCount' => 0];
+    $costInsights = $costInsights ?? ['ingredientCost' => 0, 'ingredientCostCoveragePercent' => 0, 'wasteCost' => 0, 'grossMargin' => 0, 'costedSales' => 0, 'costCoveragePercent' => 0, 'ingredientCostEstimated' => false, 'wasteCostEstimated' => false, 'wasteItems' => collect()];
     $metricCards = [
         ['key' => 'income', 'label' => 'Recorded income', 'amount' => $current['income'], 'growth' => $growth['income'] ?? null, 'goodUp' => true],
         ['key' => 'expenses', 'label' => 'Recorded expenses', 'amount' => $current['expenses'], 'growth' => $growth['expenses'] ?? null, 'goodUp' => false],
@@ -36,12 +38,12 @@
     @include('layouts.owner-navigation')
     <main class="min-w-0 flex-1">
         @include('layouts.owner-topbar')
-        <div class="mx-auto max-w-[1600px] space-y-5 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <section class="gt-enter flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
                 <div>
                     <p class="text-sm font-semibold text-[#00A87E]">{{ Auth::user()->business?->name }} · business performance</p>
                     <h2 class="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">Analytics</h2>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Track recorded income, expenses, and product sales for your shop.</p>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded finances separately from estimated recipe costs, logged waste, and product margins.</p>
                 </div>
                 <nav class="inline-flex flex-wrap gap-1 self-start rounded-xl border border-[#DDE9E5] bg-white p-1 shadow-sm lg:self-auto" aria-label="Analytics period">
                     @foreach(['week' => 'Weekly', 'month' => 'Monthly', 'year' => 'Yearly'] as $option => $label)
@@ -114,6 +116,48 @@
                 @endforeach
             </section>
 
+            <section class="gt-card overflow-hidden" aria-labelledby="cost-insights-heading">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAF2EF] px-5 py-5 sm:px-6">
+                    <div>
+                        <h3 id="cost-insights-heading" class="text-lg font-extrabold">Ingredient and product cost insights</h3>
+                        <p class="mt-1 text-sm leading-6 text-slate-500">Operational estimates for {{ $rangeLabel }}. These do not change recorded income or expenses.</p>
+                    </div>
+                    <a href="{{ route('analytics.cost-logs', ['start_date' => $startDate->format('Y-m-d'), 'end_date' => $endDate->format('Y-m-d')]) }}" class="gt-focus inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
+                        View cost logs <span aria-hidden="true">→</span>
+                    </a>
+                </div>
+                <div class="grid gap-4 p-5 sm:p-6 xl:grid-cols-3">
+                    <article class="rounded-2xl border border-[#DDE9E5] bg-[#F8FCFA] p-4 sm:p-5">
+                        <p class="text-sm font-bold text-slate-500">Recipe ingredient cost</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $costInsights['ingredientCost'], 2) }}</p>
+                        <p class="mt-2 text-xs leading-5 text-slate-500">Cost of recipe ingredients; recipe costs cover {{ number_format((float) $costInsights['ingredientCostCoveragePercent'], 1) }}% of eligible product sales.
+                            @if($costInsights['ingredientCostEstimated']) Some older sales use current inventory costs or recipes. @endif
+                        </p>
+                    </article>
+                    <article class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
+                        <p class="text-sm font-bold text-slate-500">Recorded waste cost</p>
+                        <p class="mt-2 text-2xl font-extrabold text-amber-700">{{ $currencyPrefix }}{{ number_format((float) $costInsights['wasteCost'], 2) }}</p>
+                        <p class="mt-2 text-xs leading-5 text-slate-500">Only stock deductions explicitly marked waste or spoilage are counted.
+                            @if($costInsights['wasteCostEstimated']) Some waste has no saved unit cost and uses the current inventory cost when available. @endif
+                        </p>
+                        @if($costInsights['wasteItems']->isNotEmpty())
+                            <ul class="mt-3 space-y-1 border-t border-amber-200 pt-3 text-xs">
+                                @foreach($costInsights['wasteItems'] as $wasteItem)
+                                    <li class="flex justify-between gap-3"><span class="truncate">{{ $wasteItem->name }} · {{ number_format((float) $wasteItem->quantity, 2) }} {{ $wasteItem->unit }}</span><span class="shrink-0 font-bold">{{ $currencyPrefix }}{{ number_format((float) $wasteItem->cost, 2) }}</span></li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p class="mt-3 border-t border-amber-200 pt-3 text-xs text-slate-500">No stock reductions were explicitly recorded as waste in this period.</p>
+                        @endif
+                    </article>
+                    <article class="rounded-2xl border border-[#C8DED7] bg-gradient-to-br from-[#EAF8F2] to-white p-4 sm:p-5">
+                        <p class="text-sm font-bold text-slate-500">Estimated product gross margin</p>
+                        <p class="mt-2 text-2xl font-extrabold {{ $costInsights['grossMargin'] < 0 ? 'text-rose-600' : 'text-[#08745D]' }}">{{ $currencyPrefix }}{{ number_format((float) $costInsights['grossMargin'], 2) }}</p>
+                        <p class="mt-2 text-xs leading-5 text-slate-500">Sales minus known product costs, across {{ number_format((float) $costInsights['costCoveragePercent'], 1) }}% of eligible product sales. Not net profit; excludes labor, rent, and other overhead.</p>
+                    </article>
+                </div>
+            </section>
+
             <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(300px,1fr)]">
                 <div class="min-w-0 space-y-5">
                 <article class="gt-card gt-enter p-5 sm:p-6">
@@ -145,14 +189,16 @@
                 </div>
                 @if($topSellingProducts->isNotEmpty())
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[600px] text-left">
-                            <caption class="sr-only">Top five products by units sold for {{ $rangeLabel }}</caption>
+                        <table class="w-full min-w-[900px] text-left">
+                            <caption class="sr-only">Top five products by units sold, with known recipe cost and gross margin, for {{ $rangeLabel }}</caption>
                             <thead class="bg-[#F8FBFA] text-[11px] font-extrabold uppercase tracking-[.1em] text-slate-500">
                                 <tr>
                                     <th scope="col" class="w-14 px-5 py-3 sm:px-6">#</th>
                                     <th scope="col" class="px-3 py-3">Product</th>
                                     <th scope="col" class="px-3 py-3 text-right">Sold</th>
                                     <th scope="col" class="px-3 py-3 text-right">Sales</th>
+                                    <th scope="col" class="px-3 py-3 text-right">Cost used</th>
+                                    <th scope="col" class="px-3 py-3 text-right">Gross margin</th>
                                     <th scope="col" class="w-40 px-5 py-3 text-right sm:px-6">Share</th>
                                 </tr>
                             </thead>
@@ -174,6 +220,22 @@
                                         </th>
                                         <td class="px-3 py-3 text-right text-sm font-semibold text-[#0A2E2A]">{{ number_format((int) $product->units_sold) }}</td>
                                         <td class="px-3 py-3 text-right text-sm font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $product->sales_amount, 2) }}</td>
+                                        <td class="px-3 py-3 text-right text-sm font-semibold text-slate-600">
+                                            @if($product->cost_amount !== null)
+                                                {{ $currencyPrefix }}{{ number_format((float) $product->cost_amount, 2) }}
+                                                <span class="mt-1 block text-[10px] text-slate-400">{{ $product->cost_basis }}</span>
+                                            @else
+                                                <span class="text-slate-400">Not costed</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-3 text-right text-sm font-extrabold {{ $product->gross_margin !== null && $product->gross_margin < 0 ? 'text-rose-600' : 'text-[#08745D]' }}">
+                                            @if($product->gross_margin !== null)
+                                                {{ $currencyPrefix }}{{ number_format((float) $product->gross_margin, 2) }}
+                                                <span class="mt-1 block text-[10px] font-semibold text-slate-400">{{ number_format((float) $product->gross_margin_percent, 1) }}% margin</span>
+                                            @else
+                                                <span class="text-xs font-semibold text-slate-400">Cost incomplete</span>
+                                            @endif
+                                        </td>
                                         <td class="px-5 py-3 text-right sm:px-6">
                                             <span class="text-xs font-bold text-[#0A2E2A]">{{ number_format((float) $product->sales_share, 1) }}%</span>
                                             <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-[#EAF2EF]" aria-hidden="true"><span class="block h-full rounded-full bg-[#00C897]" style="width: {{ min(100, max(0, (float) $product->sales_share)) }}%"></span></span>

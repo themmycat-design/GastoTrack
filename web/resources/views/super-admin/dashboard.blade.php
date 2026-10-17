@@ -34,7 +34,15 @@
         @forelse($recentBusinesses as $business)
             <tr class="hover:bg-slate-50">
                 <td class="p-4 font-semibold">{{ $business->name }}</td>
-                <td class="p-4"><p>{{ $business->owner_account?->name ?? 'No owner assigned' }}</p><p class="text-xs text-slate-500">{{ $business->owner_account?->email }}</p></td>
+                <td class="p-4">
+                    @if($business->verified_owner_account)
+                        <p>{{ $business->verified_owner_account->name }}</p><p class="text-xs text-slate-500">{{ $business->verified_owner_account->email }}</p>
+                    @elseif($business->owner_email_verification_pending)
+                        <span class="text-amber-700">Email verification pending</span>
+                    @else
+                        <span class="text-slate-500">No owner assigned</span>
+                    @endif
+                </td>
                 <td class="p-4 text-slate-600">{{ collect([$business->city, $business->province])->filter()->join(', ') ?: 'Not provided' }}</td>
                 <td class="p-4">{{ $business->staff_count }}</td>
                 <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-semibold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->status }}</span></td>

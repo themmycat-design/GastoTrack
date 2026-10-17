@@ -20,7 +20,7 @@
                 $links = [
                     ['super-admin.dashboard', 'super-admin.dashboard', 'fa-chart-line', 'Overview'],
                     ['super-admin.businesses', 'super-admin.businesses*', 'fa-building', 'Businesses'],
-                    ['super-admin.violations.index', 'super-admin.violations.*', 'fa-shield-halved', 'Violations'],
+                    ['super-admin.bug-reports.index', 'super-admin.bug-reports.*', 'fa-bug', 'Bugs reports'],
                     ['super-admin.reports.index', 'super-admin.reports.*', 'fa-file-lines', 'Platform Reports'],
                 ];
             @endphp

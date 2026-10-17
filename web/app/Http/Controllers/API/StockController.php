@@ -48,6 +48,7 @@ class StockController extends Controller
             'unit_cost'   => $request->unit_cost,
             'active'      => true,
         ]);
+        app(NotificationService::class)->notifyLowStock($item);
 
         $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 
@@ -81,6 +82,7 @@ class StockController extends Controller
             'active' => 'sometimes|boolean',
         ]);
         $item->update($data);
+        app(NotificationService::class)->notifyLowStock($item);
 
         $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 
@@ -98,6 +100,7 @@ class StockController extends Controller
             ->findOrFail($id);
 
         $item->delete();
+        app(NotificationService::class)->notifyLowStock($item);
 
         return response()->json(['message' => 'Stock item deleted']);
     }
@@ -115,9 +118,13 @@ class StockController extends Controller
             'type'     => 'required|in:add,deduct',
             'quantity' => 'required|numeric|min:0.01',
             'reason'   => 'nullable|string|max:500',
+            'movement_category' => 'nullable|in:adjustment,waste',
         ]);
 
-        $item = DB::transaction(function () use ($request, $id) {
+        $movementCategory = $request->input('movement_category', 'adjustment');
+        abort_if($movementCategory === 'waste' && $request->type !== 'deduct', 422, 'Waste can only be recorded when deducting stock.');
+
+        $item = DB::transaction(function () use ($request, $id, $movementCategory) {
             $item = StockItem::where('business_id', $request->user()->business_id)
                 ->lockForUpdate()
                 ->findOrFail($id);
@@ -140,6 +147,8 @@ class StockController extends Controller
                 'new_quantity'     => $item->current_quantity,
                 'reason'          => $request->reason ?? 'Manual adjustment',
                 'user_id'         => $request->user()->id,
+                'movement_category' => $movementCategory,
+                'unit_cost_at_movement' => $item->unit_cost,
             ]);
 
             return $item;

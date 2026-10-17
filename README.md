@@ -4,6 +4,43 @@ GastoTrack is a staff-facing React Native POS and financial-recording app backed
 
 The app requires a live API for account data and order/transaction changes; a saved cart can be restored, but this is not offline synchronization.
 
+## Build and distribute an Android release APK
+
+GitHub Actions can build a signed release APK and distribute it to a Firebase App Distribution tester group. This is for testing and sharing the Android app; it does not host the Laravel API. The installed app needs the API's public HTTPS base URL.
+
+### One-time setup
+
+1. In Firebase, create a project, register an Android app with package name `com.gastotrack`, enable **App Distribution**, and create a tester group. Copy the Android app's Firebase App ID and the group's alias.
+2. Create a Google service account with the **Firebase App Distribution Admin** role and keep its JSON key private. Follow Firebase's [service-account setup guide](https://firebase.google.com/docs/app-distribution/authenticate-service-account).
+3. In GitHub, open **Settings > Secrets and variables > Actions** and add these repository variables:
+   - `MOBILE_API_URL`: the complete public HTTPS API base URL, including `/api/v1` (for example, `https://your-host.example/api/v1`). Do not use localhost, an emulator address, or a private LAN address.
+   - `FIREBASE_APP_ID`: the Firebase Android App ID.
+   - `FIREBASE_TESTER_GROUP`: the Firebase tester group alias.
+4. Add these repository secrets:
+   - `ANDROID_RELEASE_KEYSTORE_BASE64`: Base64 content of the existing Android release keystore. In PowerShell, copy it without printing it with:
+
+     ```powershell
+     [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\your\existing-upload.keystore")) | Set-Clipboard
+     ```
+
+     Paste the clipboard value directly into the GitHub secret. Keep a secure backup of the original keystore; the same key is required for future Android updates.
+   - `GASTOTRACK_STORE_PASSWORD`: the keystore password.
+   - `GASTOTRACK_KEY_ALIAS`: the existing release key alias.
+   - `GASTOTRACK_KEY_PASSWORD`: the release key password.
+   - `FIREBASE_SERVICE_ACCOUNT_JSON`: the full service-account JSON content.
+
+   Never commit the keystore, passwords, or service-account JSON to the repository.
+
+### Create a release
+
+- In GitHub, open **Actions > Android APK - Firebase App Distribution > Run workflow**. A manual build gets an automatically generated version name.
+- Or push a semantic version tag such as `v1.2.3`; the APK version name will be `1.2.3`. Each workflow run uses its unique GitHub run number as Android's version code.
+- Download the signed APK from the completed workflow run's **Artifacts** section. Firebase also notifies the tester group and makes the release available through App Distribution.
+
+If the phone currently has a debug-signed development app, Android will not update it in place with the release-signed APK. Sync pending notification captures first; uninstalling the debug app clears device-local data, while server-saved business records remain on the server.
+
+The workflow verifies the APK signature against the configured keystore, requires a public HTTPS API URL, stores the APK artifact for 30 days, and distributes only manual or version-tagged builds. Firebase App Distribution releases have limited retention; see Firebase's [CLI distribution guide](https://firebase.google.com/docs/app-distribution/android/distribute-cli) for current details.
+
 ## Quick access (Windows)
 
 GastoTrack has two entry points: owners use the website, and staff use the Android app. For local development, keep Laravel running while using either one.

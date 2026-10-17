@@ -5,11 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Staff | GastoTrack</title>
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet">
+    @include('layouts.owner-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased" style="font-family: Inter, ui-sans-serif, system-ui, sans-serif">
+<body class="gt-owner-page min-h-screen bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased">
     <div class="min-h-screen lg:flex">
         @include('layouts.owner-navigation')
 
@@ -87,7 +86,7 @@
                 </div>
 
                 <!-- Buttons -->
-                <div class="flex items-end space-x-3">
+                <div class="flex items-end gap-2">
                     <button type="submit" class="gt-focus rounded-xl bg-[#00A87E] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#08745D]">
                         Apply filters
                     </button>
@@ -102,50 +101,50 @@
         <div id="owner-staff-list" class="gt-card gt-enter gt-enter-4 overflow-hidden" aria-live="polite" aria-busy="false">
             <div data-staff-loading class="hidden border-b border-[#C8DED7] bg-[#EAF8F2] px-5 py-3 text-sm font-semibold text-[#08745D] sm:px-6" role="status">Updating team list...</div>
             <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-[#EAF2EF]">
+            <table class="min-w-[760px] w-full divide-y divide-[#EAF2EF] text-left">
                 <thead class="bg-[#F8FCFA]">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th class="px-5 py-3.5 text-xs font-bold uppercase tracking-[.12em] text-slate-500 sm:px-6">Name</th>
+                        <th class="px-5 py-3.5 text-xs font-bold uppercase tracking-[.12em] text-slate-500 sm:px-6">Email</th>
+                        <th class="px-5 py-3.5 text-xs font-bold uppercase tracking-[.12em] text-slate-500 sm:px-6">Phone</th>
+                        <th class="px-5 py-3.5 text-xs font-bold uppercase tracking-[.12em] text-slate-500 sm:px-6">Role</th>
+                        <th class="px-5 py-3.5 text-xs font-bold uppercase tracking-[.12em] text-slate-500 sm:px-6">Joined</th>
+                        <th class="px-5 py-3.5 text-xs font-bold uppercase tracking-[.12em] text-slate-500 sm:px-6">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#EAF2EF] bg-white">
                     @forelse($staff as $user)
                     <tr class="transition hover:bg-[#FBFDFC]">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAF8F2] font-extrabold text-[#08745D]">
+                        <td class="whitespace-nowrap px-5 py-4 sm:px-6">
+                            <div class="flex items-center gap-3">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF8F2] font-extrabold text-[#08745D]">
                                     {{ strtoupper(substr($user->name, 0, 1)) }}
                                 </div>
-                                <div class="ml-3">
-                                    <p class="text-sm font-medium text-gray-900">{{ $user->name }}</p>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-[#0A2E2A]">{{ $user->name }}</p>
                                     @if($user->id === Auth::id())
-                                    <p class="text-xs text-gray-500">(You)</p>
+                                    <p class="text-xs text-slate-500">(You)</p>
                                     @endif
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600 sm:px-6">
                             {{ $user->email }}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600 sm:px-6">
                             {{ $user->phone ?? 'N/A' }}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="whitespace-nowrap px-5 py-4 sm:px-6">
                             @if($user->role == 'owner')
                                 <span class="rounded-full bg-[#EAF8F2] px-3 py-1 text-xs font-bold text-[#08745D]">Owner</span>
                             @else
                                 <span class="rounded-full bg-[#F4F8F7] px-3 py-1 text-xs font-bold text-slate-600">Staff</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600 sm:px-6">
                             {{ $user->created_at->format('M d, Y') }}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        <td class="whitespace-nowrap px-5 py-4 text-sm sm:px-6">
                             <button onclick="openEditModal({{ $user->id }}, '{{ addslashes($user->name) }}', '{{ $user->email }}', '{{ $user->phone ?? '' }}', '{{ $user->role }}')" class="gt-focus rounded-lg px-2 py-1 font-bold text-[#08745D] hover:bg-[#EAF8F2]">Edit</button>
                             @if($user->id !== Auth::id())
                             <button onclick="deleteUser({{ $user->id }})" class="gt-focus rounded-lg px-2 py-1 font-bold text-rose-600 hover:bg-rose-50">Delete</button>
@@ -175,11 +174,14 @@
     </div>
 
     <!-- Add/Edit User Modal -->
-    <div id="userModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+    <div id="userModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
         <div class="gt-card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5 shadow-2xl sm:p-7">
-            <div class="flex justify-between items-center mb-4">
-                <h2 id="modalTitle" class="text-2xl font-extrabold text-[#0A2E2A]">Add User</h2>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+            <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Team management</p>
+                    <h2 id="modalTitle" class="mt-1 text-xl font-extrabold text-[#0A2E2A] sm:text-2xl">Add user</h2>
+                </div>
+                <button type="button" onclick="closeModal()" aria-label="Close user form" class="gt-focus flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F4F8F7] text-xl text-slate-500 transition hover:bg-[#EAF8F2] hover:text-[#08745D]">
                     <span class="text-2xl">&times;</span>
                 </button>
             </div>
@@ -189,29 +191,29 @@
                 <input type="hidden" id="userId" name="user_id">
                 <input type="hidden" id="formMethod" name="_method">
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
                     <!-- Name -->
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
-                        <input type="text" id="name" name="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="John Doe">
+                    <div class="sm:col-span-2">
+                        <label for="name" class="gt-label">Full name <span class="text-rose-600">*</span></label>
+                        <input type="text" id="name" name="name" required class="gt-field" placeholder="John Doe">
                     </div>
 
                     <!-- Email -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                        <input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="john@example.com">
+                        <label for="email" class="gt-label">Email <span class="text-rose-600">*</span></label>
+                        <input type="email" id="email" name="email" required class="gt-field" placeholder="john@example.com">
                     </div>
 
                     <!-- Phone -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                        <input type="text" id="phone" name="phone" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="+63 XXX XXX XXXX">
+                        <label for="phone" class="gt-label">Phone</label>
+                        <input type="text" id="phone" name="phone" class="gt-field" placeholder="+63 XXX XXX XXXX">
                     </div>
 
                     <!-- Role -->
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-                        <select id="role" name="role" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;">
+                    <div class="sm:col-span-2">
+                        <label for="role" class="gt-label">Role <span class="text-rose-600">*</span></label>
+                        <select id="role" name="role" required class="gt-field">
                             <option value="staff">Staff</option>
                             <option value="owner">Owner</option>
                         </select>
@@ -219,26 +221,23 @@
 
                     <!-- Password -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Password <span id="passwordRequired">*</span></label>
-                        <input type="password" id="password" name="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="••••••••">
-                        <p class="text-xs text-gray-500 mt-1" id="passwordHint">Minimum 8 characters</p>
+                        <label for="password" class="gt-label">Password <span id="passwordRequired" class="text-rose-600">*</span></label>
+                        <input type="password" id="password" name="password" class="gt-field" minlength="8" autocomplete="new-password" data-password-strength="password-strength-indicator" placeholder="••••••••">
+                        <p class="mt-1 text-xs text-slate-500" id="passwordHint">A strong password is required for new accounts.</p>
+                        <x-password-strength-indicator input-id="password" />
                     </div>
 
                     <!-- Confirm Password -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password <span id="confirmRequired">*</span></label>
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-opacity-50" style="focus:ring-color: #00C897;" placeholder="••••••••">
+                        <label for="password_confirmation" class="gt-label">Confirm password <span id="confirmRequired" class="text-rose-600">*</span></label>
+                        <input type="password" id="password_confirmation" name="password_confirmation" class="gt-field" placeholder="••••••••">
                     </div>
                 </div>
 
                 <!-- Buttons -->
-                <div class="flex space-x-3 mt-6">
-                    <button type="submit" class="gt-focus flex-1 rounded-xl bg-[#00A87E] px-5 py-3 font-bold text-white transition hover:bg-[#08745D]">
-                        Save User
-                    </button>
-                    <button type="button" onclick="closeModal()" class="gt-focus flex-1 rounded-xl border border-[#C8DED7] bg-white px-5 py-3 font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
-                        Cancel
-                    </button>
+                <div class="mt-6 flex flex-col-reverse gap-3 border-t border-[#EAF2EF] pt-5 sm:flex-row">
+                    <button type="button" onclick="closeModal()" class="gt-focus gt-btn-secondary flex-1">Cancel</button>
+                    <button type="submit" class="gt-focus gt-btn-primary flex-1">Save user</button>
                 </div>
             </form>
         </div>
@@ -260,7 +259,8 @@
             document.getElementById('password_confirmation').required = true;
             document.getElementById('passwordRequired').style.display = 'inline';
             document.getElementById('confirmRequired').style.display = 'inline';
-            document.getElementById('passwordHint').textContent = 'Minimum 8 characters';
+            document.getElementById('passwordHint').textContent = 'A strong password is required for new accounts.';
+            document.getElementById('password').dispatchEvent(new Event('input', {bubbles: true}));
             document.getElementById('userModal').classList.remove('hidden');
         }
 
@@ -279,7 +279,8 @@
             document.getElementById('password_confirmation').required = false;
             document.getElementById('passwordRequired').style.display = 'none';
             document.getElementById('confirmRequired').style.display = 'none';
-            document.getElementById('passwordHint').textContent = 'Leave blank to keep current password';
+            document.getElementById('passwordHint').textContent = 'Leave blank to keep current password.';
+            document.getElementById('password').dispatchEvent(new Event('input', {bubbles: true}));
             document.getElementById('userModal').classList.remove('hidden');
         }
 

@@ -7,6 +7,7 @@
         ['route' => 'staff.index', 'label' => 'Staff', 'icon' => 'staff'],
         ['route' => 'analytics.index', 'label' => 'Analytics', 'icon' => 'analytics'],
         ['route' => 'goals.index', 'label' => 'Goals', 'icon' => 'goals'],
+        ['route' => 'owner.bug-reports.index', 'label' => 'Bug reports', 'icon' => 'bug'],
     ];
 @endphp
 
@@ -75,6 +76,8 @@
                         <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.5 5.5 0 0 1 3.5 5"/></svg>
                     @elseif($item['icon'] === 'goals')
                         <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg>
+                    @elseif($item['icon'] === 'bug')
+                        <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 9h8v8a4 4 0 0 1-8 0V9Z"/><path d="M10 9a2 2 0 1 1 4 0M4 12h4m8 0h4M5 7l3 2m11-2-3 2M6 18h3m6 0h3M12 13v3"/></svg>
                     @else
                         <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 19V5m0 14h16M7 15l4-4 3 2 5-6"/><path d="M15 7h4v4"/></svg>
                     @endif

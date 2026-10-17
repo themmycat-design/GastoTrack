@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\User;
-use App\Models\ViolationReport;
+use App\Models\BugReport;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PlatformReportController extends Controller
@@ -27,7 +27,7 @@ class PlatformReportController extends Controller
             'businesses' => Business::count(),
             'staff' => User::where('role', 'staff')->count(),
             'new_this_month' => Business::whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])->count(),
-            'open_violations' => ViolationReport::whereIn('status', ['open', 'under_review'])->count(),
+            'open_bugs' => BugReport::whereIn('status', ['open', 'under_review'])->count(),
         ];
 
         return view('super-admin.platform-reports', compact(

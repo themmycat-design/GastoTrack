@@ -8,13 +8,14 @@ class OrderItem extends Model
 {
     protected $fillable = [
         'order_id', 'product_id', 'product_name',
-        'price', 'quantity', 'subtotal', 'ingredients_snapshot'
+        'price', 'quantity', 'subtotal', 'ingredients_snapshot', 'product_cost_snapshot'
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'subtotal'      => 'decimal:2',
         'ingredients_snapshot' => 'array',
+        'product_cost_snapshot' => 'decimal:2',
     ];
 
     public function product()

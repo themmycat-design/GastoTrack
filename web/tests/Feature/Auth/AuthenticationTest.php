@@ -5,6 +5,8 @@ namespace Tests\Feature\Auth;
 use App\Models\Business;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Fortify\Fortify;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -34,8 +36,16 @@ class AuthenticationTest extends TestCase
             'password' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('two-factor.login', absolute: false));
+        $this->assertGuest();
+
+        $secret = Fortify::currentEncrypter()->decrypt($user->two_factor_secret);
+        $challenge = $this->post(route('two-factor.login.store'), [
+            'code' => (new Google2FA)->getCurrentOtp($secret),
+        ]);
+
+        $this->assertAuthenticatedAs($user);
+        $challenge->assertRedirect(route('dashboard', absolute: false));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

@@ -9,10 +9,14 @@ use App\Http\Controllers\OwnerDashboardController;
 use App\Http\Controllers\OwnerGoalController;
 use App\Http\Controllers\OwnerAnalyticsController;
 use App\Http\Controllers\OwnerAnalyticsDayController;
+use App\Http\Controllers\OwnerCostLogController;
 use App\Http\Controllers\OwnerOrderController;
+use App\Http\Controllers\OwnerBugReportController;
+use App\Http\Controllers\OwnerNotificationController;
 use App\Http\Controllers\PlatformReportController;
 use App\Http\Controllers\SuperAdminController;
-use App\Http\Controllers\ViolationReportController;
+use App\Http\Controllers\BugReportController;
+use App\Models\BugReport;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -20,7 +24,7 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', OwnerDashboardController::class)
-    ->middleware(['auth', 'verified', 'owner'])
+    ->middleware(['auth', 'verified', 'owner', 'owner.security'])
     ->name('dashboard');
 
 Route::get('/business-status', function () {
@@ -33,10 +37,13 @@ Route::get('/business-status', function () {
     }
 
     return view('auth.business-status', compact('business'));
-})->middleware('auth')->name('business.status');
+})->middleware(['auth', 'verified'])->name('business.status');
 
 // Owner Dashboard routes
-Route::middleware(['auth', 'owner'])->group(function () {
+Route::middleware(['auth', 'verified', 'owner', 'owner.security'])->group(function () {
+    Route::post('/notifications/read-all', [OwnerNotificationController::class, 'readAll'])
+        ->name('owner.notifications.read-all');
+
     Route::get('/goals', [OwnerGoalController::class, 'index'])->name('goals.index');
     Route::post('/goals', [OwnerGoalController::class, 'store'])->name('goals.store');
     // Transactions (Read-only for owners)
@@ -61,15 +68,21 @@ Route::middleware(['auth', 'owner'])->group(function () {
     Route::get('/orders', [OwnerOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OwnerOrderController::class, 'show'])->name('orders.show');
     Route::get('/analytics', OwnerAnalyticsController::class)->name('analytics.index');
+    Route::get('/analytics/cost-logs', OwnerCostLogController::class)->name('analytics.cost-logs');
     Route::get('/analytics/day/{date}', OwnerAnalyticsDayController::class)
         ->where('date', '\\d{4}-\\d{2}-\\d{2}')
         ->name('analytics.day');
+    Route::prefix('bug-reports')->name('owner.bug-reports.')->controller(OwnerBugReportController::class)->group(function (): void {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{bugReport}/screenshot', 'screenshot')->name('screenshot');
+    });
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile', [ProfileController::class, 'edit'])->middleware(['verified', 'owner.security'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->middleware(['verified', 'owner.security'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware(['verified', 'owner.security'])->name('profile.destroy');
 });
 
 // Super Admin routes
@@ -79,6 +92,7 @@ Route::middleware(['auth', 'super_admin'])->prefix('super-admin')->name('super-a
     Route::get('/businesses/create', [SuperAdminController::class, 'create'])->name('businesses.create');
     Route::post('/businesses', [SuperAdminController::class, 'store'])->name('businesses.store');
     Route::post('/businesses/{business}/restore', [SuperAdminController::class, 'restore'])->name('businesses.restore');
+    Route::delete('/businesses/{business}/permanent', [SuperAdminController::class, 'forceDestroy'])->name('businesses.force-destroy');
     Route::get('/businesses/{business}', [SuperAdminController::class, 'show'])->name('businesses.show');
     Route::get('/businesses/{business}/edit', [SuperAdminController::class, 'edit'])->name('businesses.edit');
     Route::put('/businesses/{business}', [SuperAdminController::class, 'update'])->name('businesses.update');
@@ -91,7 +105,12 @@ Route::middleware(['auth', 'super_admin'])->prefix('super-admin')->name('super-a
     Route::post('/businesses/{business}/owner/deactivate', [SuperAdminController::class, 'deactivateOwner'])->name('businesses.owner.deactivate');
     Route::post('/businesses/{business}/owner/password-reset', [SuperAdminController::class, 'sendOwnerPasswordReset'])->name('businesses.owner.password-reset');
 
-    Route::resource('violations', ViolationReportController::class);
+    Route::get('/bug-reports/{bugReport}/screenshot', [BugReportController::class, 'screenshot'])->name('bug-reports.screenshot');
+    Route::resource('bug-reports', BugReportController::class)->except(['create', 'store']);
+    Route::get('/violations', fn () => redirect()->route('super-admin.bug-reports.index'));
+    Route::get('/violations/create', fn () => redirect()->route('super-admin.bug-reports.index'));
+    Route::get('/violations/{violation}/edit', fn (int $violation) => redirect()->route('super-admin.bug-reports.edit', $violation))->whereNumber('violation');
+    Route::get('/violations/{violation}', fn (BugReport $violation) => redirect()->route('super-admin.bug-reports.show', $violation))->whereNumber('violation');
     Route::get('/reports', [PlatformReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/export', [PlatformReportController::class, 'export'])->name('reports.export');
 });

@@ -30,16 +30,25 @@
             <label class="text-sm font-medium">Status
                 <select name="status" required class="mt-1 w-full rounded-lg border-slate-300">
                     @foreach(['pending', 'active', 'suspended', 'inactive'] as $status)
+                        @if($status === 'active' && (!$business->exists || (! $ownerEmailVerified && $business->status !== 'active'))) @continue @endif
                         <option value="{{ $status }}" @selected(old('status', $business->status ?: 'pending') === $status)>{{ ucfirst($status) }}</option>
                     @endforeach
                 </select>
             </label>
-            <label class="text-sm font-medium">Business email
-                <input type="email" name="email" value="{{ old('email', $business->email) }}" class="mt-1 w-full rounded-lg border-slate-300" />
-            </label>
-            <label class="text-sm font-medium">Phone
-                <input name="phone" value="{{ old('phone', $business->phone) }}" class="mt-1 w-full rounded-lg border-slate-300" />
-            </label>
+            @if($ownerDetailsHidden)
+                <div class="text-sm"><span class="font-medium">Business email</span><p class="mt-1 text-slate-500">Hidden until the owner verifies their email.</p></div>
+            @else
+                <label class="text-sm font-medium">Business email
+                    <input type="email" name="email" value="{{ old('email', $business->email) }}" class="mt-1 w-full rounded-lg border-slate-300" />
+                </label>
+            @endif
+            @if($ownerDetailsHidden)
+                <div class="text-sm"><span class="font-medium">Phone</span><p class="mt-1 text-slate-500">Hidden until the owner verifies their email.</p></div>
+            @else
+                <label class="text-sm font-medium">Phone
+                    <input name="phone" value="{{ old('phone', $business->phone) }}" class="mt-1 w-full rounded-lg border-slate-300" />
+                </label>
+            @endif
             <label class="sm:col-span-2 text-sm font-medium">Address
                 <input name="address" value="{{ old('address', $business->address) }}" class="mt-1 w-full rounded-lg border-slate-300" />
             </label>
@@ -61,23 +70,30 @@
     <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-lg font-bold">Owner account</h2>
         <div class="mt-5 grid gap-4">
-            <label class="text-sm font-medium">Owner name
-                <input name="owner_name" value="{{ old('owner_name', $business->owner_account?->name) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
-            </label>
-            <label class="text-sm font-medium">Owner email
-                <input type="email" name="owner_email" value="{{ old('owner_email', $business->owner_account?->email) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
-            </label>
-            <label class="text-sm font-medium">Owner phone
-                <input name="owner_phone" value="{{ old('owner_phone', $business->owner_account?->phone) }}" class="mt-1 w-full rounded-lg border-slate-300" />
-            </label>
-            @unless($business->exists)
-                <label class="text-sm font-medium">Temporary password
-                    <input type="password" name="password" required class="mt-1 w-full rounded-lg border-slate-300" />
+            @if(!$business->exists || $ownerAccountForForm)
+                <label class="text-sm font-medium">Owner name
+                    <input name="owner_name" value="{{ old('owner_name', $ownerAccountForForm?->name) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
                 </label>
-                <label class="text-sm font-medium">Confirm password
-                    <input type="password" name="password_confirmation" required class="mt-1 w-full rounded-lg border-slate-300" />
+                <label class="text-sm font-medium">Owner email
+                    <input type="email" name="owner_email" value="{{ old('owner_email', $ownerAccountForForm?->email) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
                 </label>
-            @endunless
+                <label class="text-sm font-medium">Owner phone
+                    <input name="owner_phone" value="{{ old('owner_phone', $ownerAccountForForm?->phone) }}" class="mt-1 w-full rounded-lg border-slate-300" />
+                </label>
+                @unless($business->exists)
+                    <label class="text-sm font-medium">Temporary password
+                        <input id="owner-temporary-password" type="password" name="password" required minlength="8" autocomplete="new-password" data-password-strength="owner-temporary-password-strength-indicator" class="mt-1 w-full rounded-lg border-slate-300" />
+                        <x-password-strength-indicator input-id="owner-temporary-password" />
+                    </label>
+                    <label class="text-sm font-medium">Confirm password
+                        <input type="password" name="password_confirmation" required class="mt-1 w-full rounded-lg border-slate-300" />
+                    </label>
+                @endunless
+            @elseif($ownerDetailsHidden)
+                <p class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Owner details are hidden and cannot be changed until the registered owner verifies their email.</p>
+            @else
+                <p class="text-sm text-slate-500">No owner account is assigned to this business.</p>
+            @endif
             <div class="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">This form never displays or modifies the business's financial and operational records.</div>
         </div>
     </section>

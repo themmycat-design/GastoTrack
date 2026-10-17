@@ -20,22 +20,66 @@ class BackendApiTest extends TestCase
         $this->assertSame('/staff', parse_url(route('staff.index'), PHP_URL_PATH));
     }
 
+    public function test_staff_can_record_stock_waste_with_a_cost_snapshot(): void
+    {
+        $business = Business::create(['name' => 'Waste Tracking Cafe', 'status' => 'active', 'active' => true]);
+        $staff = \App\Models\User::factory()->staff()->create(['business_id' => $business->id]);
+        $stock = \App\Models\StockItem::create([
+            'business_id' => $business->id,
+            'name' => 'Fresh milk',
+            'unit' => 'ml',
+            'current_quantity' => 1000,
+            'minimum_quantity' => 100,
+            'unit_cost' => 0.25,
+            'active' => true,
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$staff->createToken('waste-test')->plainTextToken];
+
+        $this->postJson('/api/v1/stock/'.$stock->id.'/adjust', [
+            'type' => 'deduct',
+            'quantity' => 40,
+            'reason' => 'Expired milk',
+            'movement_category' => 'waste',
+        ], $headers)->assertOk();
+
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_item_id' => $stock->id,
+            'type' => 'out',
+            'movement_category' => 'waste',
+            'quantity' => 40,
+            'unit_cost_at_movement' => 0.25,
+        ]);
+
+        $this->postJson('/api/v1/stock/'.$stock->id.'/adjust', [
+            'type' => 'add',
+            'quantity' => 40,
+            'movement_category' => 'waste',
+        ], $headers)->assertUnprocessable();
+    }
+
     public function test_owner_configures_business_and_staff_processes_orders(): void
     {
         Storage::fake('public');
-        $register = $this->postJson('/api/v1/auth/register', [
-            'name' => 'Adrian Cruz', 'email' => 'adrian@brewhaven.example',
-            'password' => 'password123', 'password_confirmation' => 'password123',
-            'business_name' => 'Brew Haven Cafe',
-        ])->assertCreated();
+        $business = Business::create([
+            'name' => 'Brew Haven Cafe',
+            'status' => 'pending',
+            'active' => false,
+        ]);
+        $owner = \App\Models\User::factory()->owner()->create([
+            'name' => 'Adrian Cruz',
+            'email' => 'adrian@brewhaven.example',
+            'password' => 'password123',
+            'business_id' => $business->id,
+        ]);
+        $business->update(['owner_id' => $owner->id]);
 
         // Business operations remain locked until a platform administrator approves it.
-        Business::findOrFail($register->json('business.id'))->update([
+        $business->update([
             'status' => 'active',
             'active' => true,
         ]);
 
-        $ownerHeaders = ['Authorization' => 'Bearer '.$register->json('token')];
+        $ownerHeaders = ['Authorization' => 'Bearer '.$owner->createToken('backend-api-test')->plainTextToken];
 
         $stock = $this->postJson('/api/v1/stock', [
             'name' => 'Milk', 'unit' => 'ml', 'current_quantity' => 1000,
@@ -54,11 +98,11 @@ class BackendApiTest extends TestCase
 
         $this->postJson('/api/v1/staff', [
             'name' => 'Lea Santos', 'email' => 'lea@brewhaven.example',
-            'password' => 'password123', 'password_confirmation' => 'password123',
+            'password' => 'GastoTrack9!', 'password_confirmation' => 'GastoTrack9!',
         ], $ownerHeaders)->assertCreated();
 
         $staffLogin = $this->postJson('/api/v1/auth/login', [
-            'email' => 'lea@brewhaven.example', 'password' => 'password123',
+            'email' => 'lea@brewhaven.example', 'password' => 'GastoTrack9!',
         ])->assertOk()->assertJsonPath('user.role', 'staff');
         $staffHeaders = ['Authorization' => 'Bearer '.$staffLogin->json('token')];
 
@@ -108,7 +152,7 @@ class BackendApiTest extends TestCase
         ], $staffHeaders)->assertCreated()->assertJsonPath('order.status', 'completed')->json('order');
 
         $this->assertDatabaseHas('stock_items', ['id' => $stock['id'], 'current_quantity' => 600]);
-        $this->assertDatabaseHas('transactions', ['business_id' => $register->json('business.id'), 'amount' => 240, 'type' => 'income']);
+        $this->assertDatabaseHas('transactions', ['business_id' => $business->id, 'amount' => 240, 'type' => 'income']);
         $this->getJson('/api/v1/transactions', $staffHeaders)->assertOk()
             ->assertJsonPath('transactions.0.transaction_date', now()->toDateString())
             ->assertJsonPath('transactions.0.description', '2× Latte');
@@ -148,7 +192,7 @@ class BackendApiTest extends TestCase
         ], $staffHeaders)->assertOk()->assertJsonPath('transaction.amount', '90.00');
 
         // The income generated from a completed order is an immutable accounting record.
-        $orderTransaction = Transaction::where('business_id', $register->json('business.id'))
+        $orderTransaction = Transaction::where('business_id', $business->id)
             ->where('entry_method', 'order_system')
             ->firstOrFail();
         $this->putJson('/api/v1/transactions/'.$orderTransaction->id, [

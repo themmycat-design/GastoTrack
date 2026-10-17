@@ -91,10 +91,12 @@
                                 <label for="password" class="mb-2 block text-sm font-bold text-gray-700">Password</label>
                                 <div class="relative">
                                     <input id="password" :type="showPassword ? 'text' : 'password'" name="password" required autocomplete="new-password"
+                                        data-password-strength="password-strength-indicator" minlength="8"
                                         class="block w-full rounded-xl border-gray-300 px-4 py-3 pr-16 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
                                         placeholder="At least 8 characters">
                                     <button type="button" @click="showPassword = !showPassword" class="absolute inset-y-0 right-0 px-4 text-xs font-bold text-emerald-700" x-text="showPassword ? 'Hide' : 'Show'"></button>
                                 </div>
+                                <x-password-strength-indicator input-id="password" />
                                 <x-input-error :messages="$errors->get('password')" class="mt-2" />
                             </div>
                             <div>

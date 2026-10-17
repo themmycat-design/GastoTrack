@@ -121,7 +121,7 @@ class StockController extends Controller
         
         $user = auth()->user();
         
-        StockItem::create([
+        $stock = StockItem::create([
             'business_id' => $user->business_id,
             'name' => $validated['name'],
             'unit' => $validated['unit'],
@@ -130,6 +130,7 @@ class StockController extends Controller
             'unit_cost' => $validated['unit_cost'],
             'active' => $validated['active'] ?? true,
         ]);
+        app(NotificationService::class)->notifyLowStock($stock);
         
         return redirect()->route('stock.index')
             ->with('success', 'Stock item created successfully!');
@@ -160,6 +161,7 @@ class StockController extends Controller
             'unit_cost' => $validated['unit_cost'],
             'active' => $validated['active'] ?? true,
         ]);
+        app(NotificationService::class)->notifyLowStock($stock);
         
         return redirect()->route('stock.index')
             ->with('success', 'Stock item updated successfully!');
@@ -176,6 +178,7 @@ class StockController extends Controller
         }
         
         $stock->delete();
+        app(NotificationService::class)->notifyLowStock($stock);
         
         return response()->json(['success' => true]);
     }
@@ -194,9 +197,13 @@ class StockController extends Controller
             'type' => 'required|in:add,subtract,set',
             'quantity' => 'required|numeric|min:0',
             'reason' => 'nullable|string|max:500',
+            'movement_category' => 'nullable|in:adjustment,waste',
         ]);
+
+        $movementCategory = $validated['movement_category'] ?? 'adjustment';
+        abort_if($movementCategory === 'waste' && $validated['type'] !== 'subtract', 422, 'Waste can only be recorded when subtracting stock.');
         
-        $stock = DB::transaction(function () use ($stock, $validated) {
+        $stock = DB::transaction(function () use ($stock, $validated, $movementCategory) {
             $lockedStock = StockItem::where('business_id', auth()->user()->business_id)
                 ->lockForUpdate()
                 ->findOrFail($stock->id);
@@ -221,6 +228,8 @@ class StockController extends Controller
                 'previous_quantity' => $quantityBefore,
                 'new_quantity' => $quantityAfter,
                 'reason' => $validated['reason'] ?? 'Manual stock adjustment',
+                'movement_category' => $movementCategory,
+                'unit_cost_at_movement' => $lockedStock->unit_cost,
             ]);
 
             return $lockedStock;

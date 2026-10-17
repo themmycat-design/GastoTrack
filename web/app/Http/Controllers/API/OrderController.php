@@ -166,6 +166,9 @@ class OrderController extends Controller
                             'quantity' => (float) $ingredient->quantity,
                             'stock_name' => $ingredient->stockItem?->name,
                             'unit' => $ingredient->stockItem?->unit,
+                            'unit_cost' => $ingredient->stockItem?->unit_cost === null
+                                ? null
+                                : (float) $ingredient->stockItem->unit_cost,
                         ])
                         ->values()
                         ->all();
@@ -177,6 +180,7 @@ class OrderController extends Controller
                         'quantity' => $item['quantity'],
                         'subtotal' => number_format(((int) round((float) $product->price * 100) * $item['quantity']) / 100, 2, '.', ''),
                         'ingredients_snapshot' => $ingredientSnapshot,
+                        'product_cost_snapshot' => $product->cost,
                     ]);
                 }
 
@@ -896,6 +900,8 @@ class OrderController extends Controller
                 'previous_quantity' => $before,
                 'new_quantity' => $after,
                 'reason' => 'Order '.$order->order_number,
+                'movement_category' => 'sale',
+                'unit_cost_at_movement' => $item->unit_cost,
             ]);
             app(NotificationService::class)->notifyLowStock($item);
         }
@@ -1006,6 +1012,8 @@ class OrderController extends Controller
                 'new_quantity' => $after,
                 'reason' => 'Reversal for '.$order->order_number.': '.$reason,
                 'reversal_of_id' => $movement->id,
+                'movement_category' => 'return',
+                'unit_cost_at_movement' => $movement->unit_cost_at_movement ?? $item->unit_cost,
             ]);
         }
     }

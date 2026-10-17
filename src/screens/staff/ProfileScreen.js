@@ -21,6 +21,7 @@ const ProfileScreen = ({navigation}) => {
   const profileOptions = [
     {title: 'Personal information', icon: 'account-outline', route: 'PersonalInformation'},
     {title: 'Permissions', icon: 'shield-check-outline', route: 'Permissions'},
+    {title: 'Bugs reports', icon: 'bug-outline', route: 'BugReports'},
     {title: 'About', icon: 'information-outline', route: 'About'},
   ];
 

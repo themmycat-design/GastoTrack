@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\AnalyticsController;
 use App\Http\Controllers\API\AiAssistantController;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\BugReportController as ApiBugReportController;
 use App\Http\Controllers\API\BusinessController;
 use App\Http\Controllers\API\GoalController;
 use App\Http\Controllers\API\NotificationController;
@@ -17,9 +18,7 @@ use App\Http\Controllers\API\WalletNotificationCaptureController;
 use Illuminate\Support\Facades\Route;
 
 $registerPublicRoutes = function (): void {
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-    Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::get('/product-images/{product}', [ProductController::class, 'image'])
         ->whereNumber('product');
@@ -71,6 +70,11 @@ $registerProtectedRoutes = function (): void {
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'read']);
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy']);
+
+    Route::get('/bug-reports', [ApiBugReportController::class, 'index']);
+    Route::post('/bug-reports', [ApiBugReportController::class, 'store']);
+    Route::get('/bug-reports/{bugReport}/screenshot', [ApiBugReportController::class, 'screenshot'])->whereNumber('bugReport');
+    Route::get('/bug-reports/{bugReport}', [ApiBugReportController::class, 'show'])->whereNumber('bugReport');
 
     Route::prefix('analytics')->group(function (): void {
         Route::get('/summary', [AnalyticsController::class, 'summary']);

@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\StockMovement;
 use App\Models\Transaction;
+use App\Services\OwnerDashboardMetrics;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
 class OwnerAnalyticsDayController extends Controller
 {
-    public function __invoke(Request $request, string $date)
+    public function __invoke(Request $request, OwnerDashboardMetrics $metrics, string $date)
     {
         abort_unless(
             preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
@@ -63,12 +64,15 @@ class OwnerAnalyticsDayController extends Controller
             ->groupBy('stock_items.id', 'stock_items.name', 'stock_items.unit')
             ->orderBy('stock_items.name')
             ->get();
+        $waste = $metrics->wasteCostsForOwner($request->user(), $start, $end);
 
         return view('analytics.day', [
             'day' => $day,
             'transactions' => $transactions,
             'orders' => $orders,
             'ingredientsUsed' => $ingredientsUsed,
+            'wasteCost' => $waste['total'],
+            'wasteCostEstimated' => $waste['estimated'],
             'income' => round((float) ($totals['income'] ?? 0), 2),
             'expenses' => round((float) ($totals['expense'] ?? 0), 2),
             'currencyCode' => strtoupper((string) ($request->user()->business?->currency ?: 'PHP')),

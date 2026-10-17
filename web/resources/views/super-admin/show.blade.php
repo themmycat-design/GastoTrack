@@ -19,30 +19,32 @@
             <dl class="mt-5 grid gap-5 sm:grid-cols-2 text-sm">
                 <div><dt class="text-slate-500">Business name</dt><dd class="mt-1 font-semibold">{{ $business->name }}</dd></div>
                 <div><dt class="text-slate-500">Business type</dt><dd class="mt-1 font-semibold capitalize">{{ $business->business_type }}</dd></div>
-                <div><dt class="text-slate-500">Email</dt><dd class="mt-1">{{ $business->email ?: 'Not provided' }}</dd></div>
-                <div><dt class="text-slate-500">Phone</dt><dd class="mt-1">{{ $business->phone ?: 'Not provided' }}</dd></div>
+                <div><dt class="text-slate-500">Email</dt><dd class="mt-1">{{ $ownerDetailsHidden ? 'Hidden until owner verifies email' : ($business->email ?: 'Not provided') }}</dd></div>
+                <div><dt class="text-slate-500">Phone</dt><dd class="mt-1">{{ $ownerDetailsHidden ? 'Hidden until owner verifies email' : ($business->phone ?: 'Not provided') }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-slate-500">Location</dt><dd class="mt-1">{{ $business->address ?: $business->location ?: 'Not provided' }}@if($business->city || $business->province)<span class="block text-slate-500">{{ collect([$business->city, $business->province])->filter()->join(', ') }}</span>@endif</dd></div>
                 @if($business->description)<div class="sm:col-span-2"><dt class="text-slate-500">Description</dt><dd class="mt-1">{{ $business->description }}</dd></div>@endif
             </dl>
         </section>
 
         <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Owner account</h2>@if($business->owner_account)<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize">{{ $business->owner_account->status }}</span>@endif</div>
-            @if($business->owner_account)
+            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Owner account</h2>@if($ownerAccountForDisplay)<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize">{{ $ownerAccountForDisplay->status }}</span>@endif</div>
+            @if($ownerAccountForDisplay)
                 <dl class="mt-5 grid gap-5 sm:grid-cols-2 text-sm">
-                    <div><dt class="text-slate-500">Name</dt><dd class="mt-1 font-semibold">{{ $business->owner_account->name }}</dd></div>
-                    <div><dt class="text-slate-500">Email</dt><dd class="mt-1">{{ $business->owner_account->email }}</dd></div>
-                    <div><dt class="text-slate-500">Phone</dt><dd class="mt-1">{{ $business->owner_account->phone ?: 'Not provided' }}</dd></div>
-                    <div><dt class="text-slate-500">Created</dt><dd class="mt-1">{{ $business->owner_account->created_at->format('M d, Y') }}</dd></div>
+                    <div><dt class="text-slate-500">Name</dt><dd class="mt-1 font-semibold">{{ $ownerAccountForDisplay->name }}</dd></div>
+                    <div><dt class="text-slate-500">Email</dt><dd class="mt-1">{{ $ownerAccountForDisplay->email }}</dd></div>
+                    <div><dt class="text-slate-500">Phone</dt><dd class="mt-1">{{ $ownerAccountForDisplay->phone ?: 'Not provided' }}</dd></div>
+                    <div><dt class="text-slate-500">Created</dt><dd class="mt-1">{{ $ownerAccountForDisplay->created_at->format('M d, Y') }}</dd></div>
                 </dl>
                 <div class="mt-6 flex flex-wrap gap-3 border-t border-slate-200 pt-5">
                     <form method="POST" action="{{ route('super-admin.businesses.owner.password-reset', $business) }}">@csrf<button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50"><i class="fas fa-key mr-2"></i>Send password reset</button></form>
-                    @if($business->owner_account->status === 'active')
+                    @if($ownerAccountForDisplay->status === 'active')
                         <form method="POST" action="{{ route('super-admin.businesses.owner.deactivate', $business) }}">@csrf<button class="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Deactivate owner</button></form>
                     @else
                         <form method="POST" action="{{ route('super-admin.businesses.owner.activate', $business) }}">@csrf<button class="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">Activate owner</button></form>
                     @endif
                 </div>
+            @elseif($ownerDetailsHidden)
+                <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Owner details are hidden until the registered owner verifies their email.</p>
             @else
                 <p class="mt-4 text-slate-500">No owner account is assigned.</p>
             @endif
@@ -60,10 +62,18 @@
             <h2 class="text-lg font-bold">Business access</h2>
             <div class="mt-5 space-y-3">
                 @if($business->status === 'pending')
-                    <form method="POST" action="{{ route('super-admin.businesses.approve', $business) }}">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"><i class="fas fa-circle-check mr-2"></i>Approve business</button></form>
+                    @if($ownerEmailVerified)
+                        <form method="POST" action="{{ route('super-admin.businesses.approve', $business) }}">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"><i class="fas fa-circle-check mr-2"></i>Approve business</button></form>
+                    @else
+                        <p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{{ $ownerAccountExists ? 'Owner email verification is required before approval.' : 'Assign a business owner and verify their email before approval.' }}</p>
+                    @endif
                 @endif
                 @if(in_array($business->status, ['suspended', 'inactive']))
-                    <form method="POST" action="{{ route('super-admin.businesses.reactivate', $business) }}">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"><i class="fas fa-rotate-left mr-2"></i>Reactivate business</button></form>
+                    @if($ownerEmailVerified)
+                        <form method="POST" action="{{ route('super-admin.businesses.reactivate', $business) }}">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"><i class="fas fa-rotate-left mr-2"></i>Reactivate business</button></form>
+                    @else
+                        <p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Owner email verification is required before reactivation.</p>
+                    @endif
                 @endif
                 @if($business->status === 'active')
                     <details class="rounded-lg border border-amber-300 p-3"><summary class="cursor-pointer font-semibold text-amber-800">Suspend business</summary><form method="POST" action="{{ route('super-admin.businesses.suspend', $business) }}" class="mt-3">@csrf<textarea name="reason" required rows="3" placeholder="Reason for suspension" class="w-full rounded-lg border border-slate-300 p-3 text-sm"></textarea><button class="mt-2 w-full rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white">Confirm suspension</button></form></details>

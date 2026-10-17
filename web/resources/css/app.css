@@ -17,6 +17,99 @@
     box-shadow: 0 8px 24px rgba(10, 46, 42, .045);
 }
 
+.gt-label {
+    display: block;
+    margin-bottom: .5rem;
+    color: #173F39;
+    font-size: .875rem;
+    font-weight: 700;
+}
+
+.gt-field {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    border: 1px solid var(--gt-border);
+    border-radius: .75rem;
+    background: #fff;
+    padding: .7rem .875rem;
+    color: var(--gt-ink);
+    font: inherit;
+    font-size: .875rem;
+    line-height: 1.35rem;
+    box-shadow: none;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.gt-field::placeholder { color: #94A3B8; }
+
+.gt-field:focus {
+    border-color: var(--gt-brand-strong);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 200, 151, .16);
+}
+
+.gt-field[type="checkbox"],
+.gt-field[type="radio"] {
+    display: inline-block;
+    width: 1rem;
+    min-height: 1rem;
+    height: 1rem;
+    border-radius: .25rem;
+    padding: 0;
+    accent-color: var(--gt-brand-strong);
+    vertical-align: middle;
+}
+
+.gt-btn-primary,
+.gt-btn-secondary,
+.gt-btn-danger {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    border: 1px solid transparent;
+    border-radius: .75rem;
+    padding: .7rem 1.15rem;
+    font-size: .875rem;
+    font-weight: 700;
+    line-height: 1.25rem;
+    text-decoration: none;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+.gt-btn-primary {
+    background: var(--gt-brand-strong);
+    color: #fff;
+    box-shadow: 0 2px 5px rgba(10, 46, 42, .08);
+}
+
+.gt-btn-primary:hover { background: #08745D; }
+
+.gt-btn-secondary {
+    border-color: #C8DED7;
+    background: #fff;
+    color: #08745D;
+}
+
+.gt-btn-secondary:hover { background: #EAF8F2; }
+
+.gt-btn-danger {
+    border-color: #FECACA;
+    background: #FFF1F2;
+    color: #BE123C;
+}
+
+.gt-btn-danger:hover { background: #FFE4E6; }
+
+.gt-btn-primary:focus-visible,
+.gt-btn-secondary:focus-visible,
+.gt-btn-danger:focus-visible {
+    outline: 3px solid rgba(0, 200, 151, .35);
+    outline-offset: 2px;
+}
+
 .gt-lift {
     transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }

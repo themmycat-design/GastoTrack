@@ -51,6 +51,7 @@ const StockScreen = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [adjustType, setAdjustType] = useState('add');
+  const [adjustMovementCategory, setAdjustMovementCategory] = useState('adjustment');
   const [adjustValue, setAdjustValue] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
   const [isAdjusting, setIsAdjusting] = useState(false);
@@ -126,6 +127,7 @@ const StockScreen = () => {
   const openStock = item => {
     setSelectedItem(item);
     setAdjustType('add');
+    setAdjustMovementCategory('adjustment');
     setAdjustValue('');
     setAdjustReason('');
   };
@@ -183,6 +185,7 @@ const StockScreen = () => {
       const updated = await adjustStock(
         selectedItem.id, adjustType, quantity,
         adjustReason.trim() || 'Manual stock adjustment',
+        adjustType === 'deduct' ? adjustMovementCategory : 'adjustment',
       );
       setSelectedItem(updated);
       setAdjustValue('');
@@ -490,10 +493,22 @@ const StockScreen = () => {
             </View>
             <Text style={styles.fieldLabel}>Adjustment</Text>
             <View style={styles.adjustToggle}>{['add', 'deduct'].map(value => (
-              <TouchableOpacity key={value} style={[styles.toggleButton, adjustType === value && styles.toggleButtonActive]} onPress={() => setAdjustType(value)}>
+              <TouchableOpacity key={value} style={[styles.toggleButton, adjustType === value && styles.toggleButtonActive]} onPress={() => { setAdjustType(value); if (value !== 'deduct') setAdjustMovementCategory('adjustment'); }}>
                 <Text style={[styles.toggleText, adjustType === value && styles.toggleTextActive]}>{value === 'add' ? 'Add stock' : 'Deduct stock'}</Text>
               </TouchableOpacity>
             ))}</View>
+            {adjustType === 'deduct' ? <>
+              <Text style={styles.fieldLabel}>Deduction type</Text>
+              <View style={styles.adjustToggle}>{[
+                {value: 'adjustment', label: 'Count correction'},
+                {value: 'waste', label: 'Waste / spoilage'},
+              ].map(option => (
+                <TouchableOpacity key={option.value} style={[styles.toggleButton, adjustMovementCategory === option.value && styles.toggleButtonActive]} onPress={() => setAdjustMovementCategory(option.value)}>
+                  <Text style={[styles.toggleText, adjustMovementCategory === option.value && styles.toggleTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}</View>
+              <Text style={styles.ownerNote}>Waste is tracked separately in the owner’s Analytics.</Text>
+            </> : null}
             <Text style={styles.fieldLabel}>Quantity ({selectedItem.unit})</Text>
             <TextInput style={styles.input} keyboardType="decimal-pad" value={adjustValue} onChangeText={setAdjustValue} placeholder="0.00" />
             <Text style={styles.fieldLabel}>Reason (optional)</Text>

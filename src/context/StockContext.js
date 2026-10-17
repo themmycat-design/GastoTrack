@@ -66,8 +66,13 @@ export const StockProvider = ({children}) => {
 
   const getStatus = (quantity, threshold) => quantity <= 0 ? 'Out' : quantity <= threshold ? 'Low' : 'OK';
 
-  const adjustStock = async (id, type, quantity, reason) => {
-    const response = await api.post(`/stock/${id}/adjust`, {type, quantity, reason});
+  const adjustStock = async (id, type, quantity, reason, movementCategory = 'adjustment') => {
+    const response = await api.post(`/stock/${id}/adjust`, {
+      type,
+      quantity,
+      reason,
+      movement_category: movementCategory,
+    });
     const updated = normalize(response.data.item);
     setStockItems(current => current.map(item => item.id === updated.id ? updated : item));
     return updated;

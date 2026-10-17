@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Keyboard,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -29,9 +30,22 @@ const LoginScreen = () => {
   const [loading, setLoading] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const movement = useRef(new Animated.Value(0)).current;
   const reveal = useRef(new Animated.Value(0)).current;
   const formReveal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -88,6 +102,7 @@ const LoginScreen = () => {
 
   const initialBrandTop = Math.max(0, height / 2 - 90);
   const finalBrandTop = Math.max(insets.top + 28, height * 0.12);
+  const compactBrand = showLoginForm && keyboardVisible;
   const brandMove = movement.interpolate({
     inputRange: [0, 1],
     outputRange: [0, finalBrandTop - initialBrandTop],
@@ -103,22 +118,28 @@ const LoginScreen = () => {
 
   return (
     <Animated.View style={[styles.container, {backgroundColor}]}>
-      <Animated.View style={[styles.brand, {top: initialBrandTop, transform: [{translateY: brandMove}]}]}>
+      <Animated.View style={[styles.brand, compactBrand && styles.brandCompact, {
+        top: compactBrand ? insets.top + 6 : initialBrandTop,
+        transform: [{translateY: compactBrand ? 0 : brandMove}],
+      }]}>
         <Image
           source={require('../../assets/brand/gastotrack-logo.png')}
-          style={styles.logo}
+          style={[styles.logo, compactBrand && styles.logoCompact]}
           resizeMode="contain"
           accessibilityLabel="GastoTrack logo"
         />
-        <Animated.Text style={[styles.title, {color: titleColor}]}>GastoTrack</Animated.Text>
-        <Animated.Text style={[styles.tagline, {opacity: reveal}]}>
-          Keep your shop's daily work in one place.
-        </Animated.Text>
+        <Animated.Text style={[styles.title, compactBrand && styles.titleCompact, {color: titleColor}]}>GastoTrack</Animated.Text>
+        {!compactBrand ? (
+          <Animated.Text style={[styles.tagline, {opacity: reveal}]}>
+            Keep your shop's daily work in one place.
+          </Animated.Text>
+        ) : null}
       </Animated.View>
 
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}>
         {!showLoginForm ? (
           <Animated.View
             pointerEvents={introComplete ? 'auto' : 'none'}
@@ -132,9 +153,10 @@ const LoginScreen = () => {
         ) : (
           <ScrollView
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[styles.formScroll, {
-              paddingTop: Math.max(finalBrandTop + 215, 285),
-              paddingBottom: Math.max(insets.bottom + 20, 24),
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            contentContainerStyle={[styles.formScroll, compactBrand && styles.formScrollCompact, {
+              paddingTop: compactBrand ? insets.top + 102 : Math.max(finalBrandTop + 215, 285),
+              paddingBottom: compactBrand ? Math.max(insets.bottom + 12, 16) : Math.max(insets.bottom + 20, 24),
             }]}>
             <Animated.View style={[styles.formCard, {opacity: formReveal}]}>
               {startupError ? <Text style={styles.startupError} accessibilityRole="alert">{startupError}</Text> : null}
@@ -149,6 +171,9 @@ const LoginScreen = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                selectionColor="#00AE84"
+                underlineColorAndroid="transparent"
+                autoComplete="email"
                 editable={!loading}
               />
               <Text style={styles.label}>Password</Text>
@@ -159,6 +184,9 @@ const LoginScreen = () => {
                 secureTextEntry
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
+                selectionColor="#00AE84"
+                underlineColorAndroid="transparent"
+                autoComplete="current-password"
                 editable={!loading}
                 placeholder="Enter your password"
                 placeholderTextColor="#869D96"
@@ -182,14 +210,18 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
   container: {flex: 1},
   brand: {position: 'absolute', left: 24, right: 24, zIndex: 1, alignItems: 'center'},
+  brandCompact: {left: 16, right: 16},
   logo: {width: 112, height: 112},
+  logoCompact: {width: 48, height: 48},
   title: {marginTop: 6, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -1},
+  titleCompact: {marginTop: 0, fontSize: 20, letterSpacing: -0.4},
   tagline: {maxWidth: 255, marginTop: 10, color: '#577A70', fontSize: 13, lineHeight: 19, textAlign: 'center'},
   content: {flex: 1},
   actions: {flex: 1, justifyContent: 'flex-end', paddingHorizontal: 28},
   primaryButton: {minHeight: 52, borderRadius: 16, backgroundColor: '#00C897', alignItems: 'center', justifyContent: 'center'},
   primaryButtonText: {color: '#053B31', fontSize: 16, fontWeight: '800'},
   formScroll: {flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20},
+  formScrollCompact: {justifyContent: 'flex-start'},
   formCard: {padding: 22, borderWidth: 1, borderColor: '#D7ECE0', borderRadius: 24, backgroundColor: '#FFFFFF'},
   label: {marginBottom: 7, color: '#365B51', fontSize: 13, fontWeight: '700'},
   input: {minHeight: 50, marginBottom: 17, paddingHorizontal: 14, borderWidth: 1, borderColor: '#D7ECE0', borderRadius: 13, backgroundColor: '#F7FBF8', color: '#0A2E2A', fontSize: 15},

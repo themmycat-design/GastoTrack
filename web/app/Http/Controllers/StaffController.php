@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\PasswordStrength;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
 
 class StaffController extends Controller
 {
@@ -57,7 +57,7 @@ class StaffController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone' => ['nullable', 'string', 'max:20'],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'password' => ['required', 'confirmed', new PasswordStrength()],
             'role' => ['required', 'in:owner,staff'],
         ]);
         
@@ -92,7 +92,7 @@ class StaffController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$staff->id],
             'phone' => ['nullable', 'string', 'max:20'],
             'role' => ['required', 'in:owner,staff'],
-            'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
+            'password' => ['nullable', 'confirmed', new PasswordStrength()],
         ]);
         
         $updateData = [

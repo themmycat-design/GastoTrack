@@ -109,8 +109,10 @@ android {
         applicationId "com.gastotrack"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI can override these for each distributable build while local
+        // development keeps a stable default.
+        versionCode (project.findProperty("versionCode") ?: System.getenv("ANDROID_VERSION_CODE") ?: "1").toString().toInteger()
+        versionName (project.findProperty("versionName") ?: System.getenv("ANDROID_VERSION_NAME") ?: "1.0").toString()
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     signingConfigs {

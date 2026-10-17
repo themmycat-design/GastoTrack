@@ -35,17 +35,45 @@
         @forelse($businesses as $business)
             <tr class="hover:bg-slate-50">
                 <td class="p-4"><p class="font-semibold">{{ $business->name }}</p><p class="text-xs capitalize text-slate-500">{{ $business->business_type }}</p></td>
-                <td class="p-4"><p>{{ $business->owner_account?->name ?? 'No owner assigned' }}</p><p class="text-xs text-slate-500">{{ $business->owner_account?->email }}</p></td>
-                <td class="p-4"><p>{{ $business->phone ?: '—' }}</p><p class="text-xs text-slate-500">{{ $business->email }}</p></td>
+                <td class="p-4">
+                    @if($business->verified_owner_account)
+                        <p>{{ $business->verified_owner_account->name }}</p><p class="text-xs text-slate-500">{{ $business->verified_owner_account->email }}</p>
+                    @elseif($business->owner_email_verification_pending)
+                        <span class="text-amber-700">Email verification pending</span>
+                    @else
+                        <span class="text-slate-500">No owner assigned</span>
+                    @endif
+                </td>
+                <td class="p-4">
+                    @if($business->owner_email_verification_pending)
+                        <span class="text-slate-500">Contact hidden until verification</span>
+                    @else
+                        <p>{{ $business->phone ?: '—' }}</p><p class="text-xs text-slate-500">{{ $business->email }}</p>
+                    @endif
+                </td>
                 <td class="p-4 text-slate-600">{{ collect([$business->city, $business->province])->filter()->join(', ') ?: 'Not provided' }}</td>
                 <td class="p-4">{{ $business->staff_count }}</td>
                 <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-semibold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->trashed() ? 'archived' : $business->status }}</span></td>
                 <td class="p-4 text-slate-600">{{ $business->created_at->format('M d, Y') }}</td>
                 <td class="p-4">
                     @if($business->trashed())
-                        <form method="POST" action="{{ route('super-admin.businesses.restore', $business->id) }}">@csrf<button class="font-semibold text-emerald-700"><i class="fas fa-rotate-left mr-1"></i>Restore</button></form>
+                        <div class="flex items-center gap-3">
+                            <form method="POST" action="{{ route('super-admin.businesses.restore', $business->id) }}">@csrf<button class="font-semibold text-emerald-700"><i class="fas fa-rotate-left mr-1"></i>Restore</button></form>
+                            <form method="POST" action="{{ route('super-admin.businesses.force-destroy', $business->id) }}" onsubmit="return confirm('Permanently delete this archived business and all associated business records? This cannot be undone.')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="font-semibold text-red-700 hover:text-red-900">Delete permanently</button>
+                            </form>
+                        </div>
                     @else
-                        <a href="{{ route('super-admin.businesses.show', $business) }}" class="font-semibold text-emerald-700">View</a>
+                        <div class="flex items-center gap-3">
+                            <a href="{{ route('super-admin.businesses.show', $business) }}" class="font-semibold text-emerald-700">View</a>
+                            <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" onsubmit="return confirm('Delete this business? It will be archived, access disabled, and its records preserved.')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="font-semibold text-red-700 hover:text-red-900">Delete</button>
+                            </form>
+                        </div>
                     @endif
                 </td>
             </tr>

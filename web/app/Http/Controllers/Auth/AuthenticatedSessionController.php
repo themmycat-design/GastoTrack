@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\OwnerTrustedDeviceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,7 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, OwnerTrustedDeviceService $trustedDevices): RedirectResponse
     {
         $request->authenticate();
 
@@ -55,8 +56,32 @@ class AuthenticatedSessionController extends Controller
                 ->onlyInput('email');
         }
 
+        if (!$user->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
         if (!$user->business || !$user->business->active || !$user->business->isActive()) {
             return redirect()->route('business.status');
+        }
+
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            if ($user->isOwner() && $trustedDevices->restoreMfaSessionForAuthenticatedOwner($request, $user)) {
+                return redirect()->intended(route('dashboard', absolute: false));
+            }
+
+            Auth::guard('web')->logout();
+            $request->session()->forget([
+                'owner.two_factor_user_id',
+                'owner.two_factor_verified_at',
+            ]);
+            $request->session()->regenerate();
+            $request->session()->put([
+                'login.id' => $user->getKey(),
+                'login.remember' => $request->boolean('remember'),
+                'url.intended' => route('dashboard', absolute: false),
+            ]);
+
+            return redirect()->route('two-factor.login');
         }
 
         return redirect()->intended(route('dashboard', absolute: false));

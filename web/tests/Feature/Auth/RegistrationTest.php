@@ -3,6 +3,8 @@
 namespace Tests\Feature\Auth;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -18,13 +20,15 @@ class RegistrationTest extends TestCase
 
     public function test_new_users_can_register(): void
     {
+        Notification::fake();
+
         $response = $this->post('/register', [
             'name' => 'Carlo Reyes',
             'business_name' => 'Harbor Coffee',
             'business_type' => 'cafe',
             'email' => 'carlo@harborcoffee.example',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'GastoTrack9!',
+            'password_confirmation' => 'GastoTrack9!',
         ]);
 
         $this->assertDatabaseHas('users', [
@@ -39,7 +43,27 @@ class RegistrationTest extends TestCase
             'active' => false,
         ]);
 
+        $owner = \App\Models\User::where('email', 'carlo@harborcoffee.example')->firstOrFail();
+        Notification::assertSentTo($owner, VerifyEmail::class);
+        $this->assertFalse($owner->hasVerifiedEmail());
         $this->assertAuthenticated();
-        $response->assertRedirect(route('business.status', absolute: false));
+        $response->assertRedirect(route('verification.notice', absolute: false));
+    }
+
+    public function test_weak_password_is_rejected_during_registration(): void
+    {
+        $this->from('/register')
+            ->post('/register', [
+                'name' => 'Carlo Reyes',
+                'business_name' => 'Harbor Coffee',
+                'business_type' => 'cafe',
+                'email' => 'carlo@harborcoffee.example',
+                'password' => 'password1',
+                'password_confirmation' => 'password1',
+            ])
+            ->assertRedirect('/register')
+            ->assertSessionHasErrors('password');
+
+        $this->assertDatabaseMissing('users', ['email' => 'carlo@harborcoffee.example']);
     }
 }

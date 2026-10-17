@@ -2,25 +2,34 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Laravel\Fortify\TwoFactorAuthenticatable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes, TwoFactorAuthenticatable;
 
     protected $fillable = [
         'name', 'email', 'password', 'role', 'business_id', 'phone', 'status'
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password'          => 'hashed',
+        'two_factor_confirmed_at' => 'datetime',
     ];
 
     public function business()
@@ -31,6 +40,11 @@ class User extends Authenticatable
     public function ownedBusiness()
     {
         return $this->hasOne(Business::class, 'owner_id');
+    }
+
+    public function trustedDevices(): HasMany
+    {
+        return $this->hasMany(OwnerTrustedDevice::class);
     }
 
     public function transactions()
