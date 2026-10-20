@@ -7,6 +7,7 @@ use App\Models\Business;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class BugReportController extends Controller
 {
@@ -82,7 +83,7 @@ class BugReportController extends Controller
             : null;
 
         $oldPath = $bugReport->screenshot_path;
-        $newPath = $request->file('screenshot')?->store('bug-reports/'.$bugReport->business_id, 'local');
+        $newPath = $request->file('screenshot')?->store('bug-reports/'.$data['business_id'], 'local');
         if ($newPath) {
             $data['screenshot_path'] = $newPath;
         }

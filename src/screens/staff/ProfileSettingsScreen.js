@@ -34,8 +34,8 @@ const ProfileSettingsScreen = ({navigation}) => (
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  content: {padding: 20, paddingBottom: 36},
-  card: {minHeight: 68, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 18, marginBottom: 14, ...SHADOWS.card},
+  content: {padding: 16, paddingBottom: 28},
+  card: {minHeight: 60, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, marginBottom: 10, ...SHADOWS.card},
   copy: {flex: 1},
   title: {fontSize: 16, fontWeight: '700', color: COLORS.textDark},
 });

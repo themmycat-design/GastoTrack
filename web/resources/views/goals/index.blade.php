@@ -22,8 +22,7 @@
         @include('layouts.owner-topbar')
         <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <section class="gt-enter">
-                <p class="text-xs font-bold uppercase tracking-[.16em] text-[#00A87E]">Owner workspace</p>
-                <h2 class="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Sales goals</h2>
+                <h2 class="text-2xl font-extrabold tracking-tight sm:text-3xl">Sales goals</h2>
                 <p class="mt-2 text-sm text-slate-500">Set weekly and monthly targets. Progress counts completed orders with confirmed payments only.</p>
             </section>
 

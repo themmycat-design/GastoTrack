@@ -41,8 +41,7 @@
         <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <section class="gt-enter flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
                 <div>
-                    <p class="text-sm font-semibold text-[#00A87E]">{{ Auth::user()->business?->name }} · business performance</p>
-                    <h2 class="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">Analytics</h2>
+                    <h2 class="text-2xl font-extrabold tracking-tight sm:text-3xl">Analytics</h2>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded finances separately from estimated recipe costs, logged waste, and product margins.</p>
                 </div>
                 <nav class="inline-flex flex-wrap gap-1 self-start rounded-xl border border-[#DDE9E5] bg-white p-1 shadow-sm lg:self-auto" aria-label="Analytics period">
@@ -205,7 +204,7 @@
                             <tbody class="divide-y divide-[#EAF2EF]">
                                 @foreach($topSellingProducts as $index => $product)
                                     <tr class="transition hover:bg-[#F8FBFA]">
-                                        <td class="px-5 py-3 text-sm font-bold text-slate-400 sm:px-6">{{ str_pad($index + 1, 2, '0', STR_PAD_LEFT) }}</td>
+                                        <td class="px-5 py-3 text-sm font-bold text-slate-400 sm:px-6">{{ $index + 1 }}</td>
                                         <th scope="row" class="px-3 py-3">
                                             <span class="flex items-center gap-3">
                                                 <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#EAF8F2] text-sm font-extrabold text-[#08745D]">

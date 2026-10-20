@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class WalletNotificationCaptureController extends Controller
 {
@@ -24,14 +25,17 @@ class WalletNotificationCaptureController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $query = WalletNotificationCapture::where('business_id', $user->business_id)
+        $query = WalletNotificationCapture::transactionSignals()
+            ->where('business_id', $user->business_id)
             ->with('capturedBy:id,name');
         if ($user->isStaff()) $query->where('user_id', $user->id);
         if (!empty($filters['source'])) $query->where('source', $filters['source']);
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(fn ($q) => $q->where('message', 'like', "%{$search}%")
-                ->orWhere('merchant', 'like', "%{$search}%"));
+                ->orWhere('merchant', 'like', "%{$search}%")
+                ->orWhere('counterparty_name', 'like', "%{$search}%")
+                ->orWhere('reference', 'like', "%{$search}%"));
         }
         $timezone = config('business.timezone');
         if (!empty($filters['from'])) {
@@ -56,18 +60,33 @@ class WalletNotificationCaptureController extends Controller
     public function storeBatch(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isStaff(), 403, 'Only staff may upload captured wallet notifications.');
+        abort_unless($user->isStaff(), 403, 'Only staff may upload captured wallet transactions.');
         $validated = $request->validate([
             'captures' => ['required', 'array', 'min:1', 'max:50'],
             'captures.*.client_id' => ['required', 'uuid'],
             'captures.*.source' => ['required', Rule::in(['gcash', 'maya'])],
-            'captures.*.direction' => ['required', Rule::in(['received', 'sent', 'unknown'])],
-            'captures.*.amount' => ['nullable', 'numeric', 'gt:0', 'max:99999999.99'],
+            'captures.*.direction' => ['required', Rule::in(['received', 'sent'])],
+            'captures.*.amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
             'captures.*.currency' => ['required', Rule::in(['PHP'])],
             'captures.*.merchant' => ['nullable', 'string', 'max:160'],
-            'captures.*.message' => ['nullable', 'string', 'max:1000'],
+            'captures.*.counterparty_name' => ['nullable', 'string', 'max:160'],
+            'captures.*.reference' => ['nullable', 'string', 'max:120'],
+            'captures.*.message' => ['required', 'string', 'max:1000'],
             'captures.*.captured_at' => ['required', 'date'],
         ]);
+
+        foreach ($validated['captures'] as $index => $capture) {
+            if (!WalletNotificationCapture::isTransactionSignal(
+                $capture['source'],
+                $capture['direction'],
+                $capture['amount'],
+                $capture['message'],
+            )) {
+                throw ValidationException::withMessages([
+                    "captures.{$index}.message" => 'Only completed GCash or Maya transaction notifications can be captured.',
+                ]);
+            }
+        }
 
         DB::transaction(function () use ($validated, $user): void {
             foreach ($validated['captures'] as $capture) {
@@ -81,6 +100,8 @@ class WalletNotificationCaptureController extends Controller
                     'amount' => $capture['amount'] ?? null,
                     'currency' => $capture['currency'],
                     'merchant' => $capture['merchant'] ?? null,
+                    'counterparty_name' => $capture['counterparty_name'] ?? $capture['merchant'] ?? null,
+                    'reference' => $capture['reference'] ?? null,
                     'message' => $capture['message'] ?? null,
                     'captured_at' => Carbon::parse($capture['captured_at'])->utc(),
                     'created_at' => now(),
@@ -98,7 +119,7 @@ class WalletNotificationCaptureController extends Controller
 
         return response()->json([
             'saved_ids' => array_column($validated['captures'], 'client_id'),
-            'message' => 'Wallet notification signals saved. They are not verified payments or income.',
+            'message' => 'Wallet transaction signals saved. They are not verified payments or income.',
         ]);
     }
 }

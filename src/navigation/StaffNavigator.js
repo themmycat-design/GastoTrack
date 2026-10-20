@@ -1,6 +1,6 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Keyboard, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS } from '../theme';
@@ -17,14 +17,21 @@ const renderTabBar = props => <CustomTabBar {...props} />;
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible?.() || false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const tabMeta = {
     Dashboard: { icon: 'space-dashboard', label: 'Home' },
-    Transactions: { icon: 'receipt-long', label: 'Transaction' },
+    Transactions: { icon: 'receipt-long', label: 'Transactions' },
     Orders: { icon: 'point-of-sale', label: 'Orders' },
     Stock: { icon: 'inventory-2', label: 'Inventory' },
-    Assistant: { icon: 'auto-awesome', label: 'AI' },
     Profile: { icon: 'person-outline', label: 'Profile' },
   };
+
+  if (keyboardVisible) return null;
 
   return (
     <View style={[styles.navContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -53,7 +60,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
               type: 'tabLongPress',
               target: route.key,
             })}
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={descriptors[route.key].options.tabBarAccessibilityLabel || meta.label}
             activeOpacity={0.7}>
@@ -70,16 +77,6 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           </TouchableOpacity>
         );
       })}
-      {state.routes[state.index]?.name !== 'Assistant' ? (
-        <TouchableOpacity
-          style={styles.aiFloatingButton}
-          onPress={() => navigation.navigate('Assistant')}
-          accessibilityRole="button"
-          accessibilityLabel="Open AI Assistant"
-          activeOpacity={0.85}>
-          <Icon name="auto-awesome" size={25} color={COLORS.textWhite} />
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 };
@@ -115,6 +112,8 @@ const styles = StyleSheet.create({
   },
   navItem: {
     flex: 1,
+    minHeight: 56,
+    paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -130,33 +129,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceMuted,
   },
   activeLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: COLORS.accentDark,
     textAlign: 'center',
   },
   inactiveLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.textGray,
     textAlign: 'center',
-  },
-  aiFloatingButton: {
-    position: 'absolute',
-    right: 25,
-    top: -58,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: COLORS.surface,
-    shadowColor: COLORS.textDark,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.22,
-    shadowRadius: 7,
-    elevation: 7,
   },
 });
 

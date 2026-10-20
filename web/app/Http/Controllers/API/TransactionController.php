@@ -189,9 +189,13 @@ class TransactionController extends Controller
         if ($request->filled('from')) $base->whereDate('transaction_date', '>=', $request->from);
         if ($request->filled('to')) $base->whereDate('transaction_date', '<=', $request->to);
 
-        $income = (clone $base)
-            ->where('type', 'income')
-            ->sum('amount');
+        $incomeTransactions = (clone $base)->where('type', 'income');
+        $income = (clone $incomeTransactions)->sum('amount');
+        $incomeCountQuery = clone $incomeTransactions;
+        if ($request->user()->isStaff()) {
+            $incomeCountQuery->where('user_id', $request->user()->id);
+        }
+        $incomeCount = $incomeCountQuery->count();
 
         $expense = (clone $base)
             ->where('type', 'expense')
@@ -199,6 +203,7 @@ class TransactionController extends Controller
 
         return response()->json([
             'income'  => $income,
+            'income_count' => $incomeCount,
             'expense' => $expense,
             'balance' => $income - $expense,
         ]);

@@ -72,13 +72,13 @@ const PermissionsScreen = ({navigation}) => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  content: {padding: 20},
+  content: {padding: 16},
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 18,
+    padding: 14,
     ...SHADOWS.card,
   },
   titleRow: {flexDirection: 'row', alignItems: 'flex-start'},
@@ -90,10 +90,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  copy: {flex: 1, marginLeft: 12},
+  copy: {flex: 1, marginLeft: 10},
   title: {fontSize: 16, fontWeight: '700', color: COLORS.textDark},
   description: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, marginTop: 4},
-  status: {borderRadius: 10, padding: 12, marginTop: 18},
+  status: {borderRadius: 10, padding: 11, marginTop: 12},
   activeStatus: {backgroundColor: '#E8F5E9'},
   offStatus: {backgroundColor: '#FFF8E1'},
   activeText: {fontSize: 13, fontWeight: '600', color: '#2E7D32'},
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 14,
+    marginTop: 10,
   },
   buttonText: {fontSize: 14, fontWeight: '700', color: COLORS.textWhite},
 });

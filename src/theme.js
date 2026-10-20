@@ -6,16 +6,17 @@ export const COLORS = {
 
   // Accent
   accent: '#00C897',
-  accentDark: '#00A87E',
+  accentDark: '#08745D',
 
   // Text
   textWhite: '#FFFFFF',
   textDark: '#0A2E2A',
-  textGray: '#888888',
-  textMuted: '#BBBBBB',
+  textGray: '#60756F',
+  textMuted: '#72847E',
+  placeholder: '#566A63',
 
   // Transaction
-  income: '#00A87E',
+  income: '#08745D',
   expense: '#E53935',
 
   // Tags
@@ -31,7 +32,7 @@ export const COLORS = {
 
   // Nav
   navActive: '#00C897',
-  navInactive: '#BBBBBB',
+  navInactive: '#72847E',
 
   // Semantic surfaces
   background: '#F4F8F7',

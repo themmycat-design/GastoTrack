@@ -140,6 +140,7 @@ class OrderPaymentLifecycleTest extends TestCase
             'amount' => 120,
             'currency' => 'PHP',
             'source' => 'gcash',
+            'reference' => 'GCASH-REF-20261012-0001',
             'notification_id' => 'device-event-20261012-01',
         ];
 
@@ -148,7 +149,8 @@ class OrderPaymentLifecycleTest extends TestCase
             ->assertJsonPath('payment_verified', false)
             ->assertJsonPath('payment_auto_matched', true)
             ->assertJsonPath('order.status', 'completed')
-            ->assertJsonPath('order.payment_status', 'confirmed');
+            ->assertJsonPath('order.payment_status', 'confirmed')
+            ->assertJsonPath('order.payment_reference', 'GCASH-REF-20261012-0001');
 
         $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', $signal)
             ->assertOk()
@@ -157,6 +159,10 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->assertSame(800.0, (float) $this->stock->fresh()->current_quantity);
         $this->assertDatabaseCount('transactions', 1);
         $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseHas('orders', [
+            'id' => $created['id'],
+            'payment_reference' => 'GCASH-REF-20261012-0001',
+        ]);
         $event = DB::table('order_payment_events')
             ->where('order_id', $created['id'])
             ->where('event_type', 'device_payment_notification_auto_confirmed')
@@ -176,9 +182,17 @@ class OrderPaymentLifecycleTest extends TestCase
         ])->assertCreated()->json('order');
 
         $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
+            'amount' => 120,
+            'currency' => 'PHP',
+            'source' => 'gcash',
+            'notification_id' => 'device-event-20261012-no-ref',
+        ])->assertUnprocessable()->assertJsonValidationErrors('reference');
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
             'amount' => 119,
             'currency' => 'PHP',
             'source' => 'gcash',
+            'reference' => 'GCASH-REF-20261012-0002',
             'notification_id' => 'device-event-20261012-02',
         ])->assertUnprocessable();
 
@@ -186,6 +200,7 @@ class OrderPaymentLifecycleTest extends TestCase
             'amount' => 120,
             'currency' => 'PHP',
             'source' => 'maya',
+            'reference' => 'MAYA-REF-20261012-0003',
             'notification_id' => 'device-event-20261012-03',
         ])->assertUnprocessable();
 

@@ -1,7 +1,8 @@
 import React, {createContext, useCallback, useEffect, useRef, useState} from 'react';
+import {AppState} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, {setApiAuthToken, setUnauthorizedHandler} from '../services/api';
-import {clearAuthToken, getAuthToken, saveAuthToken} from '../services/authTokenStorage';
+import {clearAuthToken, getAuthSession, saveAuthToken, STAFF_SESSION_MS} from '../services/authTokenStorage';
 import {getApiErrorMessage} from '../services/apiErrors';
 
 export const AuthContext = createContext();
@@ -24,8 +25,8 @@ const withSessionTimeout = async (operation, message) => {
   }
 };
 
-const restoreSavedToken = () => withSessionTimeout(
-  getAuthToken(),
+const restoreSavedSession = () => withSessionTimeout(
+  getAuthSession(),
   'Saved sign-in could not be restored. Please sign in again.',
 );
 
@@ -37,6 +38,7 @@ export const AuthProvider = ({ children }) => {
   const [business, setBusiness] = useState(null);
   const [startupError, setStartupError] = useState(null);
   const [sessionStorageWarning, setSessionStorageWarning] = useState(null);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState(null);
   const bootstrapStarted = useRef(false);
 
   const clearLocalSession = useCallback(async () => {
@@ -47,6 +49,7 @@ export const AuthProvider = ({ children }) => {
     setBusiness(null);
     setStartupError(null);
     setSessionStorageWarning(null);
+    setSessionExpiresAt(null);
     setIsLoading(false);
     await Promise.allSettled([
       clearAuthToken(),
@@ -69,6 +72,8 @@ export const AuthProvider = ({ children }) => {
         const token = response.data.token;
         const role = response.data.user.role;
 
+        const signedInAt = Date.now();
+
         setApiAuthToken(token);
         setUserToken(token);
         setUserRole(role);
@@ -76,12 +81,13 @@ export const AuthProvider = ({ children }) => {
         setBusiness(response.data.business || null);
         setStartupError(null);
         setSessionStorageWarning(null);
+        setSessionExpiresAt(signedInAt + STAFF_SESSION_MS);
 
         // A native secure-storage call can stall on some Android devices.
         // Server-confirmed login remains usable for this process; never store
         // the token in plaintext when secure persistence fails.
         withSessionTimeout(Promise.all([
-          saveAuthToken(token),
+          saveAuthToken(token, signedInAt),
           AsyncStorage.setMany({
             userRole: role,
             user: JSON.stringify(response.data.user),
@@ -108,17 +114,38 @@ export const AuthProvider = ({ children }) => {
     await clearLocalSession();
   };
 
+  const updateProfile = useCallback(async formData => {
+    try {
+      const response = await api.post('/user/profile', formData, {
+        headers: {'Content-Type': 'multipart/form-data'},
+        timeout: 60000,
+      });
+      const updatedUser = response.data?.user;
+      if (!updatedUser) {
+        return {success: false, message: 'The server did not return the updated profile.'};
+      }
+
+      setUser(updatedUser);
+      AsyncStorage.setMany({user: JSON.stringify(updatedUser)}).catch(() => {});
+      return {success: true, user: updatedUser};
+    } catch (error) {
+      return {success: false, error, message: getApiErrorMessage(error, 'Could not update your personal information.')};
+    }
+  }, []);
+
   const isLoggedIn = useCallback(async () => {
     try {
       setIsLoading(true);
       if (__DEV__) console.info('[GastoTrack Auth] Starting local session restore');
-      const token = await restoreSavedToken();
+      const session = await restoreSavedSession();
+      const token = session.token;
       if (__DEV__) console.info(`[GastoTrack Auth] Secure token lookup ${token ? 'completed' : 'found no saved token'}`);
       const role = await AsyncStorage.getItem('userRole');
       const storedUser = await AsyncStorage.getItem('user');
       const storedBusiness = await AsyncStorage.getItem('business');
       if (__DEV__) console.info('[GastoTrack Auth] Local session storage read complete');
       if (token) {
+        setSessionExpiresAt(session.expiresAt);
         setApiAuthToken(token);
         setUserToken(token);
         setUserRole(role);
@@ -150,6 +177,8 @@ export const AuthProvider = ({ children }) => {
             // require a reachable server; this is not offline synchronization.
           }
         }
+      } else if (session.expired) {
+        setStartupError('Your 30-day session expired. Sign in with your email and password. Your MPIN is unchanged.');
       }
     } catch (error) {
       if (__DEV__) console.warn('[GastoTrack Auth] Local session restore failed:', error?.code || 'UNKNOWN');
@@ -158,6 +187,7 @@ export const AuthProvider = ({ children }) => {
       setUserRole(null);
       setUser(null);
       setBusiness(null);
+      setSessionExpiresAt(null);
       setStartupError(getApiErrorMessage(error, 'Saved sign-in could not be restored. Please sign in again.'));
     } finally {
       setIsLoading(false);
@@ -170,10 +200,29 @@ export const AuthProvider = ({ children }) => {
     isLoggedIn();
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    if (!userToken || !sessionExpiresAt) return undefined;
+    let expiring = false;
+    const expireIfNeeded = () => {
+      if (expiring || Date.now() < sessionExpiresAt) return;
+      expiring = true;
+      clearLocalSession().then(() => setStartupError(
+        'Your 30-day session expired. Sign in with your email and password. Your MPIN is unchanged.',
+      ));
+    };
+    const interval = setInterval(expireIfNeeded, 60 * 1000);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') expireIfNeeded();
+    });
+    expireIfNeeded();
+    return () => {clearInterval(interval); subscription.remove();};
+  }, [userToken, sessionExpiresAt, clearLocalSession]);
+
   return (
     <AuthContext.Provider value={{
       login,
       logout,
+      updateProfile,
       isLoading,
       userToken,
       userRole,

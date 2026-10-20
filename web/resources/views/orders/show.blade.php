@@ -37,8 +37,7 @@
             <section class="gt-card gt-enter p-5 sm:p-7">
                 <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
-                        <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Order details</p>
-                        <h2 class="mt-1 text-2xl font-extrabold tracking-tight">{{ $order->customer_name ?: 'Walk-in order' }}</h2>
+                        <h2 class="text-2xl font-extrabold tracking-tight">{{ $order->customer_name ?: 'Walk-in order' }}</h2>
                         <p class="mt-1 text-sm font-bold text-[#08745D]">Order {{ $order->order_number }}</p>
                         <p class="mt-2 text-sm text-slate-500">Placed {{ optional($order->created_at)->format('M j, Y · g:i A') }}</p>
                     </div>
@@ -106,7 +105,7 @@
                                     <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Confirmed at</dt><dd class="text-right font-bold">{{ $order->payment_confirmed_at->format('M j, Y · g:i A') }}</dd></div>
                                     <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Confirmed by</dt><dd class="text-right font-bold">{{ $order->paymentConfirmer?->name ?? 'Staff account unavailable' }}</dd></div>
                                 @endif
-                                @if($order->payment_reference)
+                                @if($order->payment_reference && !\Illuminate\Support\Str::startsWith(strtoupper($order->payment_reference), ['DEVICE-GCASH-', 'DEVICE-MAYA-']))
                                     <div class="py-2"><dt class="text-slate-500">Payment reference</dt><dd class="mt-1 break-all font-bold">{{ $order->payment_reference }}</dd></div>
                                 @endif
                             </dl>

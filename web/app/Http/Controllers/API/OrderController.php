@@ -296,17 +296,23 @@ class OrderController extends Controller
     public function confirmNotificationPayment(Request $request, int $id): JsonResponse
     {
         $this->staffOnly($request);
+        $orderForValidation = Order::where('business_id', $request->user()->business_id)->findOrFail($id);
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
             'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
             'source' => ['required', Rule::in(['gcash', 'maya'])],
+            'reference' => [
+                'required', 'string', 'max:120',
+                Rule::unique('orders', 'payment_reference')
+                    ->where('business_id', $request->user()->business_id)
+                    ->where('payment_method', $orderForValidation->payment_method)
+                    ->ignore($orderForValidation->id),
+            ],
             'notification_id' => ['required', 'string', 'min:8', 'max:120', 'regex:/^[A-Za-z0-9._:-]+$/'],
         ]);
 
-        $reference = 'DEVICE-'.strtoupper($validated['source']).'-'.substr(hash('sha256', $validated['notification_id']), 0, 48);
-
         try {
-            $order = DB::transaction(function () use ($request, $id, $validated, $reference): Order {
+            $order = DB::transaction(function () use ($request, $id, $validated): Order {
                 $order = $this->lockBusinessOrder($request, $id);
                 abort_unless($order->payment_type === 'cashless', 409, 'Wallet notifications are only supported for cashless orders.');
                 abort_unless($validated['source'] === $order->payment_method, 422, 'The detected wallet does not match this order.');
@@ -314,7 +320,7 @@ class OrderController extends Controller
                 abort_unless($this->amountsMatch($validated['amount'], $order->total), 422, 'The detected payment amount does not match the order total.');
 
                 if ($order->payment_status === 'confirmed') {
-                    abort_unless($order->payment_reference === $reference, 409, 'This order was already saved from a different payment notification.');
+                    abort_unless($order->payment_reference === $validated['reference'], 409, 'This order was already saved with a different wallet reference.');
                     return $order->load('items');
                 }
 
@@ -325,7 +331,7 @@ class OrderController extends Controller
                 $now = now();
                 $order->update([
                     'payment_status' => 'confirmed',
-                    'payment_reference' => $reference,
+                    'payment_reference' => $validated['reference'],
                     'payment_confirmed_by' => $request->user()->id,
                     'payment_confirmed_at' => $now,
                     'detected_payment_amount' => $validated['amount'],
@@ -345,7 +351,7 @@ class OrderController extends Controller
                     'confirmed',
                     amount: $validated['amount'],
                     currency: $validated['currency'],
-                    reference: $reference,
+                    reference: $validated['reference'],
                     details: [
                         'confirmation_method' => 'device_notification_exact_wallet_amount_match',
                         'source' => $validated['source'],
@@ -367,7 +373,7 @@ class OrderController extends Controller
         }
 
         return response()->json([
-            'message' => 'The wallet notification matched the order wallet and exact amount. The order was saved automatically; GastoTrack did not verify payment with the wallet provider.',
+            'message' => 'The wallet notification matched the order wallet and exact amount. Its official reference was saved; GastoTrack did not independently verify payment with the wallet provider.',
             'order' => $order,
             'payment_verified' => false,
             'payment_auto_matched' => true,

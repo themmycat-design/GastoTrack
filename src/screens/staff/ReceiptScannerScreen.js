@@ -201,7 +201,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
         return;
       }
 
-      const parsed = parseReceiptData(ocrResponse.text);
+      const parsed = parseReceiptData(ocrResponse.text, ocrResponse.blocks);
       setParsedData(parsed);
       const numericAmount = Number(parsed.amount);
       if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
@@ -246,7 +246,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
         setScanError('There is not enough readable item or merchant detail for Gasto AI to choose a category. Make sure those details are clear and in frame, then try again. Nothing was saved.');
         return;
       }
-      const transactionName = extractedName || description.split(' | ').find(Boolean) || 'Scanned receipt';
+      const transactionName = extractedName || 'Scanned receipt';
       setManualDraft({
         name: transactionName,
         date: transactionDate,
@@ -491,7 +491,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
             <View style={styles.dataCard}>
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Receipt name:</Text>
-                <Text style={styles.dataValue} numberOfLines={2}>{parsedData.merchant || 'Not detected'}</Text>
+                <Text style={styles.dataValue} numberOfLines={2}>{parsedData.merchant && parsedData.merchant !== 'Unknown Merchant' ? parsedData.merchant : 'Not detected'}</Text>
               </View>
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Date:</Text>
@@ -546,7 +546,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
                     value={manualDraft.name}
                     onChangeText={name => setManualDraft(current => ({...current, name}))}
                     placeholder="Receipt or merchant name"
-                    placeholderTextColor={COLORS.textGray}
+                    placeholderTextColor={COLORS.placeholder}
                     maxLength={255}
                     accessibilityLabel="Receipt name"
                   />
@@ -557,7 +557,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
                     value={manualDraft.amount}
                     onChangeText={amount => setManualDraft(current => ({...current, amount}))}
                     placeholder="0.00"
-                    placeholderTextColor={COLORS.textGray}
+                    placeholderTextColor={COLORS.placeholder}
                     keyboardType="decimal-pad"
                     accessibilityLabel="Transaction amount"
                   />
@@ -568,7 +568,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
                     value={manualDraft.date}
                     onChangeText={date => setManualDraft(current => ({...current, date}))}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={COLORS.textGray}
+                    placeholderTextColor={COLORS.placeholder}
                     keyboardType="numbers-and-punctuation"
                     accessibilityLabel="Transaction date"
                   />
@@ -684,25 +684,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
   },
-  heroCard: {backgroundColor: COLORS.textDark, borderRadius: 20, padding: 20, marginBottom: 24, ...SHADOWS.card},
-  heroIcon: {width: 52, height: 52, borderRadius: 15, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 16},
+  heroCard: {backgroundColor: COLORS.textDark, borderRadius: 20, padding: 16, marginBottom: 16, ...SHADOWS.card},
+  heroIcon: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12},
   heroTitle: {fontSize: 20, fontWeight: '800', color: COLORS.textWhite, lineHeight: 25, textAlign: 'center'},
-  stepList: {gap: 14, marginTop: 22},
-  stepRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 12},
+  stepList: {gap: 10, marginTop: 16},
+  stepRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 10},
   stepNumber: {width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center'},
   stepNumberText: {fontSize: 12, fontWeight: '800', color: COLORS.textWhite},
   stepCopy: {flex: 1},
   stepTitle: {fontSize: 13, fontWeight: '800', color: COLORS.textWhite},
   stepDescription: {fontSize: 11, lineHeight: 16, color: '#C7E2D9', marginTop: 3},
-  buttonColumn: {flexDirection: 'row', gap: 12, marginBottom: 24},
-  primaryAction: {flex: 1, minHeight: 154, alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: COLORS.accentDark, borderRadius: 17, ...SHADOWS.card},
-  secondaryAction: {flex: 1, minHeight: 154, alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 17},
-  primaryActionIcon: {width: 58, height: 58, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.17)', alignItems: 'center', justifyContent: 'center', marginBottom: 12},
-  secondaryActionIcon: {width: 58, height: 58, borderRadius: 17, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12},
+  buttonColumn: {flexDirection: 'row', gap: 10, marginBottom: 16},
+  primaryAction: {flex: 1, minHeight: 136, alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: COLORS.accentDark, borderRadius: 17, ...SHADOWS.card},
+  secondaryAction: {flex: 1, minHeight: 136, alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 17},
+  primaryActionIcon: {width: 50, height: 50, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.17)', alignItems: 'center', justifyContent: 'center', marginBottom: 9},
+  secondaryActionIcon: {width: 50, height: 50, borderRadius: 15, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 9},
   primaryActionTitle: {fontSize: 14, fontWeight: '800', color: COLORS.textWhite, textAlign: 'center'},
   primaryActionHint: {fontSize: 11, color: '#E5F6F0', marginTop: 4, textAlign: 'center'},
   secondaryActionTitle: {fontSize: 14, fontWeight: '800', color: COLORS.textDark, textAlign: 'center'},
@@ -712,26 +712,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: COLORS.textDark,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  processingStatus: {flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, marginBottom: 16},
+  processingStatus: {flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 11, marginBottom: 12},
   processingStatusText: {flex: 1, fontSize: 13, lineHeight: 19, color: COLORS.textDark},
   resultSection: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  scanStatusSuccess: {flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: '#EAF8F2', borderWidth: 1, borderColor: '#B8E6D5', borderRadius: 12, padding: 14, marginBottom: 16},
+  scanStatusSuccess: {flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EAF8F2', borderWidth: 1, borderColor: '#B8E6D5', borderRadius: 12, padding: 11, marginBottom: 12},
   scanStatusSuccessText: {flex: 1, fontSize: 13, lineHeight: 19, fontWeight: '700', color: COLORS.accentDark},
-  scanStatusError: {backgroundColor: '#FFF6E8', borderWidth: 1, borderColor: '#F2D39E', borderRadius: 12, padding: 14, marginBottom: 16},
+  scanStatusError: {backgroundColor: '#FFF6E8', borderWidth: 1, borderColor: '#F2D39E', borderRadius: 12, padding: 11, marginBottom: 12},
   scanStatusErrorText: {fontSize: 13, lineHeight: 19, color: '#6B4B16', marginTop: 6},
   retryScanButton: {alignSelf: 'flex-start', paddingVertical: 8, marginTop: 4},
   retryScanText: {fontSize: 13, fontWeight: '800', color: COLORS.accentDark},
   dataCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 16,
-    padding: 16,
+    padding: 13,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   dataRow: {
     flexDirection: 'row',
@@ -764,14 +764,14 @@ const styles = StyleSheet.create({
   },
   manualFallbackButtonText: {fontSize: 14, fontWeight: '800', color: '#FFFFFF'},
   manualEditor: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
   manualEditorTitle: {fontSize: 15, fontWeight: '800', color: COLORS.textDark},
   manualEditorHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 4, marginBottom: 8},
-  manualFieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textDark, marginTop: 12, marginBottom: 6},
+  manualFieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textDark, marginTop: 10, marginBottom: 5},
   manualInput: {
     minHeight: 44,
     paddingHorizontal: 12,
@@ -801,7 +801,7 @@ const styles = StyleSheet.create({
   manualFormError: {fontSize: 12, lineHeight: 18, color: '#A33A2B', marginTop: 12},
   manualSaveButton: {
     minHeight: 48,
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 12,
     backgroundColor: COLORS.accentDark,
     alignItems: 'center',

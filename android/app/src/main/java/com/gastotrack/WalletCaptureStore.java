@@ -69,6 +69,9 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
             } catch (NumberFormatException ignored) {
                 // Many wallet notifications have no recognizable amount.
             }
+            String message = limit(parsed.rawMessage == null ? "" : parsed.rawMessage, 1000);
+            if (amount == null || !NotificationParser.isValidWalletTransaction(
+                source, parsed.transactionType, parsed.amount, message)) return null;
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
             formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
             long postedAt = notification.getPostTime() > 0 ? notification.getPostTime() : System.currentTimeMillis();
@@ -80,7 +83,9 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
             payload.put("amount", amount == null ? JSONObject.NULL : amount);
             payload.put("currency", "PHP");
             payload.put("merchant", parsed.merchant == null ? JSONObject.NULL : limit(parsed.merchant, 160));
-            payload.put("message", limit(parsed.rawMessage == null ? "" : parsed.rawMessage, 1000));
+            payload.put("counterparty_name", parsed.merchant == null ? JSONObject.NULL : limit(parsed.merchant, 160));
+            payload.put("reference", parsed.reference == null ? JSONObject.NULL : limit(parsed.reference, 120));
+            payload.put("message", message);
             payload.put("captured_at", formatter.format(new Date(postedAt)));
 
             ContentValues values = new ContentValues();
@@ -102,10 +107,43 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
         int userId = account.getInt("user_id", 0);
         int businessId = account.getInt("business_id", 0);
         if (userId <= 0 || businessId <= 0) return result;
+        java.util.ArrayList<String> invalidIds = new java.util.ArrayList<>();
         try (Cursor cursor = getReadableDatabase().rawQuery(
-            "SELECT payload FROM wallet_captures WHERE user_id = ? AND business_id = ? ORDER BY rowid ASC LIMIT 50",
+            "SELECT client_id, payload FROM wallet_captures WHERE user_id = ? AND business_id = ? ORDER BY rowid ASC",
             new String[]{String.valueOf(userId), String.valueOf(businessId)})) {
-            while (cursor.moveToNext()) result.put(new JSONObject(cursor.getString(0)));
+            while (cursor.moveToNext()) {
+                String clientId = cursor.getString(0);
+                try {
+                    JSONObject capture = new JSONObject(cursor.getString(1));
+                    String amount = capture.isNull("amount") ? null : capture.optString("amount", null);
+                    boolean valid = NotificationParser.isValidWalletTransaction(
+                        capture.optString("source", ""),
+                        capture.optString("direction", ""),
+                        amount,
+                        capture.optString("message", "")
+                    );
+                    if (!valid) {
+                        invalidIds.add(clientId);
+                    } else if (result.length() < 50) {
+                        result.put(capture);
+                    }
+                } catch (JSONException exception) {
+                    invalidIds.add(clientId);
+                }
+            }
+        }
+        if (!invalidIds.isEmpty()) {
+            SQLiteDatabase db = getWritableDatabase();
+            db.beginTransaction();
+            try {
+                for (String clientId : invalidIds) {
+                    db.delete("wallet_captures", "client_id = ? AND user_id = ? AND business_id = ?",
+                        new String[]{clientId, String.valueOf(userId), String.valueOf(businessId)});
+                }
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
         }
         return result;
     }

@@ -289,7 +289,7 @@ const OrderHistoryScreen = ({navigation}) => {
                       : 'Check the official wallet account and confirm no payment was received. If the customer paid, confirm the payment and use the refund workflow.'}
             </Text>
             {['cancel', 'request-refund'].includes(action) ? (
-              <TextInput style={styles.actionInput} value={reason} onChangeText={setReason} placeholder="Reason" multiline />
+              <TextInput style={styles.actionInput} value={reason} onChangeText={setReason} placeholder="Reason" placeholderTextColor={COLORS.placeholder} multiline />
             ) : null}
             {action === 'cancel' ? (
               <TouchableOpacity style={styles.restockToggle} onPress={() => setPaymentNotReceived(value => !value)}>
@@ -328,21 +328,21 @@ const OrderHistoryScreen = ({navigation}) => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  dayScopeRow: {flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingVertical: 10, backgroundColor: COLORS.surface},
+  dayScopeRow: {flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 7, backgroundColor: COLORS.surface},
   dayScopeButton: {flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border},
   dayScopeActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent},
   dayScopeText: {fontSize: 12, fontWeight: '700', color: COLORS.textGray},
   dayScopeTextActive: {color: '#FFFFFF'},
-  historyHint: {paddingHorizontal: 18, paddingVertical: 8, fontSize: 11, color: COLORS.textGray},
-  list: {padding: 18, paddingBottom: 30},
+  historyHint: {paddingHorizontal: 16, paddingVertical: 6, fontSize: 11, color: COLORS.textGray},
+  list: {padding: 16, paddingBottom: 24},
   emptyList: {flexGrow: 1},
   orderCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 14,
-    marginBottom: 11,
+    padding: 12,
+    marginBottom: 8,
     ...SHADOWS.card,
   },
   cardTop: {flexDirection: 'row', alignItems: 'center'},
@@ -352,32 +352,32 @@ const styles = StyleSheet.create({
   orderNumber: {fontSize: 11, fontWeight: '700', color: COLORS.accentDark, marginTop: 2},
   orderDate: {fontSize: 11, color: COLORS.textGray, marginTop: 3},
   orderTotal: {fontSize: 15, fontWeight: '700', color: COLORS.accentDark},
-  orderItems: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 12},
-  cardBottom: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 11, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.border},
+  orderItems: {fontSize: 12, lineHeight: 17, color: COLORS.textGray, marginTop: 8},
+  cardBottom: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border},
   paymentMethod: {fontSize: 11, fontWeight: '600', color: COLORS.textGray, textTransform: 'capitalize'},
   paymentStatus: {fontSize: 11, color: COLORS.textGray, marginTop: 8, textTransform: 'capitalize'},
-  actionRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12},
+  actionRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9},
   primaryAction: {backgroundColor: COLORS.accent, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9},
   primaryActionText: {fontSize: 11, fontWeight: '700', color: '#FFFFFF'},
   secondaryAction: {borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9},
   secondaryActionText: {fontSize: 11, fontWeight: '700', color: COLORS.textDark},
   modalBackdrop: {flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)'},
-  actionModal: {backgroundColor: COLORS.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, paddingBottom: 30},
+  actionModal: {backgroundColor: COLORS.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 24},
   modalTitle: {fontSize: 19, fontWeight: '700', color: COLORS.textDark},
   modalDescription: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, marginTop: 8, marginBottom: 12},
   inputLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, marginTop: 9, marginBottom: 5},
   actionInput: {minHeight: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: COLORS.textDark, backgroundColor: COLORS.background, marginTop: 7},
   restockToggle: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 13},
   restockLabel: {flex: 1, fontSize: 12, color: COLORS.textDark},
-  modalButtons: {flexDirection: 'row', gap: 10, marginTop: 20},
+  modalButtons: {flexDirection: 'row', gap: 10, marginTop: 14},
   modalCancel: {flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11},
   modalCancelText: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
   modalSubmit: {flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 48, borderRadius: 11, backgroundColor: COLORS.accent},
   modalSubmitText: {fontSize: 14, fontWeight: '700', color: '#FFFFFF'},
   disabled: {opacity: 0.65},
   status: {fontSize: 11, fontWeight: '700', color: COLORS.success, textTransform: 'capitalize'},
-  centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28},
-  emptyTitle: {fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginTop: 13},
+  centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20},
+  emptyTitle: {fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginTop: 10},
   stateText: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, textAlign: 'center', marginTop: 6},
   footer: {paddingVertical: 16},
 });

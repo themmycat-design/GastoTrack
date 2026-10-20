@@ -125,7 +125,13 @@
                 <div class="flex-1 p-5 sm:p-6">
                     <div class="mb-4 flex items-start justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-3">
-                            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#EAF8F2] text-2xl" aria-hidden="true">{{ $product->emoji ?? '🍽️' }}</span>
+                            <span class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#EAF8F2] text-2xl" aria-hidden="true">
+                                @if($product->image)
+                                    <img src="{{ url('/api/product-images/'.$product->id) }}?v={{ $product->updated_at?->timestamp ?? $product->id }}" alt="{{ $product->name }} product photo" class="h-full w-full object-cover">
+                                @else
+                                    {{ $product->emoji ?? '🍽️' }}
+                                @endif
+                            </span>
                             <div>
                                 <h3 class="break-words text-base font-extrabold text-[#0A2E2A]">{{ $product->name }}</h3>
                                 <span class="mt-0.5 block text-xs font-semibold text-slate-500">{{ $product->category }}</span>
@@ -143,6 +149,15 @@
                     @if($product->description)
                     <p class="mb-4 line-clamp-2 text-sm leading-5 text-slate-600">{{ $product->description }}</p>
                     @endif
+
+                    <div class="mb-4 rounded-xl bg-[#F7FAF9] px-3.5 py-3">
+                        <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Recipe ingredients</p>
+                        @forelse($product->productIngredients as $ingredient)
+                            <p class="mt-1 text-sm text-[#173F39]">{{ $ingredient->stockItem?->name ?? 'Stock item' }} <span class="text-slate-500">· {{ number_format((float) $ingredient->quantity, 2) }} {{ $ingredient->stockItem?->unit ?? '' }}</span></p>
+                        @empty
+                            <p class="mt-1 text-sm text-slate-500">No recipe ingredients configured.</p>
+                        @endforelse
+                    </div>
                     
                     <!-- Pricing -->
                     <div class="flex items-end justify-between gap-3 border-t border-[#EAF2EF] pt-4">
@@ -169,7 +184,7 @@
                         <span class="text-sm font-medium text-slate-500">Inactive product</span>
                     @endif
                     <div class="flex space-x-3">
-                        <button type="button" onclick="openEditModal({{ \Illuminate\Support\Js::from(['id' => $product->id, 'name' => $product->name, 'description' => $product->description, 'category' => $product->category, 'price' => $product->price, 'cost' => $product->cost, 'emoji' => $product->emoji, 'is_available' => $product->is_available]) }})" class="gt-focus rounded-lg px-2 py-1.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Edit</button>
+                        <button type="button" onclick="openEditModal({{ \Illuminate\Support\Js::from(['id' => $product->id, 'name' => $product->name, 'description' => $product->description, 'category' => $product->category, 'price' => $product->price, 'cost' => $product->cost, 'emoji' => $product->emoji, 'is_available' => $product->is_available, 'image_url' => $product->image ? url('/api/product-images/'.$product->id.'?v='.$product->updated_at?->timestamp) : null, 'ingredients' => $product->productIngredients->map(fn ($ingredient) => ['stock_id' => $ingredient->stock_item_id, 'quantity' => $ingredient->quantity])->values()->all()]) }})" class="gt-focus rounded-lg px-2 py-1.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Edit</button>
                         <button type="button" onclick="deleteProduct({{ $product->id }})" class="gt-focus rounded-lg px-2 py-1.5 text-sm font-bold text-rose-600 hover:bg-rose-50">Delete</button>
                     </div>
                 </div>
@@ -197,7 +212,7 @@
     </div>
 
     <!-- Add/Edit Product Modal -->
-    <div id="productModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+    <div id="productModal" data-owner-dialog class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
         <div class="gt-card my-auto max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto p-5 shadow-2xl sm:p-7">
             <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
                 <div>
@@ -209,7 +224,7 @@
                 </button>
             </div>
 
-            <form id="productForm" method="POST" action="{{ route('products.store') }}">
+            <form id="productForm" method="POST" action="{{ route('products.store') }}" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" id="productId" name="product_id">
                 <input type="hidden" id="formMethod" name="_method">
@@ -220,6 +235,20 @@
                     <div class="sm:col-span-2">
                         <label for="name" class="gt-label">Product name <span class="text-rose-600">*</span></label>
                         <input type="text" id="name" name="name" required class="gt-field" placeholder="e.g., Milk Tea">
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label for="productImage" class="gt-label">Product photo</label>
+                        <div class="flex flex-col gap-3 rounded-xl border border-[#DDE9E5] bg-[#F8FCFA] p-3 sm:flex-row sm:items-center">
+                            <div id="productImagePreviewWrap" class="hidden h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-white">
+                                <img id="productImagePreview" alt="Product photo preview" class="h-full w-full object-cover">
+                            </div>
+                            <div id="productImagePlaceholder" class="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-white text-center text-xs font-semibold text-slate-400">No photo</div>
+                            <div class="min-w-0 flex-1">
+                                <input type="file" id="productImage" name="image" accept="image/jpeg,image/png,image/webp" class="gt-field !py-2 text-sm">
+                                <p class="mt-1.5 text-xs text-slate-500">JPG, PNG, or WebP · Maximum 5 MB. Existing photo is kept unless you choose a new one.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Category -->
@@ -264,6 +293,30 @@
                             Product is available
                         </label>
                     </div>
+
+                    <div class="sm:col-span-2">
+                        <div class="mb-3">
+                            <label class="gt-label mb-1">Recipe ingredients</label>
+                            <p class="text-xs leading-5 text-slate-500">Choose the stock used for one product and enter its quantity. This recipe drives automatic stock deduction.</p>
+                        </div>
+                        <input type="hidden" name="replace_ingredients" value="1">
+                        @if($stockItems->isEmpty())
+                            <p class="rounded-xl bg-[#F7FAF9] px-4 py-3 text-sm text-slate-500">No active stock items yet. Add stock in Inventory to configure a recipe.</p>
+                        @else
+                            <div class="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-[#DDE9E5] p-3">
+                                @foreach($stockItems as $stockItem)
+                                    <div class="recipe-row flex flex-wrap items-center gap-3 rounded-lg bg-[#F8FCFA] px-3 py-2.5" data-stock-id="{{ $stockItem->id }}">
+                                        <input type="checkbox" class="recipe-checkbox h-4 w-4 accent-[#08745D]" aria-label="Use {{ $stockItem->name }} in recipe">
+                                        <span class="min-w-0 flex-1 text-sm font-semibold text-[#173F39]">{{ $stockItem->name }} <span class="font-normal text-slate-500">({{ $stockItem->unit }})</span> @unless($stockItem->active)<span class="text-xs font-semibold text-amber-700">Inactive</span>@endunless</span>
+                                        <input type="hidden" class="recipe-stock-id" name="ingredients[{{ $stockItem->id }}][stock_id]" value="{{ $stockItem->id }}" disabled>
+                                        <label class="flex items-center gap-2 text-xs text-slate-500">Per product
+                                            <input type="number" class="recipe-quantity gt-field w-24 !px-2 !py-1.5" name="ingredients[{{ $stockItem->id }}][quantity]" min="0.0001" step="0.01" placeholder="0" disabled>
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
                 </div>
 
                 <!-- Buttons -->
@@ -278,6 +331,67 @@
     </div>
 
     <script>
+        const productImageInput = document.getElementById('productImage');
+        const productImagePreview = document.getElementById('productImagePreview');
+        const productImagePreviewWrap = document.getElementById('productImagePreviewWrap');
+        const productImagePlaceholder = document.getElementById('productImagePlaceholder');
+        let temporaryProductImageUrl = null;
+
+        function setProductImagePreview(src) {
+            if (temporaryProductImageUrl) {
+                URL.revokeObjectURL(temporaryProductImageUrl);
+                temporaryProductImageUrl = null;
+            }
+            if (src) {
+                if (src.startsWith('blob:')) temporaryProductImageUrl = src;
+                productImagePreview.src = src;
+                productImagePreviewWrap.classList.remove('hidden');
+                productImagePlaceholder.classList.add('hidden');
+            } else {
+                productImagePreview.removeAttribute('src');
+                productImagePreviewWrap.classList.add('hidden');
+                productImagePlaceholder.classList.remove('hidden');
+            }
+        }
+
+        productImageInput.addEventListener('change', () => {
+            const file = productImageInput.files?.[0];
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+                alert('Choose a JPG, PNG, or WebP photo no larger than 5 MB.');
+                productImageInput.value = '';
+                setProductImagePreview(productImageInput.dataset.savedImageUrl || null);
+                return;
+            }
+            setProductImagePreview(URL.createObjectURL(file));
+        });
+
+        function setRecipeIngredients(ingredients = []) {
+            const selected = new Map(ingredients.map(item => [String(item.stock_id), String(item.quantity)]));
+            document.querySelectorAll('.recipe-row').forEach(row => {
+                const isSelected = selected.has(row.dataset.stockId);
+                const checkbox = row.querySelector('.recipe-checkbox');
+                const stockId = row.querySelector('.recipe-stock-id');
+                const quantity = row.querySelector('.recipe-quantity');
+                checkbox.checked = isSelected;
+                stockId.disabled = !isSelected;
+                quantity.disabled = !isSelected;
+                quantity.value = isSelected ? selected.get(row.dataset.stockId) : '';
+            });
+        }
+
+        document.querySelectorAll('.recipe-row').forEach(row => {
+            const checkbox = row.querySelector('.recipe-checkbox');
+            const stockId = row.querySelector('.recipe-stock-id');
+            const quantity = row.querySelector('.recipe-quantity');
+            checkbox.addEventListener('change', () => {
+                stockId.disabled = !checkbox.checked;
+                quantity.disabled = !checkbox.checked;
+                if (checkbox.checked && !quantity.value) quantity.focus();
+                if (!checkbox.checked) quantity.value = '';
+            });
+        });
+
         function openAddModal() {
             document.getElementById('modalTitle').textContent = 'Add Product';
             document.getElementById('productForm').action = '{{ route("products.store") }}';
@@ -290,6 +404,10 @@
             document.getElementById('cost').value = '';
             document.getElementById('emoji').value = '🍽️';
             document.getElementById('is_available').checked = true;
+            productImageInput.value = '';
+            productImageInput.dataset.savedImageUrl = '';
+            setProductImagePreview(null);
+            setRecipeIngredients();
             document.getElementById('productModal').classList.remove('hidden');
         }
 
@@ -310,6 +428,10 @@
             document.getElementById('cost').value = product.cost || 0;
             document.getElementById('emoji').value = product.emoji || '☕';
             document.getElementById('is_available').checked = Boolean(product.is_available);
+            productImageInput.value = '';
+            productImageInput.dataset.savedImageUrl = product.image_url || '';
+            setProductImagePreview(product.image_url);
+            setRecipeIngredients(product.ingredients || []);
             document.getElementById('productModal').classList.remove('hidden');
         }
 

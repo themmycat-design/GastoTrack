@@ -11,6 +11,21 @@ class PersonalAccessTokenSessionTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_staff_login_issues_a_token_with_a_thirty_day_expiry(): void
+    {
+        $business = Business::create(['name' => 'Harbor Coffee', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $staff->email,
+            'password' => 'password',
+        ])->assertOk();
+
+        $token = $staff->tokens()->latest('id')->firstOrFail();
+        $this->assertNotNull($token->expires_at);
+        $this->assertTrue($token->expires_at->between(now()->addDays(30)->subMinute(), now()->addDays(30)->addMinute()));
+    }
+
     public function test_revoked_token_cannot_be_reused_after_logout(): void
     {
         $business = Business::create(['name' => 'Harbor Coffee', 'status' => 'active', 'active' => true]);

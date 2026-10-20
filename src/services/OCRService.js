@@ -91,7 +91,7 @@ export const scanReceipt = async (imageUri) => {
 /**
  * Parse receipt text and extract transaction data
  */
-export const parseReceiptData = (ocrText) => {
+export const parseReceiptData = (ocrText, blocks = []) => {
   const text = String(ocrText || '');
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   
@@ -115,7 +115,7 @@ export const parseReceiptData = (ocrText) => {
   parsed.dateDetected = Boolean(detectedDate);
   
   // Extract merchant name
-  parsed.merchant = extractMerchant(lines);
+  parsed.merchant = extractMerchant(lines, blocks);
   
   // Detect payment source
   const detectedSource = detectPaymentSource(text);
@@ -216,18 +216,98 @@ const extractDate = (lines) => {
 /**
  * Extract merchant/store name
  */
-const extractMerchant = (lines) => {
-  const headerNoise = /\b(?:official receipt|sales invoice|receipt\s*(?:no|number|#)|invoice\s*(?:no|number|#)|or\s*(?:no|number|#)|date|time|tin|vat|telephone|tel\.?|phone|mobile|email|address|cashier|customer copy|transaction id|reference|total|subtotal|amount|change|cash|gcash|maya|tax|discount|quantity|price)\b/i;
-  const merchant = lines
-    .map(line => line.replace(/^(?:official\s+)?(?:receipt|invoice|bill)\b\s*[:#-]?\s*/i, '').trim())
-    .find(line => (
-      line.length >= 2
-      && /[a-z]/i.test(line)
-      && !headerNoise.test(line)
-      && !/\b\d{8,}\b/.test(line)
-    ));
+const extractMerchant = (lines, blocks = []) => {
+  const genericLines = /^(?:official\s+receipt|sales\s+invoice|receipt|invoice|bill|tax\s+invoice|customer\s+copy|merchant\s+copy|duplicate|thank\s+you(?:\s+for\s+your\s+(?:visit|purchase))?|welcome|come\s+again|daily\s+sales\s+report|sales\s+report|payment\s+received|electricity\s+bill|water\s+bill|internet\s+bill|utility\s+bill)$/i;
+  const metadataLine = /^(?:receipt\s*(?:no|number|#)|invoice\s*(?:no|number|#)|or\s*(?:no|number|#)|date|time|address|tel(?:ephone)?\.?|phone|mobile|email|tin|vat|cashier|customer|served\s+by|table|order\s*(?:no|number|#)?|terminal|transaction\s*(?:id|no|number)|reference|ref\.?\s*(?:no|number|#)?|branch\s*(?:no|number|#)?|store\s*(?:no|number|#)?)\b/i;
+  const receiptBodyStart = /^(?:date|time|address|tel(?:ephone)?\.?|phone|mobile|email|tin|vat|cashier|customer|served\s+by|table|items?|description|qty|quantity|unit\s+price|subtotal|grand\s+total|total\s+due|amount\s+due|payment|paid\s+via|cash\s+tendered|change|balance)\b/i;
+  const businessWords = /\b(?:cafe|caf[e\u00e9]|bakery|bakeshop|restaurant|eatery|coffee|tea\s+shop|milk\s+tea|market|supermarket|grocery|store|shop|bistro|diner|foods?|food\s+services?|trading|corporation|corp\.?|inc\.?|limited|ltd\.?|enterprises?|company|co\.?)\b/i;
+  const priceOrIdentifier = /(?:\u20B1|PHP|\bP\s*)\s*\d|\b\d{8,}\b|\b\d+[.,]\d{2}\b|[\w.+-]+@[\w.-]+\.[a-z]{2,}/i;
+  const addressText = /\b(?:street|st\.|road|rd\.|avenue|ave\.|boulevard|blvd\.|barangay|brgy\.?|poblacion|zip\s*code|postal\s*code|philippines)\b/i;
+  const dateOrContact = /\b(?:20\d{2}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+20\d{2})\b|(?:\+?63|0)\d(?:[\s-]?\d){8,}/i;
 
-  return merchant?.substring(0, 80) || 'Unknown Merchant';
+  const positionedLines = Array.isArray(blocks)
+    ? blocks.flatMap((block, blockIndex) => (Array.isArray(block?.lines) ? block.lines : []).map((line, lineIndex) => ({
+        text: String(line?.text || '').trim(),
+        top: Number.isFinite(line?.frame?.top) ? line.frame.top : null,
+        left: Number.isFinite(line?.frame?.left) ? line.frame.left : null,
+        height: Number.isFinite(line?.frame?.height) ? line.frame.height : null,
+        blockIndex,
+        lineIndex,
+      }))).filter(line => line.text)
+    : [];
+
+  const orderedLines = positionedLines.length
+    ? positionedLines.sort((a, b) => {
+        if (a.top !== null && b.top !== null && Math.abs(a.top - b.top) > 2) return a.top - b.top;
+        if (a.left !== null && b.left !== null && a.left !== b.left) return a.left - b.left;
+        return a.blockIndex - b.blockIndex || a.lineIndex - b.lineIndex;
+      })
+    : lines.map((text, index) => ({text, top: null, left: null, height: null, blockIndex: 0, lineIndex: index}));
+
+  const seen = new Set();
+  const uniqueLines = orderedLines.filter(line => {
+    const normalized = line.text.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+  const imageTextHeight = Math.max(1, ...uniqueLines.map(line => (
+    line.top !== null ? line.top + (line.height || 0) : 0
+  )));
+  const measuredHeights = uniqueLines.map(line => line.height).filter(height => height !== null && height > 0).sort((a, b) => a - b);
+  const medianLineHeight = measuredHeights.length ? measuredHeights[Math.floor(measuredHeights.length / 2)] : null;
+  const candidates = [];
+
+  for (const [index, sourceLine] of uniqueLines.slice(0, 18).entries()) {
+    const line = sourceLine.text
+      .replace(/^[^a-z0-9\u00c0-\u024f]+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (receiptBodyStart.test(line)) break;
+    if (line.length < 3 || line.length > 60 || genericLines.test(line) || metadataLine.test(line)) continue;
+    if (!/[a-z]/i.test(line) || priceOrIdentifier.test(line) || addressText.test(line) || dateOrContact.test(line)) continue;
+    if (/^(?:\d+[.)-]?\s*)+$/.test(line) || /\b(?:subtotal|grand\s+total|amount\s+due|cash\s+tendered|change|balance|gcash|maya|paid\s+via)\b/i.test(line)) continue;
+
+    const words = line.split(/\s+/).filter(Boolean);
+    const uppercaseRatio = (line.match(/[A-Z]/g) || []).length / Math.max(1, (line.match(/[a-z]/gi) || []).length);
+    const topRatio = sourceLine.top !== null ? sourceLine.top / imageTextHeight : null;
+    if (topRatio !== null && topRatio > 0.45) continue;
+    let score = Math.max(0, 16 - index);
+    if (words.length >= 2 && words.length <= 6) score += 3;
+    if (businessWords.test(line)) score += 5;
+    if (uppercaseRatio > 0.75) score += 1;
+    if (medianLineHeight && sourceLine.height && sourceLine.height > medianLineHeight * 1.25) score += 3;
+    if (topRatio !== null) score += topRatio <= 0.2 ? 4 : topRatio <= 0.4 ? 2 : topRatio > 0.65 ? -6 : 0;
+    candidates.push({line, score, sourceLine, words});
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  if (!best || best.score < 8) return 'Unknown Merchant';
+
+  // ML Kit may split a two-word logo across adjacent lines. Join it only when
+  // both lines belong to the same block and sit close together at the top.
+  const next = uniqueLines.find(line => line.blockIndex === best.sourceLine.blockIndex
+    && line.lineIndex > best.sourceLine.lineIndex
+    && line.text.trim()
+    && !receiptBodyStart.test(line.text.trim())
+    && !genericLines.test(line.text.trim())
+    && !metadataLine.test(line.text.trim())
+    && !priceOrIdentifier.test(line.text.trim())
+    && !dateOrContact.test(line.text.trim()));
+  if (best.words.length <= 2 && next) {
+    const verticalGap = best.sourceLine.top !== null && next.top !== null
+      ? next.top - (best.sourceLine.top + (best.sourceLine.height || 0))
+      : 0;
+    const closeLines = best.sourceLine.top === null || next.top === null
+      ? next.lineIndex - best.sourceLine.lineIndex <= 1
+      : verticalGap >= -2 && verticalGap <= Math.max(best.sourceLine.height || 0, next.height || 0) * 1.5;
+    if (closeLines && next.text.trim().split(/\s+/).length <= 3) {
+      return `${best.line} ${next.text.trim()}`.replace(/\s+/g, ' ').substring(0, 80);
+    }
+  }
+
+  return best.line.substring(0, 80);
 };
 
 /**
@@ -239,7 +319,8 @@ export const buildReceiptCategoryDescription = (parsed, transactionName = parsed
   const privateLine = /(?:\b(?:address|phone|mobile|telephone|email|e-mail|tin|vat\s*(?:reg|registration)?|(?:or|receipt|invoice)\s*(?:no|number|#)|reference|transaction\s*(?:id|no|number)|card\s*(?:no|number)|cashier|customer(?:\s*(?:name|id))?|serial\s*(?:no|number)|terminal\s*(?:id|no|number)|approval\s*(?:code|no)|auth(?:orization)?\s*code)\b|[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?63|0)\d(?:[\s-]?\d){8,}\b|\b\d{10,}\b)/i;
   const receiptNoise = /\b(?:sub\s*total|grand\s*total|total\s*(?:due|paid)?|amount\s*(?:due|paid)|cash tendered|change|paid via|payment method|gcash|maya|cash|receipt|invoice|date|time|reference)\b/i;
   const dateOnly = /^\s*(?:20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\s*$/;
-  const merchant = String(transactionName || '').trim();
+  const requestedMerchant = String(transactionName || parsed?.merchant || '').trim();
+  const merchant = /^unknown merchant$/i.test(requestedMerchant) ? '' : requestedMerchant;
   const itemLines = String(parsed?.rawText || '')
     .split('\n')
     .map(line => line.trim())

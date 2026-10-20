@@ -14,8 +14,7 @@
         @include('layouts.owner-topbar')
         <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <section class="gt-enter">
-                <p class="text-sm font-semibold text-[#00A87E]">{{ Auth::user()->business?->name }} · order records</p>
-                <h2 class="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">Orders</h2>
+                <h2 class="text-2xl font-extrabold tracking-tight sm:text-3xl">Orders</h2>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review staff orders and their payment progress. Wallet notifications remain unverified until confirmed by staff.</p>
             </section>
 
@@ -77,7 +76,7 @@
             </form>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[980px] text-left text-sm">
+                    <table class="w-full min-w-[1120px] text-left text-sm">
                         <thead class="bg-[#F8FCFA] text-xs font-bold uppercase tracking-wide text-slate-500">
                             <tr>
                                 <th scope="col" class="px-5 py-3 sm:pl-6">Order</th>
@@ -85,6 +84,7 @@
                                 <th scope="col" class="px-5 py-3">Customer / staff</th>
                                 <th scope="col" class="px-5 py-3">Order status</th>
                                 <th scope="col" class="px-5 py-3">Payment</th>
+                                <th scope="col" class="px-5 py-3">Ref#</th>
                                 <th scope="col" class="px-5 py-3 text-right sm:pr-6">Total</th>
                             </tr>
                         </thead>
@@ -138,10 +138,17 @@
                                         <span class="block text-xs font-semibold uppercase text-slate-500">{{ $order->payment_method ?: 'Method unavailable' }}</span>
                                         <span class="mt-1 inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold {{ $paymentTone }}">{{ $paymentLabel }}</span>
                                     </td>
+                                    <td class="max-w-[200px] px-5 py-4">
+                                        @if($order->payment_reference && !\Illuminate\Support\Str::startsWith(strtoupper($order->payment_reference), ['DEVICE-GCASH-', 'DEVICE-MAYA-']))
+                                            <span class="block break-all font-mono text-xs text-slate-600" title="{{ $order->payment_reference }}">{{ $order->payment_reference }}</span>
+                                        @else
+                                            <span class="text-slate-400">—</span>
+                                        @endif
+                                    </td>
                                     <td class="whitespace-nowrap px-5 py-4 text-right font-extrabold sm:pr-6">{{ $currencyCode === 'PHP' ? '₱' : $currencyCode.' ' }}{{ number_format((float) $order->total, 2) }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="px-6 py-14 text-center">
+                                <tr><td colspan="7" class="px-6 py-14 text-center">
                                     <p class="text-sm font-bold text-[#0A2E2A]">No orders found</p>
                                     <p class="mt-1 text-sm text-slate-500">{{ $searchFilter !== '' || $statusFilter !== '' || $paymentStatusFilter !== '' ? 'Try clearing the filters to see more orders.' : 'Staff orders will appear here after they are placed.' }}</p>
                                 </td></tr>

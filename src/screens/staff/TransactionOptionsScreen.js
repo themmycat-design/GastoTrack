@@ -158,7 +158,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
               value={name}
               onChangeText={setName}
               placeholder={isCategory ? transactionType === 'product' ? 'Example: Bakery' : 'Example: Delivery fees' : 'Example: GrabPay'}
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={COLORS.placeholder}
               maxLength={100}
               onSubmitEditing={saveOption}
               returnKeyType="done"
@@ -200,12 +200,12 @@ const TransactionOptionsScreen = ({navigation, route}) => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  content: {padding: 20, paddingBottom: 36},
+  content: {padding: 16, paddingBottom: 28},
   addCard: {backgroundColor: COLORS.surface, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: 16, ...SHADOWS.card},
   cardHeading: {flexDirection: 'row', alignItems: 'center'}, headingIcon: {width: 44, height: 44, borderRadius: 13, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, headingCopy: {flex: 1, marginLeft: 11}, cardTitle: {fontSize: 16, fontWeight: '700', color: COLORS.textDark},
-  typeSelector: {flexDirection: 'row', backgroundColor: COLORS.surfaceMuted, borderRadius: RADIUS.pill, padding: 4, marginTop: 16}, typeButton: {flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill}, typeButtonActive: {backgroundColor: COLORS.accent}, typeText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray}, typeTextActive: {color: '#FFFFFF'},
-  inputRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16}, input: {flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13, fontSize: 14, color: COLORS.textDark}, addButton: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center'}, cancelButton: {width: 44, height: 48, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center'}, disabled: {opacity: 0.6},
-  loader: {marginTop: 30}, listCard: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 15, marginTop: 16}, sectionTitle: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.7, paddingTop: 15, paddingBottom: 8}, optionRow: {minHeight: 55, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border}, lastRow: {borderBottomWidth: 0}, optionIcon: {width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, optionName: {flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginLeft: 10}, editButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}, deleteButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center'},
+  typeSelector: {flexDirection: 'row', backgroundColor: COLORS.surfaceMuted, borderRadius: RADIUS.pill, padding: 4, marginTop: 12}, typeButton: {flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill}, typeButtonActive: {backgroundColor: COLORS.accent}, typeText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray}, typeTextActive: {color: '#FFFFFF'},
+  inputRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12}, input: {flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13, fontSize: 14, color: COLORS.textDark}, addButton: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center'}, cancelButton: {width: 44, height: 48, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center'}, disabled: {opacity: 0.6},
+  loader: {marginTop: 22}, listCard: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, marginTop: 12}, sectionTitle: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.7, paddingTop: 12, paddingBottom: 6}, optionRow: {minHeight: 50, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border}, lastRow: {borderBottomWidth: 0}, optionIcon: {width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, optionName: {flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginLeft: 9}, editButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}, deleteButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center'},
 });
 
 export default TransactionOptionsScreen;

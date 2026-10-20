@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAF2EF] px-5 py-5 sm:px-6">
         <div>
             <p class="text-xs font-bold uppercase tracking-[.14em] text-[#00A87E]">Activity</p>
-            <h3 class="mt-1 text-lg font-extrabold text-[#0A2E2A]">{{ $viewMode === 'raw' ? 'Wallet notifications' : 'Transaction records' }}</h3>
+            <h3 class="mt-1 text-lg font-extrabold text-[#0A2E2A]">{{ $viewMode === 'raw' ? 'Wallet transactions' : 'Transaction records' }}</h3>
         </div>
         <span class="rounded-full bg-[#F4F8F7] px-3 py-1.5 text-xs font-bold text-slate-500">{{ $viewMode === 'raw' ? $captures->total() : $transactions->total() }} records</span>
     </div>

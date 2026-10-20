@@ -6,6 +6,7 @@ use App\Models\Business;
 use App\Models\Product;
 use App\Models\ProductIngredient;
 use App\Models\StockItem;
+use App\Models\Transaction;
 use App\Models\TransactionOption;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,7 +25,7 @@ class AiAssistantTest extends TestCase
         Cache::flush();
         config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
-            'candidates' => [['content' => ['parts' => [['text' => 'Sales are available in your transaction records.']]]]],
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['in_scope' => true, 'answer' => 'Sales are available in your transaction records.'])]]]]],
         ])]);
         $business = Business::create(['name' => 'Rate Limit Cafe', 'status' => 'active', 'active' => true]);
         Sanctum::actingAs(User::factory()->staff()->create(['business_id' => $business->id]));
@@ -172,7 +173,7 @@ class AiAssistantTest extends TestCase
         Http::fake([
             'generativelanguage.googleapis.com/*' => Http::response([
                 'candidates' => [[
-                    'content' => ['parts' => [['text' => 'You have no low-stock items today.']]],
+                    'content' => ['parts' => [['text' => json_encode(['in_scope' => true, 'answer' => 'You have no low-stock items today.'])]]],
                 ]],
             ]),
         ]);
@@ -226,6 +227,77 @@ class AiAssistantTest extends TestCase
         ])->assertForbidden();
 
         Http::assertNothingSent();
+    }
+
+    public function test_general_questions_are_redirected_without_contacting_ai_provider(): void
+    {
+        config(['services.gemini.key' => 'test-key']);
+        Http::fake();
+        $business = Business::create(['name' => 'Scoped Cafe', 'status' => 'active', 'active' => true]);
+        Sanctum::actingAs(User::factory()->staff()->create(['business_id' => $business->id]));
+
+        $this->postJson('/api/v1/ai/chat', [
+            'messages' => [['role' => 'user', 'text' => 'What is the capital of France?']],
+        ])->assertOk()->assertJsonPath('reply', 'I can help with your GastoTrack business: sales, income, expenses, orders, payments, products, inventory, or how to use the system. Ask me about one of those topics.');
+
+        $this->postJson('/api/v1/ai/chat', [
+            'messages' => [
+                ['role' => 'user', 'text' => 'How are sales today?'],
+                ['role' => 'assistant', 'text' => 'Here is the sales summary.'],
+                ['role' => 'user', 'text' => 'What is the capital of France?'],
+            ],
+        ])->assertOk()->assertJsonPath('reply', 'I can help with your GastoTrack business: sales, income, expenses, orders, payments, products, inventory, or how to use the system. Ask me about one of those topics.');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_financial_context_uses_only_the_signed_in_business_and_labels_periods(): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['in_scope' => true, 'answer' => 'Your recorded income this week is PHP 125.'])]]]]],
+        ])]);
+        $business = Business::create(['name' => 'Scoped Cafe', 'status' => 'active', 'active' => true]);
+        $other = Business::create(['name' => 'Other Private Cafe', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        Transaction::create([
+            'business_id' => $business->id, 'user_id' => $staff->id, 'amount' => 125,
+            'type' => 'income', 'source' => 'Cash', 'category' => 'Sales',
+            'transaction_date' => now(config('business.timezone'))->toDateString(),
+        ]);
+        Transaction::create([
+            'business_id' => $other->id, 'user_id' => $staff->id, 'amount' => 99999,
+            'type' => 'income', 'source' => 'Cash', 'category' => 'Sales',
+            'transaction_date' => now(config('business.timezone'))->toDateString(),
+        ]);
+        Sanctum::actingAs($staff);
+
+        $this->postJson('/api/v1/ai/chat', [
+            'messages' => [['role' => 'user', 'text' => 'What was our income this week?']],
+        ])->assertOk()->assertJsonPath('reply', 'Your recorded income this week is PHP 125.');
+
+        Http::assertSent(function (Request $request) {
+            $prompt = data_get($request->data(), 'systemInstruction.parts.0.text', '');
+            return str_contains($prompt, 'last_7_days')
+                && str_contains($prompt, 'recorded_income_php')
+                && str_contains($prompt, '125')
+                && !str_contains($prompt, 'Other Private Cafe')
+                && !str_contains($prompt, '99999');
+        });
+    }
+
+    public function test_model_cannot_send_an_out_of_scope_answer_to_staff(): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['in_scope' => false, 'answer' => 'Unrelated advice'])]]]]],
+        ])]);
+        $business = Business::create(['name' => 'Scoped Cafe', 'status' => 'active', 'active' => true]);
+        Sanctum::actingAs(User::factory()->staff()->create(['business_id' => $business->id]));
+
+        $this->postJson('/api/v1/ai/chat', [
+            'messages' => [['role' => 'user', 'text' => 'What is the weather in my shop?']],
+        ])->assertOk()->assertDontSee('Unrelated advice');
     }
 
     public function test_missing_server_key_returns_a_safe_configuration_message(): void

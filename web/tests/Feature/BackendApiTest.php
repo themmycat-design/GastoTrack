@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Business;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +19,67 @@ class BackendApiTest extends TestCase
         $this->assertSame('/stock', parse_url(route('stock.index'), PHP_URL_PATH));
         $this->assertSame('/transactions', parse_url(route('transactions.index'), PHP_URL_PATH));
         $this->assertSame('/staff', parse_url(route('staff.index'), PHP_URL_PATH));
+    }
+
+    public function test_staff_summary_counts_their_income_records_for_the_selected_day(): void
+    {
+        $business = Business::create(['name' => 'Daily Income Cafe', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        $colleague = User::factory()->staff()->create(['business_id' => $business->id]);
+        $today = now(config('business.timezone'))->toDateString();
+        $yesterday = now(config('business.timezone'))->subDay()->toDateString();
+
+        $record = static function (User $user, string $type, string $date, float $amount) use ($business): void {
+            Transaction::create([
+                'business_id' => $business->id,
+                'user_id' => $user->id,
+                'amount' => $amount,
+                'type' => $type,
+                'source' => 'Cash',
+                'category' => $type === 'income' ? 'Sales' : 'Supplies',
+                'transaction_date' => $date,
+                'description' => 'Test record',
+                'entry_method' => 'manual',
+            ]);
+        };
+
+        $record($staff, 'income', $today, 20);
+        $record($staff, 'income', $today, 15);
+        $record($staff, 'expense', $today, 5);
+        $record($staff, 'income', $yesterday, 40);
+        $record($colleague, 'income', $today, 25);
+
+        $headers = ['Authorization' => 'Bearer '.$staff->createToken('daily-income-test')->plainTextToken];
+        $response = $this->getJson('/api/v1/transactions/summary?from='.$today.'&to='.$today, $headers)
+            ->assertOk()
+            ->assertJsonPath('income_count', 2);
+
+        $this->assertEquals(60, (float) $response->json('income'));
+    }
+
+    public function test_staff_can_update_personal_details_and_access_their_private_profile_photo(): void
+    {
+        Storage::fake('local');
+        $business = Business::create(['name' => 'Profile Photo Cafe', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        $headers = ['Authorization' => 'Bearer '.$staff->createToken('profile-photo-test')->plainTextToken];
+
+        $response = $this->withHeaders($headers)->post('/api/v1/user/profile', [
+            'name' => 'Updated Staff Name',
+            'phone' => '09123456789',
+            'profile_photo' => UploadedFile::fake()->image('staff-avatar.jpg'),
+        ])->assertOk()
+            ->assertJsonPath('user.name', 'Updated Staff Name')
+            ->assertJsonPath('user.phone', '09123456789')
+            ->assertJsonPath('user.has_profile_photo', true);
+
+        $photoPath = User::findOrFail($staff->id)->profile_photo_path;
+        $this->assertNotEmpty($photoPath);
+        Storage::disk('local')->assertExists($photoPath);
+        $this->get('/api/v1/user/profile-photo', $headers)->assertOk();
+        $this->getJson('/api/v1/user', $headers)
+            ->assertOk()
+            ->assertJsonPath('user.has_profile_photo', true);
     }
 
     public function test_staff_can_record_stock_waste_with_a_cost_snapshot(): void

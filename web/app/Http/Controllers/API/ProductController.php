@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductIngredient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -18,7 +20,7 @@ class ProductController extends Controller
         $products = Product::where('business_id', $request->user()->business_id)
             ->with('productIngredients.stockItem')
             ->when($request->filled('category'), fn ($query) => $query->where('category', $request->category))
-            ->when(!$canManageProducts, fn ($query) => $query->where('is_available', true))
+            ->when(! $canManageProducts, fn ($query) => $query->where('is_available', true))
             ->orderBy('display_order')
             ->get();
 
@@ -30,49 +32,54 @@ class ProductController extends Controller
     {
         $this->ensureCanManageProducts($request);
         $request->validate([
-            'name'           => 'required|string|max:255',
-            'category'       => 'required|string',
-            'price'          => 'required|numeric|min:0',
-            'description'    => 'nullable|string',
-            'emoji'          => 'nullable|string',
-            'image'          => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
-            'is_available'   => 'nullable|boolean',
-            'ingredients'    => 'nullable|array',
-            'ingredients.*.stock_id'  => ['required', Rule::exists('stock_items', 'id')->where('business_id', $request->user()->business_id)],
-            'ingredients.*.quantity'  => 'required|numeric|min:0',
+            'name' => 'required|string|max:255',
+            'category' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'description' => 'nullable|string',
+            'emoji' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
+            'is_available' => 'nullable|boolean',
+            'ingredients' => 'nullable|array',
+            'ingredients.*.stock_id' => ['required', Rule::exists('stock_items', 'id')->where('business_id', $request->user()->business_id)],
+            'ingredients.*.quantity' => 'required|numeric|min:0',
         ]);
 
-        $product = Product::create([
-            'business_id'  => $request->user()->business_id,
-            'name'         => $request->name,
-            'category'     => $request->category,
-            'price'        => $request->price,
-            'description'  => $request->description,
-            'emoji'        => $request->emoji ?? '🍵',
-            'is_available' => $request->is_available ?? true,
-        ]);
-
-        if ($request->hasFile('image')) {
-            $product->update([
-                'image' => $request->file('image')->store('products/'.$request->user()->business_id, 'public'),
-            ]);
-        }
-
-        // Save ingredients
-        if ($request->has('ingredients')) {
-            foreach ($request->ingredients as $ingredient) {
-                ProductIngredient::create([
-                    'product_id' => $product->id,
-                    'stock_item_id' => $ingredient['stock_id'],
-                    'quantity'   => $ingredient['quantity'],
+        $imagePath = $this->storePhoto($request);
+        try {
+            return DB::transaction(function () use ($request, $imagePath) {
+                $product = Product::create([
+                    'business_id' => $request->user()->business_id,
+                    'name' => $request->name,
+                    'category' => $request->category,
+                    'price' => $request->price,
+                    'description' => $request->description,
+                    'emoji' => $request->emoji ?? '🍵',
+                    'is_available' => $request->is_available ?? true,
+                    'image' => $imagePath,
                 ]);
-            }
-        }
 
-        return response()->json([
-            'message' => 'Product saved',
-            'product' => $product->load('productIngredients.stockItem'),
-        ], 201);
+                // Save ingredients
+                if ($request->has('ingredients')) {
+                    foreach ($request->ingredients as $ingredient) {
+                        ProductIngredient::create([
+                            'product_id' => $product->id,
+                            'stock_item_id' => $ingredient['stock_id'],
+                            'quantity' => $ingredient['quantity'],
+                        ]);
+                    }
+                }
+
+                return response()->json([
+                    'message' => 'Product saved',
+                    'product' => $product->load('productIngredients.stockItem'),
+                ], 201);
+            });
+        } catch (Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
+            throw $exception;
+        }
     }
 
     // GET /api/products/{id}
@@ -102,30 +109,40 @@ class ProductController extends Controller
         $product = Product::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
-        $product->update($request->only([
-            'name', 'category', 'price', 'description',
-            'emoji', 'is_available', 'display_order'
-        ]));
+        $imagePath = $this->storePhoto($request);
+        $oldImage = $product->image;
+        try {
+            DB::transaction(function () use ($request, $product, $imagePath) {
+                $product->update($request->only([
+                    'name', 'category', 'price', 'description',
+                    'emoji', 'is_available', 'display_order',
+                ]));
 
-        if ($request->hasFile('image')) {
-            if ($product->image) {
-                Storage::disk('public')->delete($product->image);
+                if ($imagePath) {
+                    $product->update(['image' => $imagePath]);
+                }
+
+                // Update ingredients if provided
+                if ($request->has('ingredients') || $request->boolean('replace_ingredients')) {
+                    $product->productIngredients()->delete();
+                    foreach ($request->input('ingredients', []) as $ingredient) {
+                        ProductIngredient::create([
+                            'product_id' => $product->id,
+                            'stock_item_id' => $ingredient['stock_id'],
+                            'quantity' => $ingredient['quantity'],
+                        ]);
+                    }
+                }
+            });
+        } catch (Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
             }
-            $product->update([
-                'image' => $request->file('image')->store('products/'.$request->user()->business_id, 'public'),
-            ]);
+            throw $exception;
         }
-
-        // Update ingredients if provided
-        if ($request->has('ingredients') || $request->boolean('replace_ingredients')) {
-            $product->productIngredients()->delete();
-            foreach ($request->input('ingredients', []) as $ingredient) {
-                ProductIngredient::create([
-                    'product_id' => $product->id,
-                    'stock_item_id' => $ingredient['stock_id'],
-                    'quantity'   => $ingredient['quantity'],
-                ]);
-            }
+        // Keep the previous photo until both storage and the database update succeed.
+        if ($imagePath && $oldImage) {
+            Storage::disk('public')->delete($oldImage);
         }
 
         return response()->json([
@@ -164,5 +181,17 @@ class ProductController extends Controller
             403,
             'Only business owners and staff can manage products.'
         );
+    }
+
+    private function storePhoto(Request $request): ?string
+    {
+        if (! $request->hasFile('image')) {
+            return null;
+        }
+
+        $path = $request->file('image')->store('products/'.$request->user()->business_id, 'public');
+        abort_unless($path, 503, 'The product photo could not be saved. Please try again or contact the administrator.');
+
+        return $path;
     }
 }

@@ -3,12 +3,12 @@
 @section('title', 'Businesses')
 
 @section('content')
-<div class="mb-8 flex flex-wrap items-end justify-between gap-6">
-    <div><h1 class="text-3xl font-bold">Businesses</h1><p class="mt-1 text-slate-600">Review registrations and manage platform access.</p></div>
-    <a href="{{ route('super-admin.businesses.create') }}" class="rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"><i class="fas fa-plus mr-2"></i>Add business</a>
+<div class="mb-7 flex flex-wrap items-end justify-between gap-4">
+    <div><p class="mb-1 text-xs font-bold uppercase tracking-[.12em] text-emerald-700">Platform directory</p><h1>Businesses</h1><p class="mt-2 text-sm text-slate-600">Review registrations and manage platform access.</p></div>
+    <a href="{{ route('super-admin.businesses.create') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"><i class="fas fa-plus mr-2"></i>Add business</a>
 </div>
 
-<div class="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200">
+<nav aria-label="Filter businesses by status" class="mb-5 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
     @foreach([
         [null, 'All', $allCount],
         ['pending', 'Pending', $pendingCount],
@@ -16,16 +16,17 @@
         ['suspended', 'Suspended', $suspendedCount],
         ['inactive', 'Inactive', $inactiveCount],
     ] as [$status, $label, $count])
-        <a href="{{ $status ? route('super-admin.businesses', ['status' => $status]) : route('super-admin.businesses') }}" class="whitespace-nowrap px-4 py-3 text-sm font-medium {{ request('status') === $status && !request()->boolean('archived') ? 'border-b-2 border-emerald-600 text-emerald-700' : 'text-slate-600 hover:text-slate-900' }}">{{ $label }} ({{ $count }})</a>
+        <a href="{{ $status ? route('super-admin.businesses', ['status' => $status]) : route('super-admin.businesses') }}" aria-current="{{ request('status') === $status && !request()->boolean('archived') ? 'page' : 'false' }}" class="inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition {{ request('status') === $status && !request()->boolean('archived') ? 'bg-[#EAF8F2] text-[#08745D]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}"><span>{{ $label }}</span><span class="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-500">{{ $count }}</span></a>
     @endforeach
-    <a href="{{ route('super-admin.businesses', ['archived' => 1]) }}" class="whitespace-nowrap px-4 py-3 text-sm font-medium {{ request()->boolean('archived') ? 'border-b-2 border-emerald-600 text-emerald-700' : 'text-slate-600 hover:text-slate-900' }}">Archived ({{ $archivedCount }})</a>
-</div>
+    <a href="{{ route('super-admin.businesses', ['archived' => 1]) }}" aria-current="{{ request()->boolean('archived') ? 'page' : 'false' }}" class="inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition {{ request()->boolean('archived') ? 'bg-[#EAF8F2] text-[#08745D]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}"><span>Archived</span><span class="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-500">{{ $archivedCount }}</span></a>
+</nav>
 
-<form method="GET" class="mb-6 flex gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+<form method="GET" role="search" class="mb-5 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
     @if(request('status'))<input type="hidden" name="status" value="{{ request('status') }}">@endif
     @if(request()->boolean('archived'))<input type="hidden" name="archived" value="1">@endif
-    <input type="search" name="search" value="{{ request('search') }}" placeholder="Search business, email, or owner" class="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 focus:border-emerald-500 focus:outline-none">
-    <button class="rounded-lg bg-slate-900 px-5 py-2 font-medium text-white">Search</button>
+    <label class="sr-only" for="business-search">Search businesses</label>
+    <input id="business-search" type="search" name="search" value="{{ request('search') }}" placeholder="Search business, email, or owner" class="min-w-0 rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+    <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white"><i class="fas fa-magnifying-glass mr-2" aria-hidden="true"></i>Search</button>
 </form>
 
 <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

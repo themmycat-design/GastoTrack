@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, useContext, useCallback } fr
 import api, {API_URL} from '../services/api';
 import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
+import {productPhotoUpload} from '../utils/productPhoto';
 
 export const ProductContext = createContext();
 
@@ -43,7 +44,7 @@ const toMultipartPayload = (product, method) => {
   form.append('name', payload.name);
   form.append('category', payload.category);
   form.append('price', String(payload.price));
-  if (payload.description) form.append('description', payload.description);
+  form.append('description', payload.description || '');
   form.append('emoji', payload.emoji);
   form.append('is_available', payload.is_available ? '1' : '0');
   form.append('replace_ingredients', '1');
@@ -51,11 +52,7 @@ const toMultipartPayload = (product, method) => {
     form.append(`ingredients[${index}][stock_id]`, String(ingredient.stock_id));
     form.append(`ingredients[${index}][quantity]`, String(ingredient.quantity));
   });
-  form.append('image', {
-    uri: product.imageAsset.uri,
-    type: product.imageAsset.type || 'image/jpeg',
-    name: product.imageAsset.fileName || `product-${Date.now()}.jpg`,
-  });
+  form.append('image', productPhotoUpload(product.imageAsset));
   return form;
 };
 
@@ -95,7 +92,7 @@ export const ProductProvider = ({ children }) => {
     const response = await api.post(
       '/products',
       hasImage ? toMultipartPayload(productData) : toApiPayload(productData),
-      hasImage ? {headers: {'Content-Type': 'multipart/form-data'}} : undefined,
+      hasImage ? {headers: {'Content-Type': 'multipart/form-data'}, timeout: 60000} : undefined,
     );
     const product = normalizeProduct(response.data.product);
     setProducts(current => [...current, product]);
@@ -107,6 +104,7 @@ export const ProductProvider = ({ children }) => {
     const response = hasImage
       ? await api.post(`/products/${id}`, toMultipartPayload(productData, 'PUT'), {
         headers: {'Content-Type': 'multipart/form-data'},
+        timeout: 60000,
       })
       : await api.put(`/products/${id}`, toApiPayload(productData));
     const product = normalizeProduct(response.data.product);

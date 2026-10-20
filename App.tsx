@@ -19,12 +19,13 @@ import OwnerBlockedScreen from './src/screens/auth/OwnerBlockedScreen';
 import { COLORS } from './src/theme';
 import AppErrorBoundary from './src/components/AppErrorBoundary';
 import WalletCaptureSync from './src/components/WalletCaptureSync';
+import StaffPinGate from './src/components/StaffPinGate';
 
 const RootStack = createNativeStackNavigator();
 
 // Ginawa natin itong hiwalay na component para maka-access sa AuthContext
 const AppNav = () => {
-  const { isLoading, userToken, userRole, logout } = useContext(AuthContext);
+  const { isLoading, userToken, userRole, user, logout } = useContext(AuthContext);
 
   console.log('[AppNav] isLoading:', isLoading, 'userToken:', userToken ? 'exists' : 'null');
 
@@ -48,13 +49,19 @@ const AppNav = () => {
     return <OwnerBlockedScreen onLogout={logout} />;
   }
 
+  if (userRole !== 'staff' || !user?.id) {
+    return <View style={styles.loadingScreen}><ActivityIndicator size="large" color="#FFFFFF" /></View>;
+  }
+
   // Kapag nakapag-login na, ilalabas na yung original RootStack mo
   console.log('[AppNav] User logged in, showing StaffNavigator');
   return (
-    <RootStack.Navigator screenOptions={{ headerShown: false }}>
-      <RootStack.Screen name="Main" component={StaffNavigator} />
-      <RootStack.Screen name="ReceiptScanner" component={ReceiptScannerScreen} />
-    </RootStack.Navigator>
+    <StaffPinGate key={user.id} userId={user.id} onSignOut={logout}>
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Main" component={StaffNavigator} />
+        <RootStack.Screen name="ReceiptScanner" component={ReceiptScannerScreen} />
+      </RootStack.Navigator>
+    </StaffPinGate>
   );
 };
 

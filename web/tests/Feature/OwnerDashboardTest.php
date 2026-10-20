@@ -450,6 +450,7 @@ class OwnerDashboardTest extends TestCase
         $staff = User::factory()->staff()->create(['business_id' => $business->id, 'name' => 'Cafe Staff']);
         $ownOrder = $this->order($business, $staff, [
             'status' => 'pending', 'payment_status' => 'detected', 'payment_method' => 'gcash',
+            'payment_reference' => 'GCASH-REF-123456',
             'order_number' => 'CAFE-ORDER-REFERENCE', 'total' => 125,
         ]);
         $otherBusiness = $this->business('Private Bakery');
@@ -466,6 +467,8 @@ class OwnerDashboardTest extends TestCase
                 && (int) $summary->awaiting_verification === 1
                 && (int) $summary->completed_paid === 0)
             ->assertSee('CAFE-ORDER-REFERENCE')
+            ->assertSee('Ref#')
+            ->assertSee('GCASH-REF-123456')
             ->assertDontSee('PRIVATE-ORDER-REFERENCE');
         preg_match('/<select id="status"[^>]*>(.*?)<\/select>/s', $orderList->getContent(), $statusSelect);
         $this->assertNotEmpty($statusSelect);
@@ -493,6 +496,16 @@ class OwnerDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Cafe Staff')
             ->assertSee('Awaiting verification');
+
+        $ownOrder->update(['payment_reference' => 'DEVICE-GCASH-LEGACY123']);
+        $this->actingAs($owner)
+            ->get(route('orders.index'))
+            ->assertOk()
+            ->assertDontSee('DEVICE-GCASH-LEGACY123');
+        $this->actingAs($owner)
+            ->get(route('orders.show', $ownOrder))
+            ->assertOk()
+            ->assertDontSee('DEVICE-GCASH-LEGACY123');
 
         $this->actingAs($owner)->get(route('orders.show', $otherOrder))->assertNotFound();
     }

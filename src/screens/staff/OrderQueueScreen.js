@@ -103,9 +103,16 @@ const OrderQueueScreen = ({navigation, route}) => {
         return;
       }
 
+      const reference = String(transaction.reference || '').trim();
+      if (!reference) {
+        setPaymentSignalWarning(`${selectedEwallet} notification arrived, but its official reference number could not be read. Still waiting for a matching notification.`);
+        return;
+      }
+
       const signal = {
         amount,
         source: selectedEwallet.toLowerCase(),
+        reference,
         merchant: transaction.merchant || '',
         capturedAt: new Date().toISOString(),
         notificationId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
@@ -133,6 +140,7 @@ const OrderQueueScreen = ({navigation, route}) => {
       amount: detectedWalletSignal.amount,
       currency: paymentOrder.paymentCurrency || 'PHP',
       source: detectedWalletSignal.source,
+      reference: detectedWalletSignal.reference,
       notification_id: detectedWalletSignal.notificationId,
     }).then(result => {
       if (!isCurrent) return;
@@ -727,6 +735,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                 <TextInput
                   style={[styles.input, styles.notesInput]}
                   placeholder="E.g., Less ice, no sugar, etc."
+                  placeholderTextColor={COLORS.placeholder}
                   value={notes}
                   onChangeText={setNotes}
                   multiline
@@ -918,8 +927,8 @@ const styles = StyleSheet.create({
   },
   cartBadge: {
     backgroundColor: COLORS.accent,
-    marginHorizontal: 20,
-    marginTop: 20,
+    marginHorizontal: 16,
+    marginTop: 12,
     marginBottom: 8,
     padding: 12,
     borderRadius: 12,
@@ -936,15 +945,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-end',
     gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
   },
   historyLinkText: {fontSize: 12, fontWeight: '700', color: COLORS.accentDark},
   paymentNotice: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginTop: 4,
     marginBottom: 8,
     paddingHorizontal: 12,
@@ -960,8 +969,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginHorizontal: 20,
-    marginTop: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
     padding: 10,
     borderRadius: 10,
     backgroundColor: COLORS.surface,
@@ -969,11 +978,11 @@ const styles = StyleSheet.create({
   cartLoadingText: {fontSize: 12, color: COLORS.textGray},
   categorySection: {
     backgroundColor: COLORS.background,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   categoryRow: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     gap: 8,
   },
   categoryChip: {
@@ -998,12 +1007,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   productsList: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 28,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 22,
   },
   emptyProductsState: {
-    minHeight: 280,
+    minHeight: 230,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
@@ -1013,7 +1022,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textDark,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 8,
   },
   emptyProductsText: {
     fontSize: 13,
@@ -1023,7 +1032,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   inventoryButton: {
-    marginTop: 15,
+    marginTop: 11,
     paddingVertical: 10,
     paddingHorizontal: 17,
     borderRadius: 11,
@@ -1085,7 +1094,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 18,
   },
   paymentTypeCancelButton: {
     padding: 12,
@@ -1098,7 +1107,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 20,
+    padding: 16,
     width: '100%',
     maxHeight: '92%',
   },
@@ -1106,7 +1115,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 20,
@@ -1161,7 +1170,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   productDetailCategory: {
     fontSize: 14,
@@ -1174,13 +1183,13 @@ const styles = StyleSheet.create({
     color: COLORS.income,
   },
   detailSection: {
-    marginBottom: 20,
+    marginBottom: 14,
   },
   detailSectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#333333',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   descriptionText: {
     fontSize: 13,
@@ -1233,7 +1242,7 @@ const styles = StyleSheet.create({
   addToCartButton: {
     backgroundColor: COLORS.accent,
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     marginTop: 10,
   },
@@ -1324,7 +1333,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   totalRow: {
     flexDirection: 'row',
@@ -1341,7 +1350,7 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   grandTotalRow: {
-    paddingTop: 12,
+    paddingTop: 9,
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     marginTop: 4,
@@ -1359,7 +1368,7 @@ const styles = StyleSheet.create({
   placeOrderButton: {
     backgroundColor: COLORS.income,
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     marginBottom: 10,
   },
@@ -1372,7 +1381,7 @@ const styles = StyleSheet.create({
   qrModalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 24,
+    padding: 18,
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
@@ -1381,7 +1390,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1A1A1A',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   qrAmountBox: {
     backgroundColor: '#F9F9F9',
@@ -1389,7 +1398,7 @@ const styles = StyleSheet.create({
     padding: 16,
     width: '100%',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   qrAmountLabel: {
     fontSize: 13,
@@ -1416,7 +1425,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: COLORS.income,
-    marginBottom: 24,
+    marginBottom: 16,
     textAlign: 'center',
   },
   qrSuccessIcon: {
@@ -1426,7 +1435,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F5E9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   qrSuccessText: {
     fontSize: 14,
@@ -1449,7 +1458,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   qrCancelButton: {
-    marginTop: 24,
+    marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,

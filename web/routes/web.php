@@ -10,6 +10,7 @@ use App\Http\Controllers\OwnerGoalController;
 use App\Http\Controllers\OwnerAnalyticsController;
 use App\Http\Controllers\OwnerAnalyticsDayController;
 use App\Http\Controllers\OwnerCostLogController;
+use App\Http\Controllers\OwnerReportsController;
 use App\Http\Controllers\OwnerOrderController;
 use App\Http\Controllers\OwnerBugReportController;
 use App\Http\Controllers\OwnerNotificationController;
@@ -69,6 +70,11 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security'])->group(functi
     Route::get('/orders/{order}', [OwnerOrderController::class, 'show'])->name('orders.show');
     Route::get('/analytics', OwnerAnalyticsController::class)->name('analytics.index');
     Route::get('/analytics/cost-logs', OwnerCostLogController::class)->name('analytics.cost-logs');
+    Route::get('/reports', [OwnerReportsController::class, 'index'])->name('owner.reports.index');
+    Route::get('/reports/export', [OwnerReportsController::class, 'export'])->name('owner.reports.export');
+    Route::get('/reports/{section}', [OwnerReportsController::class, 'show'])
+        ->where('section', 'sales-orders|income-expenses|product-costs|inventory-waste|payment-review|staff-activity')
+        ->name('owner.reports.show');
     Route::get('/analytics/day/{date}', OwnerAnalyticsDayController::class)
         ->where('date', '\\d{4}-\\d{2}-\\d{2}')
         ->name('analytics.day');

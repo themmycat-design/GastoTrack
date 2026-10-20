@@ -17,6 +17,43 @@
     box-shadow: 0 8px 24px rgba(10, 46, 42, .045);
 }
 
+.gt-owner-overview-banner {
+    border: 1px solid #D2E9DF;
+    border-radius: 1.25rem;
+    background:
+        radial-gradient(circle at 88% 8%, rgba(0, 168, 126, .12), transparent 20rem),
+        linear-gradient(120deg, #E8F7F1 0%, #FFFFFF 54%, #DDF3E9 100%);
+    box-shadow: 0 8px 24px rgba(10, 46, 42, .045);
+}
+
+.gt-owner-goal-link {
+    display: flex;
+    min-height: 3.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid rgba(200, 222, 215, .9);
+    border-radius: .9rem;
+    background: rgba(255, 255, 255, .76);
+    padding: .75rem 1rem;
+    color: #08745D;
+    font-size: .875rem;
+    font-weight: 700;
+    transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.gt-owner-goal-link:hover {
+    border-color: #9ACDBA;
+    background: #fff;
+}
+
+.gt-owner-goal-link strong {
+    color: #0A2E2A;
+    font-size: 1rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
 .gt-label {
     display: block;
     margin-bottom: .5rem;
@@ -80,12 +117,105 @@
 }
 
 .gt-btn-primary {
-    background: var(--gt-brand-strong);
+    background: #08745D;
     color: #fff;
     box-shadow: 0 2px 5px rgba(10, 46, 42, .08);
 }
 
 .gt-btn-primary:hover { background: #08745D; }
+
+/* Shared portal interaction states, including pages with utility-only controls. */
+.gt-skip-link {
+    position: fixed;
+    top: .75rem;
+    left: .75rem;
+    z-index: 100;
+    transform: translateY(-200%);
+    border-radius: .75rem;
+    padding: .75rem 1rem;
+    background: #fff;
+    color: #0A2E2A;
+    font-weight: 700;
+}
+.gt-skip-link:focus { transform: translateY(0); }
+
+:is(.gt-owner-page, .gt-admin-page) :is(a, button, summary):focus-visible {
+    outline: 3px solid #08745D;
+    outline-offset: 3px;
+}
+:is(.gt-owner-page, .gt-admin-page) :is(input, select, textarea) {
+    scroll-margin-block: 6rem;
+}
+:is(.gt-owner-page, .gt-admin-page) textarea { resize: vertical; }
+:is(.gt-owner-page, .gt-admin-page) :is(button, input, select, textarea):disabled {
+    cursor: not-allowed;
+    opacity: .65;
+}
+:is(.gt-owner-page, .gt-admin-page) [aria-invalid="true"] { border-color: #BE123C; }
+:is(.gt-owner-page, .gt-admin-page) [class~="bg-[#00A87E]"][class~="text-white"],
+.gt-admin-page .sa-main [class~="bg-emerald-600"][class~="text-white"] {
+    background-color: #08745D;
+}
+:is(.gt-owner-page, .gt-admin-page) .overflow-x-auto {
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+}
+:is(.gt-owner-page, .gt-admin-page) .overflow-x-auto:focus-visible {
+    outline: 2px solid #08745D;
+    outline-offset: -2px;
+}
+:is(.gt-owner-page, .gt-admin-page) td { overflow-wrap: anywhere; }
+
+.gt-owner-page main .gt-enter {
+    /* Owner content uses one shared entrance controller, avoiding nested effects. */
+    animation: none;
+}
+
+.gt-owner-page [data-owner-dialog]:not(.hidden) > .gt-card {
+    animation: gt-owner-dialog-enter 450ms cubic-bezier(.25, .8, .25, 1);
+}
+
+.gt-stock-overview-ring {
+    transform-origin: center;
+    animation: gt-stock-ring-clockwise 1.2s cubic-bezier(.35, .7, .25, 1) both;
+}
+
+@keyframes gt-stock-ring-clockwise {
+    from { opacity: .45; transform: rotate(0deg) scale(.94); }
+    78% { opacity: 1; transform: rotate(280deg) scale(1); }
+    to { opacity: 1; transform: rotate(360deg) scale(1); }
+}
+
+@keyframes gt-owner-dialog-enter {
+    from { opacity: .2; translate: 0 6px; }
+    to { opacity: 1; translate: 0 0; }
+}
+
+.gt-owner-page [data-owner-navigation],
+.gt-owner-page [data-owner-navigation] *,
+.gt-owner-page [data-owner-navigation] *::before,
+.gt-owner-page [data-owner-navigation] *::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+.gt-owner-page [data-owner-navigation] .reports-panel {
+    transition: max-height 320ms ease, opacity 220ms ease, transform 320ms ease !important;
+}
+
+.gt-owner-page [data-owner-navigation] [data-reports-chevron] {
+    transition: transform 300ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :is(.gt-owner-page, .gt-admin-page) *,
+    :is(.gt-owner-page, .gt-admin-page) *::before,
+    :is(.gt-owner-page, .gt-admin-page) *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
 
 .gt-btn-secondary {
     border-color: #C8DED7;
@@ -118,6 +248,19 @@
     transform: translateY(-3px);
     border-color: rgba(0, 168, 126, .28);
     box-shadow: 0 16px 32px rgba(10, 46, 42, .09);
+}
+
+.gt-owner-page main .gt-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(10, 46, 42, .07);
+}
+
+.gt-owner-page main > div button:not(:disabled) {
+    transition: background-color 160ms ease, border-color 160ms ease, scale 120ms ease-out;
+}
+
+.gt-owner-page main > div button:not(:disabled):active {
+    scale: .99;
 }
 
 .gt-focus:focus-visible {
@@ -368,6 +511,8 @@
     .gt-enter { animation: none; }
     .gt-lift { transition: none; }
     .gt-lift:hover { transform: none; }
+    .gt-owner-page main .gt-lift:hover { transform: none; }
+    .gt-owner-page main > div button:not(:disabled):active { scale: none; }
     .gt-welcome-back-to-top { transition: none; }
     .gt-reveal-ready .gt-scroll-reveal { transition: none; }
     .gt-welcome-sparks { display: none; }

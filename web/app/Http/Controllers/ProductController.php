@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\StockItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -17,7 +21,9 @@ class ProductController extends Controller
         ]);
         $businessId = (int) $request->user()->business_id;
 
-        $query = Product::query()->where('business_id', $businessId);
+        $query = Product::query()
+            ->where('business_id', $businessId)
+            ->with('productIngredients.stockItem');
         if (!empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($builder) use ($search): void {
@@ -56,23 +62,40 @@ class ProductController extends Controller
             ->whereNotNull('category')
             ->distinct('category')
             ->count('category');
+        $stockItems = StockItem::query()
+            ->where('business_id', $businessId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'unit']);
 
         return view('products.index', compact(
-            'products', 'categories', 'totalProducts', 'availableProducts', 'categoriesCount'
+            'products', 'categories', 'totalProducts', 'availableProducts', 'categoriesCount', 'stockItems'
         ));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate($this->productRules());
         $businessId = (int) $request->user()->business_id;
+        $validated = $request->validate($this->productRules($businessId));
         $maxOrder = Product::query()->where('business_id', $businessId)->max('display_order');
         $attributes = $this->productAttributes($validated);
         $attributes['business_id'] = $businessId;
         $attributes['active'] = true;
         $attributes['display_order'] = ((int) $maxOrder) + 1;
+        $imagePath = $request->file('image')?->store('products/'.$businessId, 'public');
+        abort_unless(! $request->hasFile('image') || $imagePath, 503, 'The product photo could not be saved. Please try again.');
+        $attributes['image'] = $imagePath;
 
-        Product::create($attributes);
+        try {
+            DB::transaction(function () use ($attributes, $validated): void {
+                $product = Product::create($attributes);
+                $this->syncIngredients($product, $validated['ingredients'] ?? []);
+            });
+        } catch (Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
+            throw $exception;
+        }
 
         return redirect()->route('products.index')->with('success', 'Product created successfully.');
     }
@@ -80,10 +103,33 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         $this->ensureBusinessOwns($request, $product);
-        $validated = $request->validate($this->productRules());
+        $validated = $request->validate($this->productRules((int) $request->user()->business_id));
         $attributes = $this->productAttributes($validated);
         $attributes['is_available'] = $validated['is_available'] ?? $product->is_available;
-        $product->update($attributes);
+        $imagePath = $request->file('image')?->store('products/'.$request->user()->business_id, 'public');
+        abort_unless(! $request->hasFile('image') || $imagePath, 503, 'The product photo could not be saved. Please try again.');
+        $oldImage = $product->image;
+
+        try {
+            DB::transaction(function () use ($product, $attributes, $validated, $imagePath): void {
+                if ($imagePath) {
+                    $attributes['image'] = $imagePath;
+                }
+                $product->update($attributes);
+                if (($validated['replace_ingredients'] ?? false) === true || ($validated['replace_ingredients'] ?? null) === '1') {
+                    $this->syncIngredients($product, $validated['ingredients'] ?? []);
+                }
+            });
+        } catch (Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
+            throw $exception;
+        }
+
+        if ($imagePath && $oldImage) {
+            Storage::disk('public')->delete($oldImage);
+        }
 
         return redirect()->route('products.index')->with('success', 'Product updated successfully.');
     }
@@ -110,7 +156,7 @@ class ProductController extends Controller
         ]);
     }
 
-    private function productRules(): array
+    private function productRules(int $businessId): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -119,7 +165,17 @@ class ProductController extends Controller
             'price' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'emoji' => ['nullable', 'string', 'max:10'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             'is_available' => ['sometimes', 'boolean'],
+            'replace_ingredients' => ['sometimes', 'boolean'],
+            'ingredients' => ['sometimes', 'array'],
+            'ingredients.*.stock_id' => [
+                'required', 'integer',
+                Rule::exists('stock_items', 'id')
+                    ->where('business_id', $businessId)
+                    ->whereNull('deleted_at'),
+            ],
+            'ingredients.*.quantity' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
         ];
     }
 
@@ -134,6 +190,17 @@ class ProductController extends Controller
             'emoji' => $validated['emoji'] ?? '☕',
             'is_available' => $validated['is_available'] ?? true,
         ];
+    }
+
+    private function syncIngredients(Product $product, array $ingredients): void
+    {
+        $product->productIngredients()->delete();
+        foreach ($ingredients as $ingredient) {
+            $product->productIngredients()->create([
+                'stock_item_id' => $ingredient['stock_id'],
+                'quantity' => $ingredient['quantity'],
+            ]);
+        }
     }
 
     private function ensureBusinessOwns(Request $request, Product $product): void

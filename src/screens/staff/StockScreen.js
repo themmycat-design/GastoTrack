@@ -1,10 +1,11 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Image, Modal, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {launchImageLibrary} from 'react-native-image-picker';
+import {productPhotoUpload} from '../../utils/productPhoto';
 import {useStock} from '../../context/StockContext';
 import {useProducts} from '../../context/ProductContext';
 import {useTransactions} from '../../context/TransactionContext';
@@ -216,25 +217,32 @@ const StockScreen = () => {
   };
 
   const pickProductImage = async () => {
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      selectionLimit: 1,
-      quality: 0.85,
-      maxWidth: 1600,
-      maxHeight: 1600,
-    });
-    if (result.didCancel) return;
-    if (result.errorCode) {
-      const permissionError = /permission|access/i.test(`${result.errorCode} ${result.errorMessage || ''}`);
-      Alert.alert(
-        permissionError ? 'Photo Permission Required' : 'Could not open photos',
-        permissionError ? 'Allow photo access in your device settings, then try again.' : result.errorMessage || 'Please try again.',
-      );
-      return;
-    }
-    const asset = result.assets?.[0];
-    if (asset?.uri) {
-      setProductForm(current => ({...current, image: asset.uri, imageAsset: asset}));
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        selectionLimit: 1,
+        quality: 0.85,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        assetRepresentationMode: 'compatible',
+      });
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        const permissionError = /permission|access/i.test(`${result.errorCode} ${result.errorMessage || ''}`);
+        Alert.alert(
+          permissionError ? 'Photo Permission Required' : 'Could not open photos',
+          permissionError ? 'Allow photo access in your device settings, then try again.' : result.errorMessage || 'Please try again.',
+        );
+        return;
+      }
+      const asset = result.assets?.[0];
+      if (asset?.uri) {
+        productPhotoUpload(asset);
+        setProductForm(current => ({...current, image: asset.uri, imageAsset: asset}));
+      }
+    } catch (error) {
+      Alert.alert('Could not add photo', error.code === 'PRODUCT_PHOTO_INVALID'
+        ? error.message : 'Could not open this photo. Please select it again.');
     }
   };
 
@@ -258,6 +266,10 @@ const StockScreen = () => {
   };
 
   const apiErrorMessage = error => {
+    if (error.code === 'PRODUCT_PHOTO_INVALID') return error.message;
+    if (error.response?.status === 413) {
+      return 'The server rejected the upload size. Choose a smaller photo or ask the administrator to increase the upload limit.';
+    }
     const data = error.response?.data;
     return Object.values(data?.errors || {}).flat().join('\n') || data?.message || getApiErrorMessage(error);
   };
@@ -381,8 +393,8 @@ const StockScreen = () => {
         {[
           ['stock', 'package-variant', 'Stock Items'], ['products', 'food', 'Products'],
         ].map(([key, icon, label]) => (
-          <TouchableOpacity key={key} style={[styles.tab, activeTab === key && styles.tabActive]} onPress={() => setActiveTab(key)}>
-            <Icon name={icon} size={20} color={activeTab === key ? COLORS.accent : COLORS.textGray} />
+          <TouchableOpacity accessibilityRole="tab" accessibilityState={{selected: activeTab === key}} key={key} style={[styles.tab, activeTab === key && styles.tabActive]} onPress={() => setActiveTab(key)}>
+            <Icon name={icon} size={20} color={activeTab === key ? COLORS.accentDark : COLORS.textGray} />
             <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>{label}</Text>
           </TouchableOpacity>
         ))}
@@ -402,7 +414,8 @@ const StockScreen = () => {
 
       <View style={styles.searchBox}>
         <Icon name="magnify" size={21} color={COLORS.textGray} />
-        <TextInput style={styles.searchInput} placeholder={`Search ${activeTab === 'stock' ? 'stock items' : 'products'}...`} value={search} onChangeText={setSearch} />
+        <TextInput style={styles.searchInput} placeholder={`Search ${activeTab === 'stock' ? 'stock items' : 'products'}...`} placeholderTextColor={COLORS.placeholder} value={search} onChangeText={setSearch} />
+        {!!search && <TouchableOpacity style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Clear inventory search" onPress={() => setSearch('')}><Icon name="close" size={20} color={COLORS.textGray} /></TouchableOpacity>}
       </View>
 
       <ApiErrorBanner
@@ -418,6 +431,8 @@ const StockScreen = () => {
         <View style={styles.centerState}><ActivityIndicator color={COLORS.accent} size="large" /><Text style={styles.stateText}>Loading inventory...</Text></View>
       ) : (
         <FlatList
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           data={filteredItems}
           keyExtractor={item => String(item.id)}
           renderItem={activeTab === 'stock' ? renderStockItem : renderProductItem}
@@ -447,8 +462,8 @@ const StockScreen = () => {
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} colors={[COLORS.accent]} />}
           ListEmptyComponent={<View style={styles.centerState}>
             <Icon name={activeTab === 'stock' ? 'package-variant-closed' : 'food-off'} size={58} color="#C9CEC9" />
-            <Text style={styles.emptyTitle}>No {activeTab === 'stock' ? 'stock items' : 'products'} found</Text>
-            <Text style={styles.stateText}>{search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
+            <Text style={styles.emptyTitle}>{(activeTab === 'stock' ? stockError : productError) ? 'Inventory unavailable' : 'No ' + (activeTab === 'stock' ? 'stock items' : 'products') + ' found'}</Text>
+            <Text style={styles.stateText}>{(activeTab === 'stock' ? stockError : productError) ? 'Pull down to refresh or use Retry above.' : search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
           </View>}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
           onEndReached={activeTab === 'stock' && hasMoreStock ? loadMoreStock : undefined}
@@ -457,34 +472,34 @@ const StockScreen = () => {
       )}
 
       <Modal visible={stockEditorVisible} transparent animationType="slide" onRequestClose={() => setStockEditorVisible(false)}>
-        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add stock item</Text>
-            <TouchableOpacity onPress={() => setStockEditorVisible(false)} accessibilityLabel="Close stock item form"><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
+            <TouchableOpacity style={styles.closeButton} accessibilityRole="button" onPress={() => setStockEditorVisible(false)} accessibilityLabel="Close stock item form"><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.fieldLabel}>Stock name</Text>
-            <TextInput style={styles.input} value={stockForm.name} onChangeText={value => setStockField('name', value)} placeholder="e.g. Fresh milk" />
+            <TextInput style={styles.input} value={stockForm.name} onChangeText={value => setStockField('name', value)} placeholder="e.g. Fresh milk" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Unit</Text>
-            <TextInput style={styles.input} value={stockForm.unit} onChangeText={value => setStockField('unit', value)} placeholder="pcs, ml, g, kg" />
+            <TextInput style={styles.input} value={stockForm.unit} onChangeText={value => setStockField('unit', value)} placeholder="pcs, ml, g, kg" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Starting quantity</Text>
-            <TextInput style={styles.input} value={stockForm.quantity} onChangeText={value => setStockField('quantity', value)} keyboardType="decimal-pad" placeholder="0" />
+            <TextInput style={styles.input} value={stockForm.quantity} onChangeText={value => setStockField('quantity', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Low-stock level</Text>
-            <TextInput style={styles.input} value={stockForm.threshold} onChangeText={value => setStockField('threshold', value)} keyboardType="decimal-pad" placeholder="0" />
+            <TextInput style={styles.input} value={stockForm.threshold} onChangeText={value => setStockField('threshold', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Unit cost</Text>
-            <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.00" />
+            <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={COLORS.placeholder} />
             <TouchableOpacity style={[styles.primaryButton, isSavingStock && styles.disabledButton]} onPress={saveStock} disabled={isSavingStock}>
               {isSavingStock ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Add stock item</Text>}
             </TouchableOpacity>
           </ScrollView>
-        </View></View>
+        </View></KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={Boolean(selectedItem)} transparent animationType="fade" onRequestClose={() => setSelectedItem(null)}>
-        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <View><Text style={styles.modalTitle}>{selectedItem?.name}</Text><Text style={styles.modalSubtitle}>Adjust the physical stock count</Text></View>
-            <TouchableOpacity onPress={() => setSelectedItem(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
+            <View style={styles.headerCopy}><Text style={styles.modalTitle}>{selectedItem?.name}</Text><Text style={styles.modalSubtitle}>Adjust the physical stock count</Text></View>
+            <TouchableOpacity style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close stock adjustment" onPress={() => setSelectedItem(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
           {selectedItem && <ScrollView keyboardShouldPersistTaps="handled">
             <View style={styles.quantityPanel}>
@@ -510,15 +525,15 @@ const StockScreen = () => {
               <Text style={styles.ownerNote}>Waste is tracked separately in the owner’s Analytics.</Text>
             </> : null}
             <Text style={styles.fieldLabel}>Quantity ({selectedItem.unit})</Text>
-            <TextInput style={styles.input} keyboardType="decimal-pad" value={adjustValue} onChangeText={setAdjustValue} placeholder="0.00" />
+            <TextInput style={styles.input} keyboardType="decimal-pad" value={adjustValue} onChangeText={setAdjustValue} placeholder="0.00" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Reason (optional)</Text>
-            <TextInput style={styles.input} value={adjustReason} onChangeText={setAdjustReason} placeholder="Delivery, wastage, stock count..." />
+            <TextInput style={styles.input} value={adjustReason} onChangeText={setAdjustReason} placeholder="Delivery, wastage, stock count..." placeholderTextColor={COLORS.placeholder} />
             <TouchableOpacity style={[styles.primaryButton, isAdjusting && styles.disabledButton]} onPress={handleAdjust} disabled={isAdjusting}>
               {isAdjusting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Apply adjustment</Text>}
             </TouchableOpacity>
             <Text style={styles.ownerNote}>Item details and deletions are managed by the business owner.</Text>
           </ScrollView>}
-        </View></View>
+        </View></KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={Boolean(selectedProduct)} transparent animationType="fade" onRequestClose={() => setSelectedProduct(null)}>
@@ -571,19 +586,19 @@ const StockScreen = () => {
       </Modal>
 
       <Modal visible={productEditorVisible} transparent animationType="slide" onRequestClose={() => setProductEditorVisible(false)}>
-        <View style={styles.modalOverlay}><View style={styles.modalCard}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <View>
+            <View style={styles.headerCopy}>
               <Text style={styles.modalTitle}>{editingProduct ? 'Edit product' : 'Add product'}</Text>
               <Text style={styles.modalSubtitle}>Set menu details and stock recipe</Text>
             </View>
-            <TouchableOpacity onPress={() => setProductEditorVisible(false)} accessibilityLabel="Close product form">
+            <TouchableOpacity style={styles.closeButton} accessibilityRole="button" onPress={() => setProductEditorVisible(false)} accessibilityLabel="Close product form">
               <Icon name="close" size={24} color={COLORS.textGray} />
             </TouchableOpacity>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>Product name</Text>
-            <TextInput style={styles.input} value={productForm.name} onChangeText={value => setProductField('name', value)} placeholder="e.g. Caramel Latte" />
+            <TextInput style={styles.input} value={productForm.name} onChangeText={value => setProductField('name', value)} placeholder="e.g. Caramel Latte" placeholderTextColor={COLORS.placeholder} />
 
             <Text style={styles.fieldLabel}>Product photo</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickProductImage} activeOpacity={0.8}>
@@ -596,7 +611,7 @@ const StockScreen = () => {
             <Text style={styles.fieldLabel}>Price</Text>
             <View style={styles.priceInputWrap}>
               <Text style={styles.peso}>₱</Text>
-              <TextInput style={styles.priceInput} value={productForm.price} onChangeText={value => setProductField('price', value)} keyboardType="decimal-pad" placeholder="0.00" />
+              <TextInput style={styles.priceInput} value={productForm.price} onChangeText={value => setProductField('price', value)} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={COLORS.placeholder} />
             </View>
 
             <Text style={styles.fieldLabel}>Category</Text>
@@ -609,7 +624,7 @@ const StockScreen = () => {
             </View>
 
             <Text style={styles.fieldLabel}>Description (optional)</Text>
-            <TextInput style={[styles.input, styles.descriptionInput]} value={productForm.description} onChangeText={value => setProductField('description', value)} placeholder="Short product description" multiline />
+            <TextInput style={[styles.input, styles.descriptionInput]} value={productForm.description} onChangeText={value => setProductField('description', value)} placeholder="Short product description" placeholderTextColor={COLORS.placeholder} multiline />
 
             <TouchableOpacity style={styles.availabilityRow} onPress={() => setProductField('isAvailable', !productForm.isAvailable)}>
               <View><Text style={styles.availabilityTitle}>Available for ordering</Text><Text style={styles.availabilityHint}>Unavailable products stay saved but cannot be ordered.</Text></View>
@@ -626,7 +641,7 @@ const StockScreen = () => {
                     <Icon name={ingredient ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} color={ingredient ? COLORS.accent : COLORS.textGray} />
                     <View style={styles.recipeNameWrap}><Text style={styles.recipeName}>{stock.name}</Text><Text style={styles.recipeUnit}>per order ({stock.unit})</Text></View>
                   </TouchableOpacity>
-                  {ingredient ? <TextInput style={styles.recipeQuantity} value={ingredient.quantity} onChangeText={value => setIngredientQuantity(Number(stock.id), value)} keyboardType="decimal-pad" placeholder="0" /> : null}
+                  {ingredient ? <TextInput style={styles.recipeQuantity} value={ingredient.quantity} onChangeText={value => setIngredientQuantity(Number(stock.id), value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} /> : null}
                 </View>
               );
             }) : <Text style={styles.ownerNote}>No stock items are available for a recipe yet.</Text>}
@@ -635,47 +650,49 @@ const StockScreen = () => {
               {isSavingProduct ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{editingProduct ? 'Save changes' : 'Add product'}</Text>}
             </TouchableOpacity>
           </ScrollView>
-        </View></View>
+        </View></KeyboardAvoidingView>
       </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  headerCopy: {flex: 1, minWidth: 0, marginRight: 8},
+  closeButton: {width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted},
   container: {flex: 1, backgroundColor: COLORS.background},
   tabs: {flexDirection: 'row', backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border},
   tab: {flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderBottomWidth: 3, borderBottomColor: 'transparent'},
-  tabActive: {borderBottomColor: COLORS.accent}, tabText: {fontSize: 14, fontWeight: '600', color: COLORS.textGray}, tabTextActive: {color: COLORS.accent},
-  summary: {flexDirection: 'row', marginHorizontal: 20, marginTop: 20, marginBottom: 8, borderRadius: 16, backgroundColor: COLORS.surface, paddingVertical: 14, borderWidth: 1, borderColor: COLORS.border},
+  tabActive: {borderBottomColor: COLORS.accent}, tabText: {fontSize: 14, fontWeight: '600', color: COLORS.textGray}, tabTextActive: {color: COLORS.accentDark},
+  summary: {flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 6, borderRadius: 16, backgroundColor: COLORS.surface, paddingVertical: 11, borderWidth: 1, borderColor: COLORS.border},
   summaryItem: {flex: 1, alignItems: 'center'}, summaryCount: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, summaryLabel: {fontSize: 12, fontWeight: '600', marginTop: 2},
-  searchBox: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
-  searchInput: {flex: 1, paddingVertical: 11, paddingHorizontal: 8, color: COLORS.textDark}, list: {paddingHorizontal: 20, paddingBottom: 24}, emptyList: {flexGrow: 1},
-  card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border},
+  searchBox: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  searchInput: {flex: 1, paddingVertical: 9, paddingHorizontal: 8, color: COLORS.textDark}, list: {paddingHorizontal: 16, paddingBottom: 20}, emptyList: {flexGrow: 1},
+  card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border},
   iconBox: {width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'}, iconOk: {backgroundColor: '#E8F5E9'}, iconWarning: {backgroundColor: '#FFF3E0'}, productThumbnail: {width: '100%', height: '100%', resizeMode: 'cover'},
-  cardBody: {flex: 1, marginHorizontal: 12}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 3},
+  cardBody: {flex: 1, marginHorizontal: 10}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
   badge: {paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12}, badgeText: {fontSize: 11, fontWeight: '700'}, badgeOk: {backgroundColor: '#E8F5E9'}, badgeOkText: {color: '#2E7D32'}, badgeLow: {backgroundColor: '#FFF3E0'}, badgeLowText: {color: '#E65100'}, badgeOut: {backgroundColor: '#FFEBEE'}, badgeOutText: {color: '#C62828'},
   centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32}, emptyTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark, marginTop: 14}, stateText: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, textAlign: 'center', marginTop: 7}, footerLoader: {paddingVertical: 18},
-  modalOverlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'center', padding: 20}, modalCard: {backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, maxHeight: '88%'},
-  modalHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
-  quantityPanel: {backgroundColor: COLORS.surfaceMuted, borderRadius: 14, padding: 18, marginBottom: 8}, quantityValue: {fontSize: 28, fontWeight: '700', color: COLORS.textDark}, quantityHint: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
-  fieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 16, marginBottom: 7}, adjustToggle: {flexDirection: 'row', gap: 10},
+  modalOverlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'center', padding: 16}, modalCard: {backgroundColor: COLORS.surface, borderRadius: 20, padding: 16, maxHeight: '88%'},
+  modalHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
+  quantityPanel: {backgroundColor: COLORS.surfaceMuted, borderRadius: 14, padding: 14, marginBottom: 6}, quantityValue: {fontSize: 28, fontWeight: '700', color: COLORS.textDark}, quantityHint: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
+  fieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 12, marginBottom: 5}, adjustToggle: {flexDirection: 'row', gap: 8},
   toggleButton: {flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, toggleButtonActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, toggleText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray}, toggleTextActive: {color: '#FFFFFF'},
   input: {backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 11, color: COLORS.textDark},
-  primaryButton: {backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 14, marginTop: 20}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 14, textAlign: 'center'},
+  primaryButton: {backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 12, marginTop: 14}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 10, textAlign: 'center'},
   productHero: {height: 190, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'}, productHeroImage: {width: '100%', height: '100%', resizeMode: 'cover'}, noImage: {alignItems: 'center'}, noImageText: {fontSize: 12, color: COLORS.textGray, marginTop: 6},
-  detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 14},
+  detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 10},
   ingredientRow: {flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.surfaceMuted, borderRadius: 9, padding: 11, marginBottom: 7}, ingredientName: {fontSize: 13, color: COLORS.textDark}, ingredientQuantity: {fontSize: 13, fontWeight: '700', color: COLORS.accent},
-  alternativesPanel: {backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 15, padding: 14, marginBottom: 15},
+  alternativesPanel: {backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 15, padding: 12, marginBottom: 12},
   alternativesHeading: {flexDirection: 'row', alignItems: 'center', gap: 8},
   alternativesTitle: {flex: 1, fontSize: 15, fontWeight: '800', color: COLORS.textDark},
-  alternativeItem: {borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 12, paddingTop: 12},
+  alternativeItem: {borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 9, paddingTop: 9},
   alternativeIngredient: {fontSize: 13, fontWeight: '700', color: COLORS.danger},
   alternativesHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 5},
   alternativeSuggestion: {fontSize: 12, lineHeight: 18, fontWeight: '700', color: COLORS.accentDark, marginTop: 7},
   alternativesDisclaimer: {fontSize: 11, lineHeight: 16, color: COLORS.textGray, marginTop: 13},
   productShortage: {backgroundColor: '#FFF8ED', borderRadius: 12, padding: 12, marginTop: 12},
   stockAlertText: {fontSize: 11, fontWeight: '700', color: COLORS.danger, marginTop: 3},
-  productActions: {gap: 9, marginTop: 20},
+  productActions: {gap: 8, marginTop: 14},
   secondaryButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
   secondaryButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
   deleteButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#F1C6C6', backgroundColor: '#FFF7F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 9},

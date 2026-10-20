@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Business;
 use App\Models\Product;
+use App\Models\StockItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class OwnerProductsTest extends TestCase
@@ -119,6 +122,84 @@ class OwnerProductsTest extends TestCase
             ->assertJsonPath('is_available', false);
 
         $this->assertDatabaseHas('products', ['id' => $product->id, 'is_available' => 0]);
+    }
+
+    public function test_owner_can_upload_product_photo_and_manage_recipe_ingredients(): void
+    {
+        Storage::fake('public');
+        $business = $this->business('Recipe Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $stock = StockItem::create([
+            'business_id' => $business->id,
+            'name' => 'Fresh milk',
+            'unit' => 'ml',
+            'current_quantity' => 5000,
+            'minimum_quantity' => 500,
+            'unit_cost' => 0.08,
+            'active' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('products.store'), [
+                'name' => 'Milk Tea',
+                'category' => 'Beverages',
+                'price' => 120,
+                'cost' => 40,
+                'is_available' => '1',
+                'replace_ingredients' => '1',
+                'ingredients' => [0 => ['stock_id' => $stock->id, 'quantity' => '250']],
+                'image' => UploadedFile::fake()->image('milk-tea.png'),
+            ])
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::query()->where('business_id', $business->id)->firstOrFail();
+        $this->assertNotEmpty($product->image);
+        Storage::disk('public')->assertExists($product->image);
+        $this->assertDatabaseHas('product_ingredients', [
+            'product_id' => $product->id,
+            'stock_item_id' => $stock->id,
+            'quantity' => 250,
+        ]);
+
+        $this->actingAs($owner)
+            ->put(route('products.update', $product), [
+                'name' => 'Milk Tea',
+                'category' => 'Beverages',
+                'price' => 120,
+                'cost' => 40,
+                'is_available' => '1',
+                'replace_ingredients' => '1',
+                'ingredients' => [0 => ['stock_id' => $stock->id, 'quantity' => '300']],
+            ])
+            ->assertRedirect(route('products.index'));
+
+        $this->assertDatabaseHas('product_ingredients', [
+            'product_id' => $product->id,
+            'stock_item_id' => $stock->id,
+            'quantity' => 300,
+        ]);
+        Storage::disk('public')->assertExists($product->fresh()->image);
+    }
+
+    public function test_owner_cannot_attach_another_business_stock_item_to_a_recipe(): void
+    {
+        $owner = User::factory()->owner()->create(['business_id' => $this->business('Recipe Owner')->id]);
+        $foreignStock = StockItem::create([
+            'business_id' => $this->business('Other Recipe Shop')->id,
+            'name' => 'Private ingredient',
+            'unit' => 'g',
+            'active' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('products.store'), [
+                'name' => 'Test drink',
+                'category' => 'Beverages',
+                'price' => 100,
+                'replace_ingredients' => '1',
+                'ingredients' => [0 => ['stock_id' => $foreignStock->id, 'quantity' => '1']],
+            ])
+            ->assertSessionHasErrors('ingredients.0.stock_id');
     }
 
     private function business(string $name): Business

@@ -18,9 +18,8 @@
             <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
                 <section class="gt-enter flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
                     <div>
-                        <p class="text-sm font-semibold text-[#00A87E]">Money in and out</p>
-                        <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Transactions</h2>
-                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded orders, income, and expenses alongside unverified GCash and Maya notification captures.</p>
+                        <h2 class="text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Transactions</h2>
+                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded orders, income, and expenses alongside captured GCash and Maya transaction alerts.</p>
                     </div>
                 </section>
 
@@ -121,7 +120,7 @@
                 viewField.value = mode;
                 categoryFilter.hidden = mode === 'raw';
                 categorySelect.disabled = mode === 'raw' || !sourceSelect.value;
-                searchInput.placeholder = mode === 'raw' ? 'Search wallet notification text...' : 'Category, source, product...';
+                searchInput.placeholder = mode === 'raw' ? 'Search wallet transaction text...' : 'Category, source, product...';
                 [...sourceSelect.options].forEach((option) => {
                     option.hidden = mode === 'raw' && option.value !== '' && !['GCash', 'Maya'].includes(option.value);
                 });

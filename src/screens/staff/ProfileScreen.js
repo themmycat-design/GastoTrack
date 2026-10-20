@@ -1,14 +1,15 @@
 import React from 'react';
-import {Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useAuth} from '../../context/AuthContext';
 import {COLORS} from '../../theme';
+import {getProfilePhotoSource} from '../../utils/profilePhoto';
 
 const ProfileScreen = ({navigation}) => {
-  const {user, userRole, business, logout} = useAuth();
+  const {user, userRole, business, logout, userToken} = useAuth();
 
   const handleLogout = () => {
     Alert.alert('Sign out?', 'You will need to sign in again to continue.', [
@@ -18,10 +19,11 @@ const ProfileScreen = ({navigation}) => {
   };
 
   const initial = user?.name?.trim()?.charAt(0)?.toUpperCase() || 'S';
+  const photoSource = getProfilePhotoSource(user, userToken);
   const profileOptions = [
     {title: 'Personal information', icon: 'account-outline', route: 'PersonalInformation'},
     {title: 'Permissions', icon: 'shield-check-outline', route: 'Permissions'},
-    {title: 'Bugs reports', icon: 'bug-outline', route: 'BugReports'},
+    {title: 'AI Assistant', icon: 'creation', route: 'Assistant'},
     {title: 'About', icon: 'information-outline', route: 'About'},
   ];
 
@@ -38,7 +40,9 @@ const ProfileScreen = ({navigation}) => {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
+            {photoSource
+              ? <Image source={photoSource} style={styles.avatarImage} />
+              : <Text style={styles.avatarText}>{initial}</Text>}
           </View>
           <Text style={styles.name}>{user?.name || 'Staff User'}</Text>
           <Text style={styles.role}>
@@ -53,6 +57,8 @@ const ProfileScreen = ({navigation}) => {
               key={option.route}
               style={styles.optionCard}
               onPress={() => navigation.navigate(option.route)}
+              accessibilityRole="button"
+              accessibilityLabel={option.title}
               activeOpacity={0.75}>
               <View style={styles.optionIcon}>
                 <Icon name={option.icon} size={22} color={COLORS.accentDark} />
@@ -63,7 +69,7 @@ const ProfileScreen = ({navigation}) => {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} accessibilityRole="button">
           <Icon name="logout" size={20} color={COLORS.danger} />
           <Text style={styles.logoutText}>Sign out</Text>
         </TouchableOpacity>
@@ -78,9 +84,10 @@ const styles = StyleSheet.create({
   profileCard: {
     backgroundColor: COLORS.textDark,
     alignItems: 'center',
-    marginHorizontal: 20,
-    marginTop: 20,
-    paddingVertical: 28,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     borderRadius: 16,
   },
   avatar: {
@@ -90,28 +97,29 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
+  avatarImage: {width: 72, height: 72, borderRadius: 36},
   avatarText: {fontSize: 28, fontWeight: 'bold', color: COLORS.accent},
-  name: {fontSize: 20, fontWeight: 'bold', color: COLORS.textWhite},
+  name: {fontSize: 20, fontWeight: 'bold', color: COLORS.textWhite, textAlign: 'center'},
   role: {fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4},
-  businessName: {fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.92)', marginTop: 10, textAlign: 'center'},
-  profileOptions: {marginHorizontal: 20, marginTop: 7},
+  businessName: {fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.92)', marginTop: 7, textAlign: 'center'},
+  profileOptions: {marginHorizontal: 16, marginTop: 5},
   optionCard: {
-    minHeight: 68,
+    minHeight: 60,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
-    marginTop: 9,
+    paddingHorizontal: 12,
+    marginTop: 7,
     elevation: 1,
   },
   optionIcon: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 12,
     backgroundColor: COLORS.surfaceMuted,
     alignItems: 'center',
@@ -119,15 +127,15 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     flex: 1,
-    marginLeft: 11,
+    marginLeft: 9,
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.textDark,
   },
   logoutButton: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    minHeight: 52,
+    marginHorizontal: 16,
+    marginTop: 12,
+    minHeight: 48,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F1C6C6',

@@ -1,9 +1,8 @@
 <header class="sticky top-0 z-20 border-b border-[#DDE9E5] bg-white/90 backdrop-blur-xl">
-    <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
+    <div class="mx-auto flex min-h-14 max-w-[1600px] items-center justify-between gap-3 px-5 py-2 sm:px-8 lg:px-10">
         <div class="min-w-0">
-            <p class="text-xs font-bold uppercase tracking-[.16em] text-[#00A87E]">Owner workspace</p>
-            <h1 class="mt-1 truncate text-xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-2xl">Good day, {{ Auth::user()->name }}</h1>
-            <p class="mt-1 truncate text-sm text-slate-500">{{ Auth::user()->business?->name ?? 'Your business' }}</p>
+            <p class="truncate text-sm font-bold text-[#0A2E2A]">Good day, {{ Auth::user()->name }}</p>
+            <p class="truncate text-xs text-slate-600">{{ Auth::user()->business?->name ?? 'Your business' }}</p>
         </div>
         <div class="flex shrink-0 items-center gap-3">
             @php
@@ -17,7 +16,7 @@
                         <span data-notification-count class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white">{{ $unreadNotifications > 99 ? '99+' : $unreadNotifications }}</span>
                     @endif
                 </summary>
-                <div class="absolute right-0 top-12 z-40 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#DDE9E5] bg-white shadow-2xl shadow-[#0A2E2A]/15">
+                <div class="fixed inset-x-4 top-auto z-40 mt-2 overflow-hidden rounded-2xl border border-[#DDE9E5] bg-white shadow-2xl shadow-[#0A2E2A]/15 sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:mt-0 sm:w-96 sm:max-w-[calc(100vw-2rem)]">
                     <div class="border-b border-[#EAF2EF] px-5 py-4">
                         <p class="text-sm font-extrabold text-[#0A2E2A]">Notifications</p>
                         <p data-notification-unread-label class="mt-1 text-xs text-slate-500">{{ $unreadNotifications }} unread</p>
@@ -65,6 +64,17 @@
 (() => {
     const trigger = document.querySelector('[data-owner-notification-trigger]');
     if (!trigger) return;
+
+    const panel = trigger.closest('details');
+    document.addEventListener('click', event => {
+        if (!panel.contains(event.target)) panel.open = false;
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && panel.open) {
+            panel.open = false;
+            trigger.focus();
+        }
+    });
 
     let isMarkingRead = false;
     trigger.addEventListener('click', () => {

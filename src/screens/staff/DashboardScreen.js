@@ -23,14 +23,16 @@ import {useStaffDay} from '../../utils/useStaffDay';
 import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
+import {getProfilePhotoSource} from '../../utils/profilePhoto';
 
 const DashboardScreen = ({ navigation }) => {
-  const { user, sessionStorageWarning } = useAuth();
+  const { user, userToken, sessionStorageWarning } = useAuth();
   const { transactions, isLoading: transactionsLoading, loadError: transactionError, fetchTransactions, PRODUCT_CATEGORIES } = useTransactions();
   const { products, isLoading: productsLoading, loadError: productError, fetchProducts } = useProducts();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [todayIncome, setTodayIncome] = useState(null);
+  const [todayIncomeCount, setTodayIncomeCount] = useState(null);
   const [incomeLoading, setIncomeLoading] = useState(true);
   const [incomeError, setIncomeError] = useState(null);
   const incomeRequestId = React.useRef(0);
@@ -40,14 +42,17 @@ const DashboardScreen = ({ navigation }) => {
     const requestId = ++incomeRequestId.current;
     setIncomeLoading(true);
     setTodayIncome(null);
+    setTodayIncomeCount(null);
     try {
       const response = await api.get('/transactions/summary', {params: {from: day, to: day}});
       if (requestId !== incomeRequestId.current) return;
       setTodayIncome(Number(response.data?.income || 0));
+      setTodayIncomeCount(Number(response.data?.income_count || 0));
       setIncomeError(null);
     } catch (error) {
       if (requestId !== incomeRequestId.current) return;
       setTodayIncome(null);
+      setTodayIncomeCount(null);
       setIncomeError(getApiErrorMessage(error));
     } finally {
       if (requestId === incomeRequestId.current) setIncomeLoading(false);
@@ -104,6 +109,7 @@ const DashboardScreen = ({ navigation }) => {
         title={user?.name || 'Staff'}
         subtitle="Welcome back"
         icon="account"
+        avatarSource={getProfilePhotoSource(user, userToken)}
         actionIcon="account-outline"
         actionLabel="Open profile"
         onActionPress={() => navigation.navigate('Profile')}
@@ -137,7 +143,9 @@ const DashboardScreen = ({ navigation }) => {
             {todayIncome !== null ? <Text style={styles.currencySymbol}>₱</Text> : null}
             <Text style={[styles.incomeAmount, todayIncome === null && styles.incomeStatus]}>{incomeLoading ? 'Loading…' : todayIncome === null ? 'Unavailable' : todayIncome.toFixed(2)}</Text>
           </View>
-          <Text style={styles.incomeDescription}>{incomeError ? 'Could not load today’s income' : 'Total income today'}</Text>
+          <Text style={styles.incomeDescription}>{incomeError
+            ? 'Could not load today’s income'
+            : incomeLoading ? 'Loading today’s income records…' : `Income entries today: ${todayIncomeCount ?? 0}`}</Text>
         </View>
 
         <ApiErrorBanner message={dashboardError} onRetry={retryDashboard} />
@@ -165,11 +173,12 @@ const DashboardScreen = ({ navigation }) => {
             { label: 'New order', icon: 'point-of-sale', route: 'Orders' },
             { label: 'Scan receipt', icon: 'line-scan', route: 'ReceiptScanner' },
             { label: 'Check stock', icon: 'package-variant-closed', route: 'Stock' },
+            { label: 'Bug reports', icon: 'bug-outline', route: 'Profile', params: {screen: 'BugReports'} },
           ].map(action => (
             <TouchableOpacity
               key={action.label}
               style={styles.quickAction}
-              onPress={() => navigation.navigate(action.route)}>
+              onPress={() => navigation.navigate(action.route, action.params)}>
               <View style={styles.quickActionIcon}>
                 <Icon name={action.icon} size={22} color={COLORS.accentDark} />
               </View>
@@ -353,10 +362,10 @@ const styles = StyleSheet.create({
   },
   incomeCard: {
     backgroundColor: COLORS.textDark,
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 16,
-    padding: 24,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 12,
+    padding: 18,
     borderRadius: 16,
     elevation: 4,
   },
@@ -410,9 +419,9 @@ const styles = StyleSheet.create({
   },
   gettingStartedCard: {
     flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 15,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 13,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -425,21 +434,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.surfaceMuted,
-    marginRight: 12,
+    marginRight: 10,
   },
   gettingStartedCopy: {flex: 1},
   gettingStartedTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
-  gettingStartedText: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 5},
-  gettingStartedAction: {flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10},
+  gettingStartedText: {fontSize: 12, lineHeight: 17, color: COLORS.textGray, marginTop: 4},
+  gettingStartedAction: {flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 7},
   gettingStartedActionText: {fontSize: 12, fontWeight: '700', color: COLORS.accentDark},
   quickActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: 20,
-    marginBottom: 24,
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   quickAction: {
-    width: '30%',
+    width: '23%',
     alignItems: 'center',
   },
   quickActionIcon: {
@@ -458,19 +467,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   productsSection: {
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 4,
+    marginBottom: 12,
   },
   transactionsSection: {
-    marginHorizontal: 20,
-    marginBottom: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -482,12 +491,12 @@ const styles = StyleSheet.create({
     color: COLORS.textGray,
   },
   categoryTabs: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   categoryTab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: COLORS.bgCard,
     marginRight: 8,
@@ -508,8 +517,8 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   productsScrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
   },
   emptyProductsContent: {
     flexGrow: 1,
@@ -539,7 +548,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   productInfo: {
-    padding: 12,
+    padding: 10,
   },
   productBadge: {
     alignSelf: 'flex-start',
@@ -567,8 +576,8 @@ const styles = StyleSheet.create({
   },
   emptyProducts: {
     flex: 1,
-    minHeight: 178,
-    padding: 24,
+    minHeight: 148,
+    padding: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.surface,
@@ -601,7 +610,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.miniCardBg,
-    padding: 16,
+    padding: 12,
     borderRadius: 8,
     marginBottom: 8,
   },
@@ -633,7 +642,7 @@ const styles = StyleSheet.create({
   },
   emptyTransactions: {
     backgroundColor: COLORS.miniCardBg,
-    padding: 40,
+    padding: 24,
     borderRadius: 12,
     alignItems: 'center',
   },
@@ -644,7 +653,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   bottomSpacing: {
-    height: 24,
+    height: 80,
   },
 });
 

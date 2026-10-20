@@ -7,7 +7,9 @@ use App\Models\User;
 use App\Rules\PasswordStrength;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -49,7 +51,7 @@ class AuthController extends Controller
 
         // Delete old tokens and create new one
         $user->tokens()->delete();
-        $token = $user->createToken('gastotrack-mobile')->plainTextToken;
+        $token = $user->createToken('gastotrack-mobile', ['*'], now()->addDays(30))->plainTextToken;
 
         return response()->json([
             'message'  => 'Login successful',
@@ -80,11 +82,63 @@ class AuthController extends Controller
         ]);
     }
 
+    public function updateProfile(Request $request)
+    {
+        abort_unless($request->user()->isStaff(), 403, 'Only staff accounts can update a mobile profile.');
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:30',
+            'profile_photo' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ]);
+
+        $user = $request->user();
+        $oldPhotoPath = $user->profile_photo_path;
+        $newPhotoPath = $request->hasFile('profile_photo')
+            ? $request->file('profile_photo')->store('profile-photos/'.$user->id, 'local')
+            : null;
+
+        abort_unless(!$request->hasFile('profile_photo') || $newPhotoPath, 503, 'The profile photo could not be saved. Please try again.');
+
+        try {
+            $user->name = $validated['name'];
+            $user->phone = $validated['phone'] ?? null;
+            if ($newPhotoPath) {
+                $user->profile_photo_path = $newPhotoPath;
+            }
+            $user->save();
+        } catch (Throwable $exception) {
+            if ($newPhotoPath) {
+                Storage::disk('local')->delete($newPhotoPath);
+            }
+            throw $exception;
+        }
+
+        if ($newPhotoPath && $oldPhotoPath) {
+            Storage::disk('local')->delete($oldPhotoPath);
+        }
+
+        return response()->json([
+            'message' => 'Personal information updated',
+            'user' => $this->formatUser($user->fresh()),
+        ]);
+    }
+
+    public function profilePhoto(Request $request)
+    {
+        abort_unless($request->user()->isStaff(), 403, 'Only staff accounts can access a mobile profile photo.');
+
+        $path = $request->user()->profile_photo_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, max-age=300']);
+    }
+
     public function refresh(Request $request)
     {
         abort_if(!$request->user()->isStaff(), 403, 'Only staff accounts can use mobile access tokens.');
         $request->user()->currentAccessToken()?->delete();
-        return response()->json(['token' => $request->user()->createToken('gastotrack-mobile')->plainTextToken]);
+        return response()->json(['token' => $request->user()->createToken('gastotrack-mobile', ['*'], now()->addDays(30))->plainTextToken]);
     }
 
     public function changePassword(Request $request)
@@ -96,7 +150,7 @@ class AuthController extends Controller
         ]);
         $request->user()->update(['password' => Hash::make($data['password'])]);
         $request->user()->tokens()->delete();
-        return response()->json(['message' => 'Password changed', 'token' => $request->user()->createToken('gastotrack-mobile')->plainTextToken]);
+        return response()->json(['message' => 'Password changed', 'token' => $request->user()->createToken('gastotrack-mobile', ['*'], now()->addDays(30))->plainTextToken]);
     }
 
     // ----------------------------------------------------------------
@@ -108,8 +162,11 @@ class AuthController extends Controller
             'id'          => $user->id,
             'name'        => $user->name,
             'email'       => $user->email,
+            'phone'       => $user->phone,
             'role'        => $user->role,
             'business_id' => $user->business_id,
+            'has_profile_photo' => (bool) $user->profile_photo_path,
+            'profile_photo_version' => $user->updated_at?->timestamp,
         ];
     }
 }

@@ -13,6 +13,13 @@ class PlatformReportController extends Controller
     {
         $statusCounts = Business::selectRaw('status, COUNT(*) as total')
             ->groupBy('status')->pluck('total', 'status');
+        $businessesByStatus = $statusCounts->keys()->mapWithKeys(fn ($status) => [
+            $status => Business::query()
+                ->where('status', $status)
+                ->orderBy('name')
+                ->limit(5)
+                ->get(['id', 'name']),
+        ]);
         $typeCounts = Business::selectRaw('business_type, COUNT(*) as total')
             ->groupBy('business_type')->orderByDesc('total')->pluck('total', 'business_type');
         $locations = Business::whereNotNull('city')
@@ -31,7 +38,7 @@ class PlatformReportController extends Controller
         ];
 
         return view('super-admin.platform-reports', compact(
-            'summary', 'statusCounts', 'typeCounts', 'locations', 'registrationTrend'
+            'summary', 'statusCounts', 'businessesByStatus', 'typeCounts', 'locations', 'registrationTrend'
         ));
     }
 

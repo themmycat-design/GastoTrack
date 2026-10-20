@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,13 +17,10 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useIsFocused} from '@react-navigation/native';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
-import ApiErrorBanner from '../../components/ApiErrorBanner';
 import {useAuth} from '../../context/AuthContext';
 import {useTransactions} from '../../context/TransactionContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
-import {getPendingWalletCaptures} from '../../modules/NotificationModule';
-import {subscribeWalletCaptureSync} from '../../services/walletCaptureSyncEvents';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
 import {useStaffDay} from '../../utils/useStaffDay';
@@ -126,7 +125,7 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
           value={search}
           onChangeText={setSearch}
           placeholder="Search transactions..."
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={COLORS.placeholder}
           accessibilityLabel="Search transactions"
         />
         {search ? <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear transaction search"><Icon name="close-circle" size={19} color={COLORS.textMuted} /></TouchableOpacity> : null}
@@ -150,32 +149,6 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
   );
 });
 
-const RawWalletFilters = React.memo(({search, source, onSearchChange, onSourceChange}) => (
-  <View style={styles.filters}>
-    <View style={styles.searchBox}>
-      <Icon name="magnify" size={21} color={COLORS.textGray} />
-      <TextInput
-        style={styles.searchInput}
-        value={search}
-        onChangeText={onSearchChange}
-        placeholder="Search wallet notifications..."
-        placeholderTextColor={COLORS.textMuted}
-        accessibilityLabel="Search wallet notifications"
-      />
-      {search ? <TouchableOpacity onPress={() => onSearchChange('')} accessibilityLabel="Clear wallet search"><Icon name="close-circle" size={19} color={COLORS.textMuted} /></TouchableOpacity> : null}
-    </View>
-    <Text style={styles.filterLabel}>Wallet source</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-      {['All', 'GCash', 'Maya'].map(value => (
-        <TouchableOpacity key={value} style={[styles.chip, source === value && styles.chipActive]} onPress={() => onSourceChange(value)} accessibilityRole="button" accessibilityState={{selected: source === value}}>
-          <Text style={[styles.chipText, source === value && styles.chipTextActive]}>{value}</Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-    <Text style={styles.categoryHint}>Notification signals only. Check the wallet account before treating any amount as paid.</Text>
-  </View>
-));
-
 const TransactionActivityList = React.memo(({
   transactions,
   loading,
@@ -187,9 +160,6 @@ const TransactionActivityList = React.memo(({
   onOpenDetail,
   renderTransaction: renderTransactionProp,
   hasFilters,
-  mode,
-  onModeChange,
-  loadError,
 }) => {
   const defaultRenderTransaction = useCallback(({item}) => {
     const income = item.type?.toLowerCase() === 'income';
@@ -223,17 +193,6 @@ const TransactionActivityList = React.memo(({
           </View>
           <Text style={styles.activityCount}>{transactions.length} shown</Text>
         </View>
-        <View style={styles.activityTabs}>
-          {[
-            ['daily', 'Daily transaction'],
-            ['raw', 'Raw transaction'],
-          ].map(([value, label]) => (
-            <TouchableOpacity key={value} style={[styles.activityTab, mode === value && styles.activityTabActive]} onPress={() => onModeChange(value)} accessibilityRole="button" accessibilityState={{selected: mode === value}}>
-              <Text style={[styles.activityTabText, mode === value && styles.activityTabTextActive]}>{label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {mode === 'raw' && loadError && transactions.length ? <Text style={styles.rawNotice}>Could not update wallet notifications. Pull down to refresh.</Text> : null}
       </View>}
       contentContainerStyle={transactions.length ? styles.list : styles.emptyList}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />}
@@ -241,11 +200,9 @@ const TransactionActivityList = React.memo(({
         {loading
           ? <><ActivityIndicator size="large" color={COLORS.accent} /><Text style={styles.stateText}>Loading activity...</Text></>
           : <>
-            <Icon name={mode === 'raw' && loadError ? 'cloud-refresh-outline' : 'receipt-text-outline'} size={58} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>{mode === 'raw' && loadError ? 'Wallet alerts unavailable' : mode === 'raw' ? 'No wallet alerts yet' : 'No transactions found'}</Text>
-            <Text style={styles.stateText}>{mode === 'raw'
-              ? loadError ? 'Pull down to try loading again.' : 'New GCash and Maya notifications will appear here. Pull down to refresh.'
-              : hasFilters ? 'Try changing your search or filters.' : 'Tap + to record the first transaction.'}</Text>
+            <Icon name="receipt-text-outline" size={58} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>{hasFilters ? 'No matching transactions' : 'No transactions today'}</Text>
+            <Text style={styles.stateText}>{hasFilters ? 'Try changing your search or filters.' : 'Transactions recorded today will appear here. Tap + to add one.'}</Text>
             {!transactions.length && hasMore && !loadingMore ? (
               <TouchableOpacity style={styles.loadMoreButton} onPress={onLoadMore} accessibilityRole="button">
                 <Text style={styles.loadMoreText}>Load more activity</Text>
@@ -264,17 +221,9 @@ const TransactionsScreen = ({route}) => {
   const isFocused = useIsFocused();
   const {user} = useAuth();
   const staffDay = useStaffDay();
-  const [showHistory, setShowHistory] = useState(false);
   const {
-    transactions,
-    isLoading,
-    loadError,
-    isLoadingMore,
-    hasMoreTransactions,
-    fetchTransactions,
     queryTransactions,
     fetchTransactionCategories,
-    loadMoreTransactions,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -287,19 +236,8 @@ const TransactionsScreen = ({route}) => {
   const [activityFilter, setActivityFilter] = useState({search: '', source: 'All', category: 'All'});
   const [activityTransactions, setActivityTransactions] = useState([]);
   const [activityPagination, setActivityPagination] = useState(null);
-  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(true);
   const [activityLoadingMore, setActivityLoadingMore] = useState(false);
-  const [activityMode, setActivityMode] = useState('daily');
-  const [rawSearch, setRawSearch] = useState('');
-  const [rawSource, setRawSource] = useState('All');
-  const [rawCaptures, setRawCaptures] = useState([]);
-  const [rawPending, setRawPending] = useState([]);
-  const [rawPagination, setRawPagination] = useState(null);
-  const [rawLoading, setRawLoading] = useState(false);
-  const [rawLoadingMore, setRawLoadingMore] = useState(false);
-  const [rawError, setRawError] = useState(null);
-  const [selectedCapture, setSelectedCapture] = useState(null);
-  const rawRequestId = useRef(0);
   const [editorVisible, setEditorVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -372,18 +310,9 @@ const TransactionsScreen = ({route}) => {
     }, 700);
     return () => clearTimeout(timer);
   }, [editorVisible, form.type, form.source, form.notes, categories]);
-  const displayedTransactions = activityTransactions ?? transactions;
-  const hasAppliedFilters = Boolean(activityFilter.search || activityFilter.source !== 'All' || activityFilter.category !== 'All' || !showHistory);
-  const hasMoreActivity = activityTransactions === null
-    ? hasMoreTransactions
-    : Number(activityPagination?.currentPage || 0) < Number(activityPagination?.lastPage || 1);
-  const rawItems = useMemo(() => {
-    const saved = new Set(rawCaptures.map(item => item.client_id));
-    return [...rawPending.filter(item => !saved.has(item.client_id)), ...rawCaptures]
-      .sort((a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime());
-  }, [rawCaptures, rawPending]);
-  const hasMoreRaw = Boolean(rawPagination?.current_page)
-    && Number(rawPagination.current_page) < Number(rawPagination.last_page || 1);
+  const hasAppliedFilters = Boolean(activityFilter.search || activityFilter.source !== 'All' || activityFilter.category !== 'All');
+  const hasMoreActivity = Boolean(activityPagination)
+    && Number(activityPagination.currentPage || 0) < Number(activityPagination.lastPage || 1);
 
   const setField = (field, value) => setForm(current => ({...current, [field]: value}));
   const setExpenseName = value => {
@@ -460,7 +389,7 @@ const TransactionsScreen = ({route}) => {
               Alert.alert('Could not delete transaction', getErrorMessage(result));
               return;
             }
-            if (activityTransactions !== null) await refreshFilteredActivity();
+            await refreshFilteredActivity();
             setDetailVisible(false);
             setSelectedTransaction(null);
           },
@@ -506,12 +435,12 @@ const TransactionsScreen = ({route}) => {
     setEditorVisible(false);
     setEditingTransaction(null);
     setForm(emptyForm(form.type));
-    if (activityTransactions !== null) await refreshFilteredActivity();
+    await refreshFilteredActivity();
   };
 
   const refreshFilteredActivity = useCallback(async () => {
     const requestId = ++activityRequestId.current;
-    const result = await queryTransactions({page: 1, ...activityFilter, ...(!showHistory ? {from: staffDay, to: staffDay} : {})});
+    const result = await queryTransactions({page: 1, ...activityFilter, from: staffDay, to: staffDay});
     if (requestId !== activityRequestId.current) return;
     setActivityLoading(false);
     if (result.success) {
@@ -520,20 +449,16 @@ const TransactionsScreen = ({route}) => {
     } else {
       Alert.alert('Could not refresh transactions', getErrorMessage(result));
     }
-  }, [activityFilter, queryTransactions, showHistory, staffDay]);
+  }, [activityFilter, queryTransactions, staffDay]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      if (activityTransactions !== null) {
-        await refreshFilteredActivity();
-      } else {
-        await fetchTransactions();
-      }
+      await refreshFilteredActivity();
     } finally {
       setRefreshing(false);
     }
-  }, [activityTransactions, fetchTransactions, refreshFilteredActivity]);
+  }, [refreshFilteredActivity]);
 
   const applyActivityFilters = useCallback(async nextFilter => {
     const normalizedFilter = {
@@ -541,18 +466,9 @@ const TransactionsScreen = ({route}) => {
       source: nextFilter.source || 'All',
       category: nextFilter.category || 'All',
     };
-    if (showHistory && !normalizedFilter.search && normalizedFilter.source === 'All' && normalizedFilter.category === 'All') {
-      activityRequestId.current += 1;
-      setActivityFilter(normalizedFilter);
-      setActivityTransactions(null);
-      setActivityPagination(null);
-      setActivityLoading(false);
-      return;
-    }
-
     const requestId = ++activityRequestId.current;
     setActivityLoading(true);
-    const result = await queryTransactions({page: 1, ...normalizedFilter, ...(!showHistory ? {from: staffDay, to: staffDay} : {})});
+    const result = await queryTransactions({page: 1, ...normalizedFilter, from: staffDay, to: staffDay});
     if (requestId !== activityRequestId.current) return;
     setActivityLoading(false);
     if (!result.success) {
@@ -563,83 +479,38 @@ const TransactionsScreen = ({route}) => {
     setActivityFilter(normalizedFilter);
     setActivityTransactions(result.transactions);
     setActivityPagination(result.pagination);
-  }, [queryTransactions, showHistory, staffDay]);
+  }, [queryTransactions, staffDay]);
 
   const lastScope = useRef(null);
   useEffect(() => {
-    const scope = `${staffDay}:${showHistory}`;
+    const scope = staffDay;
     if (lastScope.current === scope) return;
     lastScope.current = scope;
-    if (!showHistory) setActivityTransactions([]);
+    setActivityTransactions([]);
     applyActivityFilters(activityFilter);
-  }, [activityFilter, applyActivityFilters, showHistory, staffDay]);
+  }, [activityFilter, applyActivityFilters, staffDay]);
 
   const loadMoreActivity = useCallback(async () => {
-    if (activityTransactions === null) {
-      return loadMoreTransactions();
-    }
     if (activityLoadingMore || !hasMoreActivity) return;
 
     const nextPage = Number(activityPagination?.currentPage || 1) + 1;
     const requestId = activityRequestId.current;
     setActivityLoadingMore(true);
-    const result = await queryTransactions({page: nextPage, ...activityFilter, ...(!showHistory ? {from: staffDay, to: staffDay} : {})});
+    const result = await queryTransactions({page: nextPage, ...activityFilter, from: staffDay, to: staffDay});
     setActivityLoadingMore(false);
     if (requestId !== activityRequestId.current) return;
     if (result.success) {
       setActivityTransactions(current => [
-        ...(current || []),
-        ...result.transactions.filter(transaction => !(current || []).some(item => item.id === transaction.id)),
+        ...current,
+        ...result.transactions.filter(transaction => !current.some(item => item.id === transaction.id)),
       ]);
       setActivityPagination(result.pagination);
     } else {
       Alert.alert('Could not load more activity', getErrorMessage(result));
     }
-  }, [activityFilter, activityLoadingMore, activityPagination, activityTransactions, hasMoreActivity, loadMoreTransactions, queryTransactions, showHistory, staffDay]);
+  }, [activityFilter, activityLoadingMore, activityPagination, hasMoreActivity, queryTransactions, staffDay]);
 
-  const fetchRaw = useCallback(async (page = 1) => {
-    const requestId = ++rawRequestId.current;
-    if (page === 1) setRawLoading(true);
-    else setRawLoadingMore(true);
-    const source = rawSource === 'All' ? undefined : rawSource.toLowerCase();
-    const search = rawSearch.trim().toLowerCase();
-    try {
-      if (page === 1) {
-        const pending = await getPendingWalletCaptures();
-        if (requestId !== rawRequestId.current) return;
-        setRawPending(pending.filter(item =>
-          (!source || item.source === source)
-          && (!search || `${item.message || ''} ${item.merchant || ''}`.toLowerCase().includes(search))
-          && (showHistory || formatLocalDate(new Date(item.captured_at)) === staffDay),
-        ));
-      }
-      const response = await api.get('/wallet-notifications', {params: {
-        page, source, search: rawSearch.trim() || undefined,
-        ...(!showHistory ? {from: staffDay, to: staffDay} : {}),
-      }});
-      if (requestId !== rawRequestId.current) return;
-      const captures = response.data?.captures || [];
-      setRawCaptures(current => page === 1 ? captures : [
-        ...current,
-        ...captures.filter(item => !current.some(saved => saved.client_id === item.client_id)),
-      ]);
-      setRawPagination(response.data?.meta || null);
-      setRawError(null);
-    } catch (error) {
-      if (requestId === rawRequestId.current) setRawError(getApiErrorMessage(error));
-    } finally {
-      if (requestId === rawRequestId.current) {
-        setRawLoading(false);
-        setRawLoadingMore(false);
-      }
-    }
-  }, [rawSearch, rawSource, showHistory, staffDay]);
-
-  refreshOnFocus.current = () => {
-    if (activityMode === 'raw') return fetchRaw(1);
-    if (activityTransactions !== null) return refreshFilteredActivity();
-    return fetchTransactions();
-  };
+  refreshOnFocus.current = refreshFilteredActivity;
 
   useEffect(() => {
     if (!isFocused) {
@@ -651,37 +522,6 @@ const TransactionsScreen = ({route}) => {
     wasFocused.current = true;
     refreshOnFocus.current?.();
   }, [isFocused]);
-
-  useEffect(() => {
-    if (activityMode !== 'raw') return;
-    const timer = setTimeout(() => fetchRaw(1), rawSearch ? 350 : 0);
-    return () => { clearTimeout(timer); rawRequestId.current += 1; };
-  }, [activityMode, fetchRaw, rawSearch]);
-
-  useEffect(() => subscribeWalletCaptureSync(() => {
-    if (activityMode === 'raw') fetchRaw(1);
-  }), [activityMode, fetchRaw]);
-
-  const refreshRaw = useCallback(async () => {
-    setRefreshing(true);
-    try { await fetchRaw(1); } finally { setRefreshing(false); }
-  }, [fetchRaw]);
-
-  const loadMoreRaw = useCallback(() => {
-    if (!rawLoading && !rawLoadingMore && hasMoreRaw) fetchRaw(Number(rawPagination?.current_page || 0) + 1);
-  }, [fetchRaw, hasMoreRaw, rawLoading, rawLoadingMore, rawPagination]);
-
-  const renderRawCapture = useCallback(({item}) => (
-    <TouchableOpacity style={styles.card} onPress={() => setSelectedCapture(item)} activeOpacity={0.75}>
-      <View style={styles.iconBox}><Icon name="cellphone-message" size={22} color={COLORS.accent} /></View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{item.source === 'gcash' ? 'GCash' : 'Maya'} · {item.direction || 'unknown'}</Text>
-        <Text style={styles.cardSubtitle} numberOfLines={2}>{item.message || 'Wallet notification'}</Text>
-        <Text style={styles.cardSubtitle}>{new Date(item.captured_at).toLocaleString()} · {item.id ? 'Unverified' : 'Pending sync'}</Text>
-      </View>
-      {item.amount != null ? <Text style={styles.amount}>₱{Number(item.amount).toFixed(2)}</Text> : null}
-    </TouchableOpacity>
-  ), []);
 
   const renderTransaction = useCallback(({item}) => {
     const income = item.type?.toLowerCase() === 'income';
@@ -725,66 +565,34 @@ const TransactionsScreen = ({route}) => {
         onActionPress={openAdd}
       />
 
-      <View style={styles.dayScopeRow}>
-        <TouchableOpacity style={[styles.dayScopeButton, !showHistory && styles.dayScopeActive]} onPress={() => setShowHistory(false)} accessibilityRole="button" accessibilityState={{selected: !showHistory}}>
-          <Text style={[styles.dayScopeText, !showHistory && styles.dayScopeTextActive]}>Today</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.dayScopeButton, showHistory && styles.dayScopeActive]} onPress={() => setShowHistory(true)} accessibilityRole="button" accessibilityState={{selected: showHistory}}>
-          <Text style={[styles.dayScopeText, showHistory && styles.dayScopeTextActive]}>History</Text>
-        </TouchableOpacity>
-      </View>
-
-      {activityMode === 'daily' ? <TransactionFilters
+      <TransactionFilters
         sources={TRANSACTION_SOURCES}
         fetchCategories={fetchTransactionCategories}
         onApply={applyActivityFilters}
-      /> : <RawWalletFilters search={rawSearch} source={rawSource} onSearchChange={setRawSearch} onSourceChange={setRawSource} />}
+      />
 
-      {activityMode === 'daily' && activityTransactions === null ? (
-        <ApiErrorBanner message={loadError} onRetry={fetchTransactions} />
-      ) : null}
-
-        <TransactionActivityList
-          transactions={activityMode === 'raw' ? rawItems : displayedTransactions}
-          loading={activityMode === 'raw' ? rawLoading : activityLoading || (isLoading && !transactions.length)}
-          refreshing={refreshing}
-          onRefresh={activityMode === 'raw' ? refreshRaw : refresh}
-          loadingMore={activityMode === 'raw' ? rawLoadingMore : activityTransactions === null ? isLoadingMore : activityLoadingMore}
-          hasMore={activityMode === 'raw' ? hasMoreRaw : hasMoreActivity}
-          onLoadMore={activityMode === 'raw' ? loadMoreRaw : loadMoreActivity}
-          onOpenDetail={openDetail}
-          renderTransaction={activityMode === 'raw' ? renderRawCapture : renderTransaction}
-          hasFilters={activityMode === 'raw' ? Boolean(rawSearch || rawSource !== 'All' || !showHistory) : hasAppliedFilters}
-          mode={activityMode}
-          onModeChange={setActivityMode}
-          loadError={activityMode === 'raw' ? rawError : null}
-        />
-
-      <Modal visible={!!selectedCapture} transparent animationType="fade" onRequestClose={() => setSelectedCapture(null)}>
-        <View style={styles.overlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Wallet notification</Text>
-              <TouchableOpacity onPress={() => setSelectedCapture(null)} accessibilityLabel="Close wallet notification"><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
-            </View>
-            <Text style={styles.cardTitle}>{selectedCapture?.source === 'gcash' ? 'GCash' : 'Maya'} · {selectedCapture?.direction || 'unknown'}</Text>
-            <Text style={styles.cardSubtitle}>{selectedCapture?.captured_at ? new Date(selectedCapture.captured_at).toLocaleString() : ''}</Text>
-            <Text style={styles.cardSubtitle}>{selectedCapture?.amount != null ? `₱${Number(selectedCapture.amount).toFixed(2)} · ` : ''}{selectedCapture?.id ? 'Unverified' : 'Pending sync'}</Text>
-            <Text style={styles.rawMessage}>{selectedCapture?.message || 'No notification text available.'}</Text>
-            <Text style={styles.rawNotice}>This device notification is not proof of payment. Confirm in the wallet account before recording income.</Text>
-          </View>
-        </View>
-      </Modal>
+      <TransactionActivityList
+        transactions={activityTransactions}
+        loading={activityLoading}
+        refreshing={refreshing}
+        onRefresh={refresh}
+        loadingMore={activityLoadingMore}
+        hasMore={hasMoreActivity}
+        onLoadMore={loadMoreActivity}
+        onOpenDetail={openDetail}
+        renderTransaction={renderTransaction}
+        hasFilters={hasAppliedFilters}
+      />
 
       <Modal visible={editorVisible} transparent animationType="slide" onRequestClose={() => setEditorVisible(false)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={styles.formHeaderCopy}>
                 <Text style={styles.modalTitle}>{editingTransaction ? 'Edit transaction' : form.type === 'Income' ? 'Add income' : 'Add expense'}</Text>
                 <Text style={styles.modalSubtitle}>{form.type === 'Income' ? 'Income' : 'Expense'} transaction</Text>
               </View>
-              <TouchableOpacity onPress={() => setEditorVisible(false)} accessibilityLabel="Close transaction form">
+              <TouchableOpacity style={styles.formCloseButton} accessibilityRole="button" onPress={() => setEditorVisible(false)} accessibilityLabel="Close transaction form">
                 <Icon name="close" size={24} color={COLORS.textGray} />
               </TouchableOpacity>
             </View>
@@ -802,7 +610,7 @@ const TransactionsScreen = ({route}) => {
               })}
 
               <Text style={styles.label}>{form.type === 'Expense' ? 'Expense name' : 'Income name'}</Text>
-              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={form.type === 'Expense' ? setExpenseName : value => setField('notes', value)} placeholder={form.type === 'Expense' ? 'e.g. milk and sugar' : 'e.g. catering payment'} multiline />
+              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={form.type === 'Expense' ? setExpenseName : value => setField('notes', value)} placeholder={form.type === 'Expense' ? 'e.g. milk and sugar' : 'e.g. catering payment'} placeholderTextColor={COLORS.placeholder} multiline />
 
               {form.source ? <>
                 <Text style={styles.label}>Category</Text>
@@ -823,7 +631,7 @@ const TransactionsScreen = ({route}) => {
               <Text style={styles.label}>Amount</Text>
               <View style={styles.amountInputWrap}>
                 <Text style={styles.peso}>₱</Text>
-                <TextInput style={styles.amountInput} value={form.amount} onChangeText={value => setField('amount', value)} keyboardType="decimal-pad" placeholder="0.00" />
+                <TextInput style={styles.amountInput} value={form.amount} onChangeText={value => setField('amount', value)} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={COLORS.placeholder} />
               </View>
 
               <Text style={styles.label}>Date</Text>
@@ -837,7 +645,7 @@ const TransactionsScreen = ({route}) => {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={detailVisible} transparent animationType="fade" onRequestClose={() => setDetailVisible(false)}>
@@ -969,54 +777,44 @@ const TransactionsScreen = ({route}) => {
 };
 
 const styles = StyleSheet.create({
+  formHeaderCopy: {flex: 1, minWidth: 0, marginRight: 8},
+  formCloseButton: {width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted},
   container: {flex: 1, backgroundColor: COLORS.background},
-  dayScopeRow: {flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: COLORS.surface},
-  dayScopeButton: {flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border},
-  dayScopeActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent},
-  dayScopeText: {fontSize: 12, fontWeight: '700', color: COLORS.textGray},
-  dayScopeTextActive: {color: '#FFFFFF'},
-  filters: {backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 15},
+  filters: {backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 11},
   searchBox: {minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.border, borderRadius: 13, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13},
   searchInput: {flex: 1, fontSize: 14, color: COLORS.textDark, paddingVertical: 10},
-  filterLabel: {fontSize: 11, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 13, marginBottom: 7},
-  categoryHint: {fontSize: 12, color: COLORS.textMuted, marginTop: 11},
-  categoryLoader: {alignSelf: 'flex-start', marginVertical: 10},
-  filterActions: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14},
+  filterLabel: {fontSize: 11, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 5},
+  categoryHint: {fontSize: 12, color: COLORS.textMuted, marginTop: 8},
+  categoryLoader: {alignSelf: 'flex-start', marginVertical: 7},
+  filterActions: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10},
   clearFilterButton: {minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 16, backgroundColor: COLORS.surface},
   clearFilterText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray},
-  list: {paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28},
-  emptyList: {flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28},
-  activityHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, marginBottom: 4},
+  list: {paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24},
+  emptyList: {flexGrow: 1, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24},
+  activityHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7, marginBottom: 3},
   activityHeading: {flexDirection: 'row', alignItems: 'center', gap: 9},
   activityTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark},
   activityCount: {fontSize: 12, color: COLORS.textGray},
-  activityTabs: {flexDirection: 'row', gap: 8, marginBottom: 11},
-  activityTab: {flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, backgroundColor: COLORS.surface},
-  activityTabActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent},
-  activityTabText: {fontSize: 12, fontWeight: '700', color: COLORS.textGray},
-  activityTabTextActive: {color: COLORS.textWhite},
-  rawNotice: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 12},
-  rawMessage: {fontSize: 14, lineHeight: 21, color: COLORS.textDark, marginTop: 18, marginBottom: 16},
-  card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 10, ...SHADOWS.card},
+  card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 12, marginBottom: 8, ...SHADOWS.card},
   iconBox: {width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
   incomeIcon: {backgroundColor: '#E8F5E9'}, expenseIcon: {backgroundColor: '#FFEBEE'},
-  cardBody: {flex: 1, marginHorizontal: 12}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 3}, cardNote: {fontSize: 11, color: COLORS.textMuted, marginTop: 3},
+  cardBody: {flex: 1, marginHorizontal: 10}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, cardNote: {fontSize: 11, color: COLORS.textMuted, marginTop: 2},
   amount: {fontSize: 15, fontWeight: '700'}, incomeAmount: {color: COLORS.success}, expenseAmount: {color: COLORS.danger},
-  centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32}, emptyTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark, marginTop: 14}, stateText: {fontSize: 13, color: COLORS.textGray, textAlign: 'center', marginTop: 7}, footerLoader: {paddingVertical: 18},
-  loadMoreButton: {marginTop: 16, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.accent, backgroundColor: COLORS.surface},
+  centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24}, emptyTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark, marginTop: 10}, stateText: {fontSize: 13, color: COLORS.textGray, textAlign: 'center', marginTop: 5}, footerLoader: {paddingVertical: 14},
+  loadMoreButton: {marginTop: 12, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.accent, backgroundColor: COLORS.surface},
   loadMoreText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
   overlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'flex-end'},
   centerOverlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'center', padding: 20},
-  modalCard: {maxHeight: '92%', backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20},
-  detailCard: {backgroundColor: COLORS.surface, borderRadius: 20, padding: 20},
-  modalHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 3},
-  label: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 16, marginBottom: 7},
+  modalCard: {maxHeight: '92%', backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16},
+  detailCard: {backgroundColor: COLORS.surface, borderRadius: 20, padding: 16},
+  modalHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
+  label: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 12, marginBottom: 5},
   amountInputWrap: {flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 12}, peso: {fontSize: 22, fontWeight: '700', color: COLORS.textDark, marginRight: 6}, amountInput: {flex: 1, fontSize: 22, color: COLORS.textDark, paddingVertical: 10},
   input: {borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, color: COLORS.textDark, paddingHorizontal: 12, paddingVertical: 11}, notesInput: {height: 80, textAlignVertical: 'top'},
   dateButton: {minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   dateValue: {fontSize: 14, color: COLORS.textDark},
-  calendarCard: {backgroundColor: COLORS.surface, width: '100%', maxWidth: 380, borderRadius: 20, padding: 18},
-  calendarHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12},
+  calendarCard: {backgroundColor: COLORS.surface, width: '100%', maxWidth: 380, borderRadius: 20, padding: 16},
+  calendarHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8},
   calendarNavButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: COLORS.surfaceMuted},
   calendarMonth: {fontSize: 16, fontWeight: '700', color: COLORS.textDark},
   calendarWeek: {flexDirection: 'row', justifyContent: 'space-around'},
@@ -1029,17 +827,17 @@ const styles = StyleSheet.create({
   calendarCancel: {alignSelf: 'flex-end', paddingVertical: 10, paddingHorizontal: 14, marginTop: 8},
   calendarCancelText: {color: COLORS.accentDark, fontSize: 14, fontWeight: '700'},
   chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
-  sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 11, marginTop: 12}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
+  sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 10, marginTop: 8}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
   suggestionButton: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#E8F7F1', borderRadius: 10, padding: 10, marginBottom: 9},
   suggestionText: {fontSize: 12, color: COLORS.accentDark, marginBottom: 7},
-  saveButton: {minHeight: 50, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 22, marginBottom: 8}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
-  detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 14}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 11}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 3}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 14}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 11}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
-  editButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20}, editButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
-  transactionActions: {flexDirection: 'row', gap: 10, marginTop: 20},
+  saveButton: {minHeight: 50, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14, marginBottom: 6}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
+  detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 12, marginBottom: 10}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 10}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 10}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
+  editButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14}, editButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
+  transactionActions: {flexDirection: 'row', gap: 10, marginTop: 14},
   transactionActionButton: {flex: 1, marginTop: 0},
   deleteButton: {minHeight: 48, borderRadius: 12, backgroundColor: '#FFF1F0', borderWidth: 1, borderColor: '#F2C5C2', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
   deleteButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.danger},
-  protectedNotice: {flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: '#FFF8E1', padding: 13, marginTop: 20}, protectedText: {flex: 1, fontSize: 12, lineHeight: 18, color: '#8A5A00'},
+  protectedNotice: {flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: '#FFF8E1', padding: 11, marginTop: 14}, protectedText: {flex: 1, fontSize: 12, lineHeight: 18, color: '#8A5A00'},
 });
 
 export default TransactionsScreen;

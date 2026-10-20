@@ -44,14 +44,14 @@ const AboutScreen = ({navigation}) => (
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  content: {padding: 20},
+  content: {padding: 16},
   card: {
     alignItems: 'center',
     backgroundColor: COLORS.surface,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 28,
+    padding: 20,
     ...SHADOWS.card,
   },
   logo: {
@@ -63,16 +63,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoImage: {width: 64, height: 64},
-  title: {fontSize: 22, fontWeight: '800', color: COLORS.textDark, marginTop: 16},
+  title: {fontSize: 22, fontWeight: '800', color: COLORS.textDark, marginTop: 12},
   description: {
     alignSelf: 'stretch',
     fontSize: 14,
     lineHeight: 21,
     color: COLORS.textGray,
     textAlign: 'left',
-    marginTop: 12,
+    marginTop: 8,
   },
-  version: {fontSize: 12, color: COLORS.textMuted, marginTop: 20},
+  version: {fontSize: 12, color: COLORS.textMuted, marginTop: 14},
 });
 
 export default AboutScreen;

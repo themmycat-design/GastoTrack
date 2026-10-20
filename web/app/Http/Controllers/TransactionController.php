@@ -30,7 +30,8 @@ class TransactionController extends Controller
         $captures = null;
 
         if ($viewMode === 'raw') {
-            $captureQuery = WalletNotificationCapture::where('business_id', $businessId)
+            $captureQuery = WalletNotificationCapture::transactionSignals()
+                ->where('business_id', $businessId)
                 ->with('capturedBy:id,name');
             if ($request->filled('source')) {
                 $captureQuery->where('source', strtolower($request->source));
@@ -39,7 +40,9 @@ class TransactionController extends Controller
                 $search = $request->search;
                 $captureQuery->where(fn ($query) => $query
                     ->where('message', 'like', "%{$search}%")
-                    ->orWhere('merchant', 'like', "%{$search}%"));
+                    ->orWhere('merchant', 'like', "%{$search}%")
+                    ->orWhere('counterparty_name', 'like', "%{$search}%")
+                    ->orWhere('reference', 'like', "%{$search}%"));
             }
             $timezone = config('business.timezone');
             if ($request->filled('date_from')) {

@@ -69,6 +69,29 @@ describe('receipt scanning and review suggestions', () => {
     expect(parsed.amount).toBe(180);
   });
 
+  it('uses ML Kit line positions to prefer the business header over lower receipt text', () => {
+    const blocks = [{lines: [
+      {text: 'TOTAL PHP 180.00', frame: {top: 700, left: 20, width: 200, height: 20}},
+      {text: 'Iced Latte 2 x 90.00', frame: {top: 520, left: 20, width: 260, height: 22}},
+      {text: 'Address: 42 Main Road', frame: {top: 170, left: 20, width: 230, height: 18}},
+      {text: 'Receipt No: 1234567890', frame: {top: 130, left: 20, width: 210, height: 18}},
+      {text: 'BLUE ORCHID CAFE', frame: {top: 75, left: 20, width: 250, height: 38}},
+    ]}];
+    const parsed = parseReceiptData('TOTAL PHP 180.00\nIced Latte 2 x 90.00\nBLUE ORCHID CAFE\nReceipt No: 1234567890\nAddress: 42 Main Road', blocks);
+    expect(parsed.merchant).toBe('BLUE ORCHID CAFE');
+  });
+
+  it('does not guess a business name from an item when the receipt header is absent', () => {
+    const parsed = parseReceiptData('OFFICIAL RECEIPT\nReceipt No: 1234567890\nAddress: 42 Main Road\nIced Latte 2 x 90.00\nTOTAL PHP 180.00');
+    expect(parsed.merchant).toBe('Unknown Merchant');
+
+    const lowerReceiptText = parseReceiptData('Iced Latte\nTOTAL PHP 180.00', [{lines: [
+      {text: 'Iced Latte', frame: {top: 550, left: 20, width: 140, height: 20}},
+      {text: 'TOTAL PHP 180.00', frame: {top: 900, left: 20, width: 180, height: 20}},
+    ]}]);
+    expect(lowerReceiptText.merchant).toBe('Unknown Merchant');
+  });
+
   it('sends only receipt name and item details for server-side AI categorization', () => {
     const parsed = parseReceiptData([
       'Fresh Start Cafe',

@@ -27,6 +27,8 @@ $registerPublicRoutes = function (): void {
 $registerProtectedRoutes = function (): void {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/user/profile', [AuthController::class, 'updateProfile']);
+    Route::get('/user/profile-photo', [AuthController::class, 'profilePhoto']);
     Route::get('/auth/me', [AuthController::class, 'user']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/auth/refresh', [AuthController::class, 'refresh']);

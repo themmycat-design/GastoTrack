@@ -4,6 +4,85 @@ GastoTrack is a staff-facing React Native POS and financial-recording app backed
 
 The app requires a live API for account data and order/transaction changes; a saved cart can be restored, but this is not offline synchronization.
 
+## Demo deployment: Laravel on alwaysdata, Android via Firebase
+
+This is a low-cost/academic demo path, not a production recommendation for shops' real financial data. The alwaysdata free plan is restricted to personal/non-profit use and has small resource/storage limits; confirm its current [plan terms and limits](https://www.alwaysdata.com/en/offers/) before creating an account or uploading business data. Its database service is MariaDB, which Laravel connects to through its MySQL driver (`DB_CONNECTION=mysql`); it is MySQL-compatible, but it is not Oracle MySQL. If the requirement is specifically Oracle MySQL, or the deployment is commercial, choose a host that explicitly provides that instead. See alwaysdata's [database and technical details](https://help.alwaysdata.com/en/docs/technical-specifications/login-details/).
+
+### 1. Create the demo hosting resources
+
+1. Create an alwaysdata account and a MariaDB database/user in its control panel. Save the database name, username, password, and the exact database hostname shown there. Do not paste credentials into GitHub, this README, or chat.
+2. Create a PHP website using the `alwaysdata.net` domain, select PHP 8.4, enable HTTPS, and set the website's document root to the Laravel **public** directory (the full account path ending in `/GastoTrack/web/public`). Never point the website root at `/GastoTrack/web` or the repository root; `.env`, source, and private storage must stay outside the web root. alwaysdata documents [PHP version selection](https://help.alwaysdata.com/en/docs/web-hosting/languages/php/configuration/).
+3. In the account's SSH settings, add a read-only GitHub deploy key if the repository is private. Otherwise, upload the repository over SFTP. Keep the deployed checkout and Laravel storage in the account's persistent home directory.
+
+### 2. Deploy Laravel and its web assets
+
+The commands below assume the repository is at `~/GastoTrack` and that `php -v` reports PHP 8.4. Use the PHP 8.4 CLI command configured for your account if the shell's `php` points to a different version. alwaysdata provides [Composer](https://help.alwaysdata.com/en/languages/php/packages/); Laravel 13 in this project requires PHP `^8.4.1`.
+
+```sh
+cd ~/GastoTrack/web
+composer install --no-dev --prefer-dist --optimize-autoloader
+cp .env.example .env
+```
+
+Edit `web/.env` on the host (never commit or send it) and set at least:
+
+```dotenv
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://YOUR-ACCOUNT.alwaysdata.net
+DB_CONNECTION=mysql
+DB_HOST=THE-DATABASE-HOST-SHOWN-IN-ALWAYSDATA
+DB_PORT=3306
+DB_DATABASE=THE-DATABASE-NAME
+DB_USERNAME=THE-DATABASE-USER
+DB_PASSWORD=THE-DATABASE-PASSWORD
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+FILESYSTEM_DISK=local
+BUSINESS_TIMEZONE=Asia/Manila
+```
+
+Keep the existing `.env.example` values for other app settings unless you have deliberately configured them. Configure a real SMTP provider before owner registration so verification and security emails can be delivered; `MAIL_MAILER=log` only writes mail to application logs. `GEMINI_API_KEY` is optional and must remain server-side. For product images, this project uses Laravel's public storage disk; private bug-report screenshots use local private storage. The host filesystem must remain persistent, and the free plan's storage quota applies to uploaded files.
+
+Build the website assets on your Windows development PC (the `public/build` directory is git-ignored), then upload the generated `web/public/build` directory to the same path on the host:
+
+```powershell
+Set-Location C:\Users\Chris\GastoTrack\web
+npm.cmd ci
+npm.cmd run build
+```
+
+Back on the host, finish initial setup. Run the key-generation command **once only**; the key protects encrypted app data, including owner MFA secrets. Keep it backed up privately and never regenerate it on an existing deployment. Create a blank database before migrating; do not import an old SQL dump or run `migrate:fresh` here.
+
+```sh
+cd ~/GastoTrack/web
+php artisan key:generate
+php artisan migrate --force
+php artisan db:seed --class=SuperAdminSeeder --force
+php artisan storage:link
+php artisan config:cache
+php artisan view:cache
+```
+
+Set `SUPER_ADMIN_NAME`, `SUPER_ADMIN_EMAIL`, and a unique `SUPER_ADMIN_PASSWORD` in the host `.env` before the seeder command. The seeder creates/updates only the Super Admin; it does not load demo businesses or financial records. Run it once with the intended administrator email, and avoid rerunning it after changing credentials unless you mean to reset that account's password. Confirm the site loads over HTTPS, then test owner verification/MFA and staff API sign-in. On later code updates, preserve `.env` and `storage`, upload the new `public/build`, run `composer install --no-dev --prefer-dist --optimize-autoloader`, then `php artisan migrate --force` and clear/rebuild Laravel caches as appropriate. Never delete the persistent `storage` directory during an update.
+
+### 3. Schedule Laravel and back up data
+
+The application has a daily goal-deadline notification task. In alwaysdata's [Scheduled Tasks](https://help.alwaysdata.com/en/docs/web-hosting/tasks/) panel, run this command every minute (the Laravel scheduler decides when the daily task is due):
+
+```sh
+cd ~/GastoTrack/web && php artisan schedule:run
+```
+
+Set up and test a separate database and uploaded-file backup before entering any non-demo data. The free plan's backup/retention and disk limits are not a substitute for a verified recovery plan.
+
+### 4. Point the Android release at the hosted API
+
+After HTTPS works, set the existing GitHub Actions repository variable `MOBILE_API_URL` to `https://YOUR-ACCOUNT.alwaysdata.net/api/v1` (no trailing slash). Keep the existing Firebase variables and signing/service-account secrets configured as described below. Then run the GitHub Actions workflow to build and distribute the signed APK. Firebase App Distribution delivers the APK; the API, owner website, and MariaDB remain on the web host.
+
+Do not use localhost, `127.0.0.1`, an emulator/ADB tunnel, or a private LAN address in a release build. Do not point the APK at the API until the deployed HTTPS endpoint is reachable from the phone.
+
 ## Build and distribute an Android release APK
 
 GitHub Actions can build a signed release APK and distribute it to a Firebase App Distribution tester group. This is for testing and sharing the Android app; it does not host the Laravel API. The installed app needs the API's public HTTPS base URL.
@@ -52,12 +131,14 @@ GastoTrack has two entry points: owners use the website, and staff use the Andro
 
    ```powershell
    Set-Location C:\Users\Chris\GastoTrack\web
-   php artisan serve --host=127.0.0.1 --port=8000
+   powershell -ExecutionPolicy Bypass -File ..\scripts\start-api.ps1
    ```
 
 3. On this PC, open [the GastoTrack website](http://127.0.0.1:8000). Sign in at [http://127.0.0.1:8000/login](http://127.0.0.1:8000/login), or create an account at [http://127.0.0.1:8000/register](http://127.0.0.1:8000/register).
 
 Leave this terminal open while using the website or mobile app. This local website address is for this PC; it is not a public hosted link.
+
+The startup script enables the 5 MB product-photo uploads advertised in the app. PHP's default 2 MB limit rejects larger photos before Laravel can save them. Stop any old server on port 8000 before starting this script. CGI/FastCGI deployments use web/public/.user.ini; if your host overrides these settings, configure upload_max_filesize=6M and post_max_size=8M in its PHP settings.
 
 ### Staff app (real Android phone)
 

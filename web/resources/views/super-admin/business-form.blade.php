@@ -3,20 +3,21 @@
 @section('title', $business->exists ? 'Edit Business' : 'Create Business')
 
 @section('content')
-<div class="mb-8 flex items-start justify-between gap-6">
+<div class="mb-7">
     <div>
-        <a href="{{ route('super-admin.businesses') }}" class="text-sm font-medium text-emerald-700">&larr; Businesses</a>
-        <h1 class="mt-2 text-3xl font-bold">{{ $business->exists ? 'Edit business' : 'Create business' }}</h1>
-        <p class="mt-1 text-slate-600">Manage platform registration details only.</p>
+        <a href="{{ route('super-admin.businesses') }}" class="text-sm font-bold text-emerald-700 hover:text-emerald-900">&larr; Businesses</a>
+        <p class="mb-1 mt-3 text-xs font-bold uppercase tracking-[.12em] text-emerald-700">Platform directory</p>
+        <h1>{{ $business->exists ? 'Edit business' : 'Create business' }}</h1>
+        <p class="mt-2 text-sm text-slate-600">Manage registration and access details. Private business records are not available here.</p>
     </div>
 </div>
 
 <form method="POST" action="{{ $business->exists ? route('super-admin.businesses.update', $business) : route('super-admin.businesses.store') }}" class="grid gap-6 lg:grid-cols-2">
     @csrf
     @if($business->exists) @method('PUT') @endif
-    <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-bold">Business information</h2>
-        <div class="mt-5 grid gap-4 sm:grid-cols-2">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="mb-5 flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><i class="fas fa-store" aria-hidden="true"></i></span><h2 class="text-lg font-extrabold">Business information</h2></div>
+        <div class="grid gap-4 sm:grid-cols-2">
             <label class="sm:col-span-2 text-sm font-medium">Business name
                 <input name="name" value="{{ old('name', $business->name) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
             </label>
@@ -67,9 +68,9 @@
         </div>
     </section>
 
-    <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-bold">Owner account</h2>
-        <div class="mt-5 grid gap-4">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="mb-5 flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700"><i class="fas fa-user" aria-hidden="true"></i></span><h2 class="text-lg font-extrabold">Owner account</h2></div>
+        <div class="grid gap-4">
             @if(!$business->exists || $ownerAccountForForm)
                 <label class="text-sm font-medium">Owner name
                     <input name="owner_name" value="{{ old('owner_name', $ownerAccountForForm?->name) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
@@ -94,12 +95,12 @@
             @else
                 <p class="text-sm text-slate-500">No owner account is assigned to this business.</p>
             @endif
-            <div class="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">This form never displays or modifies the business's financial and operational records.</div>
+            <div class="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><i class="fas fa-shield-halved mt-0.5" aria-hidden="true"></i><p>This form never displays or modifies the business's financial and operational records.</p></div>
         </div>
     </section>
-    <div class="lg:col-span-2 flex justify-end gap-3">
-        <a href="{{ route('super-admin.businesses') }}" class="rounded-lg border border-slate-300 px-5 py-3 font-medium">Cancel</a>
-        <button class="rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">{{ $business->exists ? 'Save changes' : 'Create business' }}</button>
+    <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end lg:col-span-2">
+        <a href="{{ route('super-admin.businesses') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Cancel</a>
+        <button class="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700">{{ $business->exists ? 'Save changes' : 'Create business' }}</button>
     </div>
 </form>
 @endsection

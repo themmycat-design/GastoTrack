@@ -93,6 +93,7 @@ public class NotificationListener extends NotificationListenerService {
         params.putString("amount",           parsed.amount);
         params.putString("transactionType",  parsed.transactionType);
         params.putString("merchant",         parsed.merchant != null ? parsed.merchant : "");
+        params.putString("reference",        parsed.reference != null ? parsed.reference : "");
         params.putString("rawMessage",       parsed.rawMessage);
 
         reactContext

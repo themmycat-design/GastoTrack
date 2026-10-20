@@ -3,7 +3,7 @@ import TestRenderer, {act} from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, {setApiAuthToken} from '../src/services/api';
 import {AuthContext, AuthProvider} from '../src/context/AuthContext';
-import {clearAuthToken, getAuthToken, saveAuthToken} from '../src/services/authTokenStorage';
+import {clearAuthToken, getAuthSession, saveAuthToken, STAFF_SESSION_MS} from '../src/services/authTokenStorage';
 
 jest.mock('../src/services/api', () => ({
   __esModule: true,
@@ -17,8 +17,9 @@ jest.mock('../src/services/api', () => ({
 
 jest.mock('../src/services/authTokenStorage', () => ({
   clearAuthToken: jest.fn(() => Promise.resolve()),
-  getAuthToken: jest.fn(() => Promise.resolve(null)),
+  getAuthSession: jest.fn(() => Promise.resolve({token: null, expired: false})),
   saveAuthToken: jest.fn(() => Promise.resolve()),
+  STAFF_SESSION_MS: 30 * 24 * 60 * 60 * 1000,
 }));
 
 const flushEffects = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -30,7 +31,7 @@ describe('AuthProvider session storage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     contextValue = null;
-    getAuthToken.mockResolvedValue(null);
+    getAuthSession.mockResolvedValue({token: null, expired: false});
     saveAuthToken.mockResolvedValue(undefined);
     api.get.mockResolvedValue({data: {user: {}, business: null}});
     api.post.mockResolvedValue({
@@ -75,7 +76,7 @@ describe('AuthProvider session storage', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(saveAuthToken).toHaveBeenCalledWith('staff-session-token');
+    expect(saveAuthToken).toHaveBeenCalledWith('staff-session-token', expect.any(Number));
     expect(AsyncStorage.setMany).toHaveBeenCalledWith({
       userRole: 'staff',
       user: JSON.stringify({id: 17, role: 'staff'}),
@@ -106,7 +107,7 @@ describe('AuthProvider session storage', () => {
   });
 
   it('opens a saved staff session while the server profile check is pending', async () => {
-    getAuthToken.mockResolvedValue('saved-staff-token');
+    getAuthSession.mockResolvedValue({token: 'saved-staff-token', expiresAt: Date.now() + STAFF_SESSION_MS, expired: false});
     AsyncStorage.getItem.mockImplementation(key => Promise.resolve({
       userRole: 'staff',
       user: JSON.stringify({id: 17, role: 'staff'}),

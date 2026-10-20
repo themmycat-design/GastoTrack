@@ -18,8 +18,7 @@
             <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
         <section class="gt-enter flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-                <p class="text-sm font-semibold text-[#00A87E]">Ingredients and supplies</p>
-                <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Inventory</h2>
+                <h2 class="text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Inventory</h2>
                 <p class="mt-2 text-sm leading-6 text-slate-500">Track ingredient quantities, review stock changes, and spot items that need restocking.</p>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -227,8 +226,9 @@
                     <h3 id="stock-overview-heading" class="text-lg font-extrabold">Stock overview</h3>
                     <p class="mt-1 text-xs text-slate-500">Active items by current quantity and minimum level.</p>
                     <div class="mt-6 flex flex-wrap items-center justify-center gap-6 xl:justify-between">
-                        <div class="flex h-40 w-40 shrink-0 items-center justify-center rounded-full p-4" @if($totalItems > 0) style="background: conic-gradient(#00A87E 0 {{ $inPercentage }}%, #F59E0B {{ $inPercentage }}% {{ $inPercentage + $lowPercentage }}%, #E11D48 {{ $inPercentage + $lowPercentage }}% 100%)" @else style="background: #EAF2EF" @endif role="img" aria-label="{{ $inStockCount }} in stock, {{ $lowStockCount }} low stock, {{ $outOfStockCount }} out of stock">
-                            <div class="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
+                        <div class="relative h-40 w-40 shrink-0" role="img" aria-label="{{ $inStockCount }} in stock, {{ $lowStockCount }} low stock, {{ $outOfStockCount }} out of stock">
+                            <div class="gt-stock-overview-ring absolute inset-0 rounded-full" @if($totalItems > 0) style="background: conic-gradient(#00A87E 0 {{ $inPercentage }}%, #F59E0B {{ $inPercentage }}% {{ $inPercentage + $lowPercentage }}%, #E11D48 {{ $inPercentage + $lowPercentage }}% 100%)" @else style="background: #EAF2EF" @endif aria-hidden="true"></div>
+                            <div class="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
                                 <strong class="text-3xl font-extrabold text-[#0A2E2A]">{{ number_format($totalItems) }}</strong>
                                 <span class="text-xs text-slate-500">active items</span>
                             </div>
@@ -276,7 +276,7 @@
     </div>
 
     <!-- Add/Edit Stock Modal -->
-    <div id="stockModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+    <div id="stockModal" data-owner-dialog class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
         <div class="gt-card my-auto max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto p-5 shadow-2xl sm:p-7">
             <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
                 <div>
@@ -344,7 +344,7 @@
     </div>
 
     <!-- Adjust Stock Modal -->
-    <div id="adjustModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+    <div id="adjustModal" data-owner-dialog class="fixed inset-0 z-50 hidden flex items-center justify-center bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
         <div class="gt-card w-full max-w-md p-5 shadow-2xl sm:p-7">
             <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
                 <div>

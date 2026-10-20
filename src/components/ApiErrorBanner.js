@@ -18,9 +18,9 @@ const ApiErrorBanner = ({message, onRetry}) => {
 
 const styles = StyleSheet.create({
   container: {marginHorizontal: 16, marginVertical: 8, padding: 12, borderRadius: 11, borderWidth: 1, borderColor: '#EBCB9A', backgroundColor: '#FFF8E9'},
-  message: {fontSize: 12, lineHeight: 17, color: COLORS.textDark},
-  button: {alignSelf: 'flex-start', paddingTop: 8, paddingRight: 8},
-  buttonText: {fontSize: 12, fontWeight: '700', color: COLORS.accentDark},
+  message: {fontSize: 14, lineHeight: 20, color: COLORS.textDark},
+  button: {alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, marginTop: 4, borderRadius: 10, backgroundColor: '#FFFFFF'},
+  buttonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
 });
 
 export default ApiErrorBanner;

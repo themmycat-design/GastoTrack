@@ -3,17 +3,17 @@
 @section('title', $business->name)
 
 @section('content')
-<div class="mb-8 flex flex-wrap items-end justify-between gap-6">
+<div class="mb-7 flex flex-wrap items-end justify-between gap-4">
     <div>
-        <a href="{{ route('super-admin.businesses') }}" class="text-sm font-medium text-emerald-700">&larr; Businesses</a>
-        <div class="mt-2 flex flex-wrap items-center gap-3"><h1 class="text-3xl font-bold">{{ $business->name }}</h1><span class="rounded-full px-3 py-1 text-xs font-semibold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->status }}</span></div>
-        <p class="mt-1 text-slate-600">Registered {{ $business->created_at->format('F d, Y') }}</p>
+        <a href="{{ route('super-admin.businesses') }}" class="text-sm font-bold text-emerald-700 hover:text-emerald-900">&larr; Businesses</a>
+        <div class="mt-3 flex flex-wrap items-center gap-3"><h1>{{ $business->name }}</h1><span class="rounded-full px-3 py-1 text-xs font-bold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->status }}</span></div>
+        <p class="mt-2 text-sm text-slate-600">Business profile <span class="mx-1 text-slate-300">&middot;</span> Registered {{ $business->created_at->format('F d, Y') }}</p>
     </div>
-    <a href="{{ route('super-admin.businesses.edit', $business) }}" class="rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"><i class="fas fa-pen mr-2"></i>Edit details</a>
+    <a href="{{ route('super-admin.businesses.edit', $business) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"><i class="fas fa-pen mr-2" aria-hidden="true"></i>Edit details</a>
 </div>
 
-<div class="grid gap-6 lg:grid-cols-3">
-    <div class="space-y-6 lg:col-span-2">
+<div class="grid gap-5 xl:grid-cols-3">
+    <div class="space-y-5 xl:col-span-2">
         <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 class="text-lg font-bold">Business information</h2>
             <dl class="mt-5 grid gap-5 sm:grid-cols-2 text-sm">
@@ -57,7 +57,7 @@
         </section>
     </div>
 
-    <aside class="space-y-6">
+    <aside class="space-y-5">
         <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 class="text-lg font-bold">Business access</h2>
             <div class="mt-5 space-y-3">

@@ -174,7 +174,7 @@
     </div>
 
     <!-- Add/Edit User Modal -->
-    <div id="userModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
+    <div id="userModal" data-owner-dialog class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-[#0A2E2A]/45 p-4 backdrop-blur-sm">
         <div class="gt-card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5 shadow-2xl sm:p-7">
             <div class="mb-5 flex items-start justify-between gap-4 border-b border-[#EAF2EF] pb-4">
                 <div>

@@ -2,6 +2,9 @@ import React, {useCallback, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -44,6 +47,8 @@ const BugReportsScreen = ({navigation}) => {
   const [description, setDescription] = useState('');
   const [steps, setSteps] = useState('');
   const [screenshot, setScreenshot] = useState(null);
+  const descriptionRef = useRef(null);
+  const scrollRef = useRef(null);
 
   const loadReports = useCallback(async ({refresh = false, more = false} = {}) => {
     if (!userToken) return;
@@ -114,6 +119,7 @@ const BugReportsScreen = ({navigation}) => {
     }
 
     setIsSubmitting(true);
+    Keyboard.dismiss();
     setFormError('');
     setSuccessMessage('');
     const form = new FormData();
@@ -137,6 +143,7 @@ const BugReportsScreen = ({navigation}) => {
       setSteps('');
       setScreenshot(null);
       setSuccessMessage('Bug report submitted. You can follow its status below.');
+      scrollRef.current?.scrollTo({y: 0, animated: true});
       await loadReports({refresh: true});
     } catch (error) {
       setFormError(getApiErrorMessage(error) || 'Could not submit the report. Check your connection and retry. Your form is still here.');
@@ -151,9 +158,9 @@ const BugReportsScreen = ({navigation}) => {
   });
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StaffScreenHeader
-        title="Bugs reports"
+        title="Bug reports"
         subtitle="Submit and follow up on app issues"
         icon="bug-outline"
         leftIcon="arrow-left"
@@ -161,36 +168,38 @@ const BugReportsScreen = ({navigation}) => {
         onLeftPress={() => navigation.goBack()}
       />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => loadReports({refresh: true})} colors={[COLORS.accent]} />}>
         <View style={styles.notice}>
           <Icon name="wifi" size={19} color={COLORS.accentDark} />
           <Text style={styles.noticeText}>Bug reports need an internet connection. If a submission fails, your form stays here so you can retry.</Text>
         </View>
-        {successMessage ? <Text accessibilityRole="status" style={styles.successMessage}>{successMessage}</Text> : null}
+        {successMessage ? <Text accessibilityLiveRegion="polite" style={styles.successMessage}>{successMessage}</Text> : null}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Report a bug</Text>
           <Text style={styles.label}>Title</Text>
-          <TextInput value={title} onChangeText={setTitle} maxLength={255} placeholder="A short description of the issue" style={styles.input} returnKeyType="next" />
+          <TextInput accessibilityLabel="Report title" editable={!isSubmitting} value={title} onChangeText={setTitle} maxLength={255} placeholderTextColor={COLORS.placeholder} placeholder="A short description of the issue" style={styles.input} returnKeyType="next" onSubmitEditing={() => descriptionRef.current?.focus()} />
 
           <Text style={styles.label}>Area</Text>
           <View style={styles.areaList}>
             {AREAS.map(item => (
-              <TouchableOpacity key={item} onPress={() => setArea(item)} style={[styles.areaChip, area === item && styles.areaChipSelected]} accessibilityRole="button" accessibilityState={{selected: area === item}}>
+              <TouchableOpacity key={item} disabled={isSubmitting} onPress={() => setArea(item)} style={[styles.areaChip, area === item && styles.areaChipSelected]} accessibilityRole="button" accessibilityState={{selected: area === item, disabled: isSubmitting}}>
                 <Text style={[styles.areaText, area === item && styles.areaTextSelected]}>{areaLabel(item)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <Text style={styles.label}>What happened?</Text>
-          <TextInput value={description} onChangeText={setDescription} maxLength={5000} placeholder="Describe what you expected and what happened instead" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" />
+          <TextInput ref={descriptionRef} accessibilityLabel="What happened?" editable={!isSubmitting} value={description} onChangeText={setDescription} maxLength={5000} placeholderTextColor={COLORS.placeholder} placeholder="Describe what you expected and what happened instead" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" />
 
           <Text style={styles.label}>Steps to reproduce (optional)</Text>
-          <TextInput value={steps} onChangeText={setSteps} maxLength={5000} placeholder="1. Open…  2. Tap…  3. The issue appears…" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" />
+          <TextInput accessibilityLabel="Steps to reproduce, optional" editable={!isSubmitting} placeholderTextColor={COLORS.placeholder} value={steps} onChangeText={setSteps} maxLength={5000} placeholder="1. Open…  2. Tap…  3. The issue appears…" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" />
 
-          <TouchableOpacity style={styles.attachButton} onPress={pickScreenshot} disabled={isSubmitting}>
+          <TouchableOpacity accessibilityRole="button" style={styles.attachButton} onPress={pickScreenshot} disabled={isSubmitting}>
             <Icon name="image-plus" size={20} color={COLORS.accentDark} />
             <Text style={styles.attachText}>{screenshot ? 'Change screenshot' : 'Add screenshot (optional)'}</Text>
           </TouchableOpacity>
@@ -198,13 +207,13 @@ const BugReportsScreen = ({navigation}) => {
             <View style={styles.previewRow}>
               <Image source={{uri: screenshot.uri}} style={styles.preview} />
               <Text style={styles.previewName} numberOfLines={2}>{screenshot.fileName || 'Screenshot selected'}</Text>
-              <TouchableOpacity onPress={() => setScreenshot(null)} accessibilityLabel="Remove screenshot"><Icon name="close-circle" size={23} color={COLORS.danger} /></TouchableOpacity>
+              <TouchableOpacity style={styles.removeButton} disabled={isSubmitting} accessibilityRole="button" onPress={() => setScreenshot(null)} accessibilityLabel="Remove screenshot"><Icon name="close-circle" size={23} color={COLORS.danger} /></TouchableOpacity>
             </View>
           ) : <Text style={styles.helperText}>JPEG, PNG, or WebP up to 5 MB.</Text>}
 
           {formError ? <Text accessibilityRole="alert" style={styles.errorText}>{formError}</Text> : null}
-          <TouchableOpacity onPress={submitReport} disabled={isSubmitting} style={[styles.submitButton, isSubmitting && styles.disabledButton]}>
-            {isSubmitting ? <ActivityIndicator color={COLORS.textWhite} /> : <Text style={styles.submitText}>Submit bug report</Text>}
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={isSubmitting ? 'Submitting bug report' : 'Submit bug report'} accessibilityState={{disabled: isSubmitting, busy: isSubmitting}} onPress={submitReport} disabled={isSubmitting} style={[styles.submitButton, isSubmitting && styles.disabledButton]}>
+            {isSubmitting ? <View style={styles.submittingRow}><ActivityIndicator color={COLORS.textWhite} /><Text style={styles.submitText}>Submitting…</Text></View> : <Text style={styles.submitText}>Submit bug report</Text>}
           </TouchableOpacity>
         </View>
 
@@ -234,7 +243,7 @@ const BugReportsScreen = ({navigation}) => {
             <Text style={styles.reportDescription}>{report.description}</Text>
             {report.steps_to_reproduce ? <Text style={styles.reportSteps}><Text style={styles.reportBold}>Steps: </Text>{report.steps_to_reproduce}</Text> : null}
             {report.public_update ? <View style={styles.publicUpdate}><Text style={styles.publicUpdateLabel}>Update from GastoTrack</Text><Text style={styles.publicUpdateText}>{report.public_update}</Text></View> : null}
-            {report.has_screenshot ? <Image source={screenshotSource(report)} style={styles.reportScreenshot} resizeMode="cover" /> : null}
+            {report.has_screenshot ? <Image accessibilityLabel="Attached bug report screenshot" source={screenshotSource(report)} style={styles.reportScreenshot} resizeMode="contain" /> : null}
           </View>
         ))}
 
@@ -244,53 +253,55 @@ const BugReportsScreen = ({navigation}) => {
           </TouchableOpacity>
         ) : null}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  removeButton: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center'},
+  submittingRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
   container: {flex: 1, backgroundColor: COLORS.background},
   content: {padding: 16, paddingBottom: 32},
-  notice: {flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, padding: 13, marginBottom: 14},
+  notice: {flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, padding: 11, marginBottom: 10},
   noticeText: {flex: 1, color: COLORS.textDark, fontSize: 12, lineHeight: 18},
   successMessage: {marginBottom: 12, borderRadius: 11, backgroundColor: '#E6F6EF', color: COLORS.success, padding: 12, fontSize: 12, fontWeight: '700'},
-  card: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 16, ...SHADOWS.card},
+  card: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 13, ...SHADOWS.card},
   sectionTitle: {fontSize: 18, fontWeight: '700', color: COLORS.textDark},
-  label: {fontSize: 13, fontWeight: '700', color: COLORS.textDark, marginTop: 16, marginBottom: 7},
+  label: {fontSize: 13, fontWeight: '700', color: COLORS.textDark, marginTop: 12, marginBottom: 5},
   input: {minHeight: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.textDark, backgroundColor: '#FFFFFF', fontSize: 14},
   multiline: {minHeight: 92, paddingTop: 11},
   areaList: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
-  areaChip: {borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFFFFF', paddingHorizontal: 11, paddingVertical: 8},
+  areaChip: {minHeight: 44, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFFFFF', paddingHorizontal: 11, paddingVertical: 8},
   areaChipSelected: {borderColor: COLORS.accentDark, backgroundColor: COLORS.surfaceMuted},
   areaText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray},
   areaTextSelected: {color: COLORS.accentDark},
-  attachButton: {marginTop: 15, minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 12},
+  attachButton: {marginTop: 11, minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 12},
   attachText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
   helperText: {marginTop: 6, color: COLORS.textGray, fontSize: 11},
   previewRow: {marginTop: 9, flexDirection: 'row', alignItems: 'center', gap: 10},
   preview: {width: 54, height: 54, borderRadius: 9, backgroundColor: COLORS.surfaceMuted},
   previewName: {flex: 1, color: COLORS.textDark, fontSize: 12},
   errorText: {color: COLORS.danger, fontSize: 12, lineHeight: 18, marginTop: 11},
-  submitButton: {minHeight: 48, borderRadius: 12, marginTop: 15, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center'},
+  submitButton: {minHeight: 48, borderRadius: 12, marginTop: 11, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center'},
   disabledButton: {opacity: 0.65},
   submitText: {color: COLORS.textWhite, fontWeight: '700', fontSize: 14},
-  listHeader: {marginTop: 24, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  listHeader: {marginTop: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   reportCount: {fontSize: 12, color: COLORS.textGray},
   loader: {paddingVertical: 22},
   errorCard: {borderRadius: 12, borderWidth: 1, borderColor: '#F2C7A0', backgroundColor: '#FFF8EE', padding: 14},
-  retryButton: {alignSelf: 'flex-start', marginTop: 7, paddingVertical: 4},
+  retryButton: {alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, marginTop: 7},
   retryText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
   emptyText: {paddingVertical: 22, textAlign: 'center', color: COLORS.textGray, fontSize: 13},
-  reportCard: {marginTop: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: 15, backgroundColor: COLORS.surface, padding: 15, ...SHADOWS.card},
-  reportTopRow: {flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10},
+  reportCard: {marginTop: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 15, backgroundColor: COLORS.surface, padding: 12, ...SHADOWS.card},
+  reportTopRow: {alignItems: 'flex-start', gap: 10},
   reportTitleWrap: {flex: 1},
   reportTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark},
   reportMeta: {marginTop: 4, fontSize: 11, color: COLORS.textGray, textTransform: 'capitalize'},
   statusBadge: {borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: '#FFF2D9'},
   resolvedBadge: {backgroundColor: '#E6F6EF'},
   statusText: {fontSize: 10, fontWeight: '700', color: COLORS.textDark, textTransform: 'capitalize'},
-  reportDescription: {marginTop: 12, color: COLORS.textDark, fontSize: 13, lineHeight: 19},
-  reportSteps: {marginTop: 9, color: COLORS.textGray, fontSize: 12, lineHeight: 18},
+  reportDescription: {marginTop: 9, color: COLORS.textDark, fontSize: 13, lineHeight: 19},
+  reportSteps: {marginTop: 7, color: COLORS.textGray, fontSize: 12, lineHeight: 18},
   reportBold: {fontWeight: '700', color: COLORS.textDark},
   publicUpdate: {marginTop: 12, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, padding: 11},
   publicUpdateLabel: {fontSize: 11, fontWeight: '700', color: COLORS.accentDark},
