@@ -125,6 +125,23 @@ describe('ReceiptScannerScreen automatic transaction flow', () => {
     expect(screen.root.findAllByType(Text).some(node => String(node.props.children).includes('its total amount could not be read'))).toBe(true);
   });
 
+  it('keeps ambiguous receipt dates out of automatic recording', async () => {
+    const addTransaction = jest.fn();
+    setupScanner(addTransaction);
+    parseReceiptData.mockReturnValue({
+      amount: 245, date: null, dateDetected: false, merchant: 'Brew Haven',
+      source: 'Cash', sourceDetected: true, type: 'Expense', confidence: 70,
+    });
+    let screen;
+    await ReactTestRenderer.act(async () => {
+      screen = ReactTestRenderer.create(<ReceiptScannerScreen navigation={{goBack: jest.fn()}} />);
+    });
+    await chooseReceiptPhoto(screen);
+    expect(addTransaction).not.toHaveBeenCalled();
+    expect(screen.root.findAllByType(Text).some(node =>
+      String(node.props.children).includes('date is missing, ambiguous'))).toBe(true);
+  });
+
   it('offers a manual fallback without saving automatically if AI cannot return a configured category', async () => {
     const addTransaction = jest.fn();
     setupScanner(addTransaction);

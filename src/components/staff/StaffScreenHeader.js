@@ -4,14 +4,20 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {COLORS} from '../../theme';
+import useReduceMotion from '../../hooks/useReduceMotion';
 
 const AssistantAction = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const wave = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
-    if (route.name === 'Assistant') return undefined;
+    if (route.name === 'Assistant' || reduceMotion) {
+      wave.stopAnimation();
+      wave.setValue(0);
+      return undefined;
+    }
 
     const animation = Animated.loop(Animated.sequence([
       Animated.timing(wave, {toValue: 1, duration: 190, easing: Easing.inOut(Easing.ease), useNativeDriver: true}),
@@ -20,7 +26,7 @@ const AssistantAction = () => {
     ]));
     animation.start();
     return () => animation.stop();
-  }, [route.name, wave]);
+  }, [route.name, wave, reduceMotion]);
 
   const rotation = wave.interpolate({inputRange: [0, 1], outputRange: ['-18deg', '18deg']});
 
@@ -127,7 +133,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,

@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -15,6 +14,8 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {useIsFocused} from '@react-navigation/native';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useAuth} from '../../context/AuthContext';
@@ -24,6 +25,7 @@ import api from '../../services/api';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
 import {useStaffDay} from '../../utils/useStaffDay';
+import WalletCaptureIssues from '../../components/staff/WalletCaptureIssues';
 
 const localDate = () => {
   const now = new Date();
@@ -135,7 +137,7 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
       {source !== 'All' ? <>
         <Text style={styles.filterLabel}>Category</Text>
         {categoriesLoading
-          ? <ActivityIndicator style={styles.categoryLoader} size="small" color={COLORS.accent} />
+          ? <SkeletonPlaceholder style={styles.categoryLoaderSkeleton} accessibilityLabel="Loading transaction categories"><SkeletonBlock width={118} height={12} /></SkeletonPlaceholder>
           : renderChips(['All', ...categories], category, setCategory)}
       </> : <Text style={styles.categoryHint}>Choose a source to view category filters.</Text>}
       <View style={styles.filterActions}>
@@ -189,17 +191,14 @@ const TransactionActivityList = React.memo(({
         <View style={styles.activityHeader}>
           <View style={styles.activityHeading}>
             <Text style={styles.activityTitle}>Activity</Text>
-            {loading ? <ActivityIndicator size="small" color={COLORS.accent} /> : null}
+            {loading ? <SkeletonPlaceholder style={styles.activityCountSkeleton} accessibilityLabel="Loading activity count"><SkeletonBlock width={52} height={12} /></SkeletonPlaceholder> : null}
           </View>
-          <Text style={styles.activityCount}>{transactions.length} shown</Text>
+          {!loading ? <Text style={styles.activityCount}>{transactions.length} shown</Text> : null}
         </View>
       </View>}
       contentContainerStyle={transactions.length ? styles.list : styles.emptyList}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />}
-      ListEmptyComponent={<View style={styles.centerState}>
-        {loading
-          ? <><ActivityIndicator size="large" color={COLORS.accent} /><Text style={styles.stateText}>Loading activity...</Text></>
-          : <>
+      ListEmptyComponent={loading ? <TransactionActivitySkeleton /> : <View style={styles.centerState}>
             <Icon name="receipt-text-outline" size={58} color={COLORS.textMuted} />
             <Text style={styles.emptyTitle}>{hasFilters ? 'No matching transactions' : 'No transactions today'}</Text>
             <Text style={styles.stateText}>{hasFilters ? 'Try changing your search or filters.' : 'Transactions recorded today will appear here. Tap + to add one.'}</Text>
@@ -208,7 +207,6 @@ const TransactionActivityList = React.memo(({
                 <Text style={styles.loadMoreText}>Load more activity</Text>
               </TouchableOpacity>
             ) : null}
-          </>}
       </View>}
       ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
       onEndReached={hasMore && transactions.length ? onLoadMore : undefined}
@@ -216,6 +214,22 @@ const TransactionActivityList = React.memo(({
     />
   );
 });
+
+const TransactionActivitySkeleton = () => (
+  <SkeletonPlaceholder style={styles.activitySkeletonList} accessibilityLabel="Loading transactions">
+    {[0, 1, 2, 3].map(item => (
+      <View key={item} style={styles.skeletonTransactionCard}>
+        <SkeletonBlock width={42} height={42} radius={13} />
+        <View style={styles.skeletonTransactionText}>
+          <SkeletonBlock width="78%" height={13} />
+          <SkeletonBlock width="47%" height={11} style={styles.skeletonTransactionMetaSpacer} />
+          <SkeletonBlock width="60%" height={10} style={styles.skeletonTransactionDateSpacer} />
+        </View>
+        <SkeletonBlock width={62} height={14} />
+      </View>
+    ))}
+  </SkeletonPlaceholder>
+);
 
 const TransactionsScreen = ({route}) => {
   const isFocused = useIsFocused();
@@ -432,6 +446,7 @@ const TransactionsScreen = ({route}) => {
       Alert.alert('Could not save transaction', getErrorMessage(result));
       return;
     }
+    if (result.queued) Alert.alert('Saved on this device', 'This transaction is waiting to sync. It will appear in Transactions after the server accepts it.');
     setEditorVisible(false);
     setEditingTransaction(null);
     setForm(emptyForm(form.type));
@@ -564,6 +579,8 @@ const TransactionsScreen = ({route}) => {
         actionLabel="Add transaction"
         onActionPress={openAdd}
       />
+
+      <WalletCaptureIssues />
 
       <TransactionFilters
         sources={TRANSACTION_SOURCES}
@@ -786,11 +803,18 @@ const styles = StyleSheet.create({
   filterLabel: {fontSize: 11, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 5},
   categoryHint: {fontSize: 12, color: COLORS.textMuted, marginTop: 8},
   categoryLoader: {alignSelf: 'flex-start', marginVertical: 7},
+  categoryLoaderSkeleton: {alignSelf: 'flex-start', width: 118, height: 12, borderRadius: 6, marginVertical: 10},
   filterActions: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10},
   clearFilterButton: {minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 16, backgroundColor: COLORS.surface},
   clearFilterText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray},
   list: {paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24},
   emptyList: {flexGrow: 1, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24},
+  activityCountSkeleton: {width: 52, height: 12, borderRadius: 6},
+  activitySkeletonList: {width: '100%', gap: 9},
+  skeletonTransactionCard: {minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 15, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonTransactionText: {flex: 1},
+  skeletonTransactionMetaSpacer: {marginTop: 8},
+  skeletonTransactionDateSpacer: {marginTop: 6},
   activityHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7, marginBottom: 3},
   activityHeading: {flexDirection: 'row', alignItems: 'center', gap: 9},
   activityTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark},
@@ -820,17 +844,17 @@ const styles = StyleSheet.create({
   calendarWeek: {flexDirection: 'row', justifyContent: 'space-around'},
   calendarWeekday: {width: '13.5%', textAlign: 'center', paddingVertical: 8, color: COLORS.textGray, fontSize: 12, fontWeight: '700'},
   calendarDay: {width: '13.5%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 20, marginVertical: 2},
-  calendarDaySelected: {backgroundColor: COLORS.accent},
+  calendarDaySelected: {backgroundColor: COLORS.accentDark},
   calendarDayText: {fontSize: 14, color: COLORS.textDark},
   calendarDayTextSelected: {fontWeight: '700', color: COLORS.textWhite},
   calendarDayTextDisabled: {color: COLORS.textMuted},
   calendarCancel: {alignSelf: 'flex-end', paddingVertical: 10, paddingHorizontal: 14, marginTop: 8},
   calendarCancelText: {color: COLORS.accentDark, fontSize: 14, fontWeight: '700'},
-  chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
+  chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {minHeight: 48, justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
   sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 10, marginTop: 8}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
   suggestionButton: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#E8F7F1', borderRadius: 10, padding: 10, marginBottom: 9},
   suggestionText: {fontSize: 12, color: COLORS.accentDark, marginBottom: 7},
-  saveButton: {minHeight: 50, backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14, marginBottom: 6}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
+  saveButton: {minHeight: 50, backgroundColor: COLORS.accentDark, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14, marginBottom: 6}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
   detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 12, marginBottom: 10}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 10}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 10}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
   editButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14}, editButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
   transactionActions: {flexDirection: 'row', gap: 10, marginTop: 14},

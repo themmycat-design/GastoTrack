@@ -5,6 +5,8 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Transaction;
+use App\Services\ClientTransactionWriter;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -75,10 +77,10 @@ class TransactionController extends Controller
     }
 
     // POST /api/transactions
-    public function store(Request $request)
+    public function store(Request $request, ClientTransactionWriter $writer)
     {
         $validated = $request->validate([
-            'amount'       => 'required|numeric|min:0.01',
+            'amount'       => 'required|numeric|decimal:0,2|min:0.01|max:99999999.99',
             'type'         => 'required|in:income,expense',
             'source'       => 'required|string',
             'category'     => 'required|string',
@@ -103,12 +105,13 @@ class TransactionController extends Controller
             'entry_method' => $validated['entry_method'] ?? 'manual',
             'metadata'     => $validated['metadata'] ?? null,
         ];
-        $transaction = isset($validated['client_id'])
-            ? Transaction::firstOrCreate([
-                'business_id' => $request->user()->business_id,
-                'client_id' => $validated['client_id'],
-            ], $values)
-            : Transaction::create($values);
+        try {
+            $transaction = isset($validated['client_id'])
+                ? DB::transaction(fn () => $writer->createOrMatch($request->user(), $validated['client_id'], $values))
+                : Transaction::create($values);
+        } catch (QueryException $exception) {
+            abort(409, 'A transaction identifier conflicted with another submission. Retry to retrieve its result.');
+        }
 
         return response()->json([
             'message'     => 'Transaction saved',
@@ -209,24 +212,28 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function batch(Request $request)
+    public function batch(Request $request, ClientTransactionWriter $writer)
     {
         $data = $request->validate([
             'transactions' => 'required|array|min:1|max:100',
-            'transactions.*.amount' => 'required|numeric|min:0.01',
+            'transactions.*.amount' => 'required|numeric|decimal:0,2|min:0.01|max:99999999.99',
             'transactions.*.type' => 'required|in:income,expense',
             'transactions.*.source' => 'nullable|string|max:255',
             'transactions.*.category' => 'required|string|max:255',
             'transactions.*.date' => 'required|date|before_or_equal:'.now(config('business.timezone'))->toDateString(),
             'transactions.*.notes' => 'nullable|string',
-            'transactions.*.client_id' => 'nullable|uuid',
+            'transactions.*.client_id' => 'nullable|uuid|distinct',
         ]);
-        $created = DB::transaction(fn () => collect($data['transactions'])->map(function ($item) use ($request) {
+        try {
+            $created = DB::transaction(fn () => collect($data['transactions'])->map(function ($item) use ($request, $writer) {
             $values = ['user_id' => $request->user()->id, 'amount' => $item['amount'], 'type' => $item['type'], 'source' => $item['source'] ?? null, 'category' => $item['category'], 'transaction_date' => $item['date'], 'description' => $item['notes'] ?? null, 'entry_method' => 'batch', 'synced' => true];
             return isset($item['client_id'])
-                ? Transaction::updateOrCreate(['client_id' => $item['client_id'], 'business_id' => $request->user()->business_id], $values)
+                ? $writer->createOrMatch($request->user(), $item['client_id'], $values)
                 : Transaction::create($values + ['business_id' => $request->user()->business_id]);
-        }));
+            }));
+        } catch (QueryException $exception) {
+            abort(409, 'A transaction identifier conflicted with another submission. Retry to retrieve its result.');
+        }
         return response()->json(['message' => 'Transactions saved', 'transactions' => $created], 201);
     }
 

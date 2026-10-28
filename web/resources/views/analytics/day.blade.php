@@ -24,15 +24,15 @@
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Recorded and operational totals">
                 <div class="gt-card p-5 sm:p-6">
                     <p class="text-sm font-semibold text-slate-500">Recorded income</p>
-                    <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format($income, 2) }}</p>
+                    <p class="mt-2 text-2xl font-extrabold text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $income }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format($income, 2) }}</span></p>
                 </div>
                 <div class="gt-card p-5 sm:p-6">
                     <p class="text-sm font-semibold text-slate-500">Recorded expenses</p>
-                    <p class="mt-2 text-2xl font-extrabold text-rose-600">{{ $currencyPrefix }}{{ number_format($expenses, 2) }}</p>
+                    <p class="mt-2 text-2xl font-extrabold text-rose-600"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $expenses }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format($expenses, 2) }}</span></p>
                 </div>
                 <div class="gt-card p-5 sm:p-6">
                     <p class="text-sm font-semibold text-slate-500">Recorded waste cost</p>
-                    <p class="mt-2 text-2xl font-extrabold text-amber-700">{{ $currencyPrefix }}{{ number_format((float) $wasteCost, 2) }}</p>
+                    <p class="mt-2 text-2xl font-extrabold text-amber-700"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $wasteCost }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $wasteCost, 2) }}</span></p>
                     <p class="mt-2 text-xs text-slate-400">@if($wasteCostEstimated) Some waste costs use current inventory cost when available @else Explicitly marked waste / spoilage @endif</p>
                 </div>
             </section>

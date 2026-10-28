@@ -1,0 +1,28 @@
+# GastoTrack improvement status — 2026-10-21
+
+This is an implementation status note, not a replacement for the historical system review.
+
+## Implemented in this checkout
+
+- Client transaction IDs now identify an immutable submission across direct, batch, and sync endpoints. A retry returns the original transaction only for the same staff member, tenant, and details; conflicting, deleted, or order-generated records are rejected. Sync changes are paginated.
+- Receipt OCR requires a plausible merchant, unambiguous date, explicitly labelled total, and transaction direction before automatic recording. Uncertain scans show the specific failure and permit manual editing; a scan is not silently assigned today's date or the largest amount.
+- Staff stock adjustments accept a stable client ID for retries, prevent double movements, and preserve four decimal places for ingredient/stock quantities. The quantity migration intentionally does not narrow columns on rollback because doing so could silently round stock history.
+- Staff PIN failed-attempt state survives app restarts; five failures require a fresh password sign-in to recover. A successful password authentication clears the failure count. Owner trusted-device restoration retains the original MFA date, rather than extending it at every sign-in.
+- GCash/Maya captures are retained per signed-in account on Android. Permanent upload rejections are quarantined and visible for retry instead of blocking every queued capture. Automatic order matching requires a locally persisted capture uploaded to the API, with matching account, wallet, received amount, currency, reference, and order timing. One capture can be linked to only one order.
+- Platform business CSV export streams in bounded batches and escapes spreadsheet formula prefixes. Mobile and Laravel regression checks now run in CI; the release workflow checks them before signing an APK.
+- Owner and staff stock inputs now follow the same four-decimal quantity and unit-cost limits. A new migration widens unit-cost columns to four decimals and stock-movement notes to text, preserving small ingredient costs and 500-character notes. Business currency updates persist and are blocked once products, stock, orders, or transactions exist so existing values are not reinterpreted.
+- The Laravel `staff_offline` SQLite connection and existing data file remain available. The unused request-level database-switching middleware, unsafe `staff:sync` command, and dual-database setup scripts were retired. This server-side SQLite file is not an Android offline database or sync engine. Archiving continues to preserve records; the separately labelled permanent-delete action still removes a tenant and its associated records.
+- The Android app now has a separate account-scoped SQLite outbox for manual transactions, cash orders, and stock adjustments. It stores actions before attempting API delivery, retries while the app is open, and keeps rejected actions visible on the Home screen. Products, transaction options, and the first stock page are cached for offline forms. Server idempotency guards duplicate retries; offline cash orders carry a sale-time and price snapshot, and mismatched prices are rejected rather than silently revalued. Successful offline stock movements retain their original adjustment time for waste reports.
+
+## Still limited or unverified
+
+- The chosen GCash/Maya flow still **automatically confirms** a matching device notification. Neither the API nor the app verifies that payment with the wallet provider. A spoofed, misleading, delayed, or changed notification format can cause an incorrect sale; staff must reconcile with the official wallet account. Provider-side verification or a staff approval step remains the stronger financial control.
+- Offline cash orders are provisional until server confirmation. Current price or stock changes may reject them, so staff must reconcile rejected records; a queued cash sale must not be treated as recorded income. Cashless payment confirmation, AI-dependent receipt submission, account/product changes, and reports still require the server. Sync retries require the app to be open or reopened; they do not run reliably after Android stops it. A physical-device offline/online cycle remains unverified.
+- Automated tests use in-memory SQLite. Production MySQL/MariaDB migration, real-device behavior, Android notification formats, provider connectivity, and measured OCR accuracy need separate staging/device validation. No production data was migrated here.
+- Local lint has no errors but still reports warnings in unrelated customer navigation/order screens.
+
+## Deployment checks
+
+1. Back up and stage-test the five new `2026_10_21` Laravel migrations (stock quantity precision, wallet-capture order linkage, cost/note precision, offline order timestamp, and offline stock-movement timestamp) on the target database engine before production deployment. The local MySQL service was stopped during this work, so its live schema and migration status were not checked.
+2. Deploy the Laravel API and rebuild/reinstall the Android app together. An old APK does not emit the persisted capture ID required by the new automatic payment endpoint.
+3. On a physical staff device, record a manual transaction, cash order, and stock adjustment with Wi-Fi/mobile data off; reopen online and confirm each reaches MySQL once. Test a changed product price, insufficient stock, cross-account login, rejected action retry, and next-day sale date. Also confirm GCash/Maya capture matching, PIN recovery, and OCR failure; verify the order, ledger, and stock each change only once.

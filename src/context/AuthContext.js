@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, {setApiAuthToken, setUnauthorizedHandler} from '../services/api';
 import {clearAuthToken, getAuthSession, saveAuthToken, STAFF_SESSION_MS} from '../services/authTokenStorage';
 import {getApiErrorMessage} from '../services/apiErrors';
+import {resetStaffPinAttempts} from '../services/staffPinStorage';
 
 export const AuthContext = createContext();
 
@@ -39,6 +40,7 @@ export const AuthProvider = ({ children }) => {
   const [startupError, setStartupError] = useState(null);
   const [sessionStorageWarning, setSessionStorageWarning] = useState(null);
   const [sessionExpiresAt, setSessionExpiresAt] = useState(null);
+  const [freshPasswordSignIn, setFreshPasswordSignIn] = useState(false);
   const bootstrapStarted = useRef(false);
 
   const clearLocalSession = useCallback(async () => {
@@ -50,6 +52,7 @@ export const AuthProvider = ({ children }) => {
     setStartupError(null);
     setSessionStorageWarning(null);
     setSessionExpiresAt(null);
+    setFreshPasswordSignIn(false);
     setIsLoading(false);
     await Promise.allSettled([
       clearAuthToken(),
@@ -74,6 +77,8 @@ export const AuthProvider = ({ children }) => {
 
         const signedInAt = Date.now();
 
+        await resetStaffPinAttempts(response.data.user.id);
+
         setApiAuthToken(token);
         setUserToken(token);
         setUserRole(role);
@@ -82,6 +87,9 @@ export const AuthProvider = ({ children }) => {
         setStartupError(null);
         setSessionStorageWarning(null);
         setSessionExpiresAt(signedInAt + STAFF_SESSION_MS);
+        // The password check at the API is the required reauthentication for
+        // PIN recovery and for clearing a previous PIN attempt lockout.
+        setFreshPasswordSignIn(true);
 
         // A native secure-storage call can stall on some Android devices.
         // Server-confirmed login remains usable for this process; never store
@@ -114,12 +122,11 @@ export const AuthProvider = ({ children }) => {
     await clearLocalSession();
   };
 
-  const updateProfile = useCallback(async formData => {
+  const updateProfile = useCallback(async (profileData, hasPhoto = false) => {
     try {
-      const response = await api.post('/user/profile', formData, {
-        headers: {'Content-Type': 'multipart/form-data'},
-        timeout: 60000,
-      });
+      const response = await api.post('/user/profile', profileData, hasPhoto
+        ? {headers: {'Content-Type': 'multipart/form-data'}, timeout: 60000}
+        : undefined);
       const updatedUser = response.data?.user;
       if (!updatedUser) {
         return {success: false, message: 'The server did not return the updated profile.'};
@@ -129,7 +136,15 @@ export const AuthProvider = ({ children }) => {
       AsyncStorage.setMany({user: JSON.stringify(updatedUser)}).catch(() => {});
       return {success: true, user: updatedUser};
     } catch (error) {
-      return {success: false, error, message: getApiErrorMessage(error, 'Could not update your personal information.')};
+      const message = getApiErrorMessage(error, 'Could not update your personal information.');
+      if (hasPhoto && error?.response?.status === 413) {
+        return {success: false, error, message: 'The photo exceeds the server upload limit. Choose a smaller photo or ask the administrator to enable 5 MB photo uploads.'};
+      }
+      if (hasPhoto && error?.response?.status === 422
+        && message === 'Some information is invalid. Review it and try again.') {
+        return {success: false, error, message: 'The server rejected this photo. Choose a JPG, PNG, or WebP under 5 MB, then try again. If it still fails, check the server photo upload limit.'};
+      }
+      return {success: false, error, message};
     }
   }, []);
 
@@ -146,6 +161,7 @@ export const AuthProvider = ({ children }) => {
       if (__DEV__) console.info('[GastoTrack Auth] Local session storage read complete');
       if (token) {
         setSessionExpiresAt(session.expiresAt);
+        setFreshPasswordSignIn(false);
         setApiAuthToken(token);
         setUserToken(token);
         setUserRole(role);
@@ -230,6 +246,8 @@ export const AuthProvider = ({ children }) => {
       business,
       startupError,
       sessionStorageWarning,
+      freshPasswordSignIn,
+      consumeFreshPasswordSignIn: () => setFreshPasswordSignIn(false),
     }}>
       {children}
     </AuthContext.Provider>

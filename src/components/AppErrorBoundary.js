@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   },
   title: {fontSize: 19, fontWeight: '700', textAlign: 'center', color: COLORS.textDark},
   message: {fontSize: 14, lineHeight: 21, textAlign: 'center', color: COLORS.textGray, marginTop: 8},
-  button: {backgroundColor: COLORS.accent, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20},
+  button: {minHeight: 48, backgroundColor: COLORS.accentDark, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20},
   buttonText: {fontSize: 14, fontWeight: '700', color: COLORS.textWhite},
 });
 

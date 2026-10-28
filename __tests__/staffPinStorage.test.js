@@ -1,5 +1,8 @@
 import * as Keychain from 'react-native-keychain';
-import {clearStaffPin, getStaffPin, isFourDigitPin, saveStaffPin} from '../src/services/staffPinStorage';
+import {
+  clearStaffPin, getStaffPin, getStaffPinAttempts, isFourDigitPin,
+  recordStaffPinFailure, resetStaffPinAttempts, saveStaffPin,
+} from '../src/services/staffPinStorage';
 
 describe('staff MPIN secure storage', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -23,6 +26,20 @@ describe('staff MPIN secure storage', () => {
     await clearStaffPin(18);
     expect(Keychain.resetGenericPassword).toHaveBeenCalledWith(expect.objectContaining({
       service: 'com.gastotrack.staff-pin.18',
+    }));
+  });
+
+  it('stores failed attempts in an account-specific secure service', async () => {
+    Keychain.getGenericPassword.mockResolvedValueOnce(false);
+    await expect(recordStaffPinFailure(17)).resolves.toBe(1);
+    expect(Keychain.setGenericPassword).toHaveBeenCalledWith('17', '1', expect.objectContaining({
+      service: 'com.gastotrack.staff-pin-attempts.17',
+    }));
+    Keychain.getGenericPassword.mockResolvedValueOnce({username: '17', password: '5'});
+    await expect(getStaffPinAttempts(17)).resolves.toBe(5);
+    await resetStaffPinAttempts(17);
+    expect(Keychain.resetGenericPassword).toHaveBeenCalledWith(expect.objectContaining({
+      service: 'com.gastotrack.staff-pin-attempts.17',
     }));
   });
 });

@@ -21,7 +21,11 @@
                     <p class="text-xs font-extrabold uppercase tracking-[.18em] text-[#00A87E]">Secure your owner account</p>
                     <h1 class="mt-3 text-3xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-4xl">Verify your email</h1>
                     <p class="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
-                        We sent a verification link to the email below. Open the message and follow its link to confirm it’s yours.
+                        @if(session('verification_delivery_failed'))
+                            Your account was created, but we could not send the verification email. Please try again after the mail settings are corrected.
+                        @else
+                            We sent a verification link to the email below. Open the message and follow its link to confirm it’s yours.
+                        @endif
                     </p>
 
                     <div class="mt-6 flex items-center gap-3 rounded-xl border border-[#DDE9E5] bg-[#F8FBF9] px-4 py-3">
@@ -29,7 +33,7 @@
                             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
                         </span>
                         <div class="min-w-0">
-                            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Verification email sent to</p>
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Verification email address</p>
                             <p class="mt-0.5 break-all text-sm font-bold text-[#0A2E2A]">{{ auth()->user()->email }}</p>
                         </div>
                     </div>
@@ -38,6 +42,11 @@
                         <div role="status" class="mt-5 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
                             <svg class="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
                             <p>A fresh verification link has been sent. Check your inbox and spam folder.</p>
+                        </div>
+                    @endif
+                    @if(session('verification_delivery_failed'))
+                        <div role="alert" class="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-900">
+                            Email delivery is unavailable. Your account is saved but remains unverified. Once mail is fixed, use Resend verification email below.
                         </div>
                     @endif
 

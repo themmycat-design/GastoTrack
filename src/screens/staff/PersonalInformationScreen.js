@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import {launchImageLibrary} from 'react-native-image-picker';
 
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
@@ -82,18 +82,22 @@ const PersonalInformationScreen = ({navigation}) => {
       return;
     }
 
-    const form = new FormData();
-    form.append('name', trimmedName);
-    form.append('phone', phone.trim());
+    let profileData = {name: trimmedName, phone: phone.trim()};
     try {
-      if (photoAsset) form.append('profile_photo', profilePhotoUpload(photoAsset));
+      if (photoAsset) {
+        const form = new FormData();
+        form.append('name', trimmedName);
+        form.append('phone', phone.trim());
+        form.append('profile_photo', profilePhotoUpload(photoAsset));
+        profileData = form;
+      }
     } catch (error) {
       Alert.alert('Could not add photo', error.message);
       return;
     }
 
     setIsSaving(true);
-    const result = await updateProfile(form);
+    const result = await updateProfile(profileData, Boolean(photoAsset));
     setIsSaving(false);
     if (!result.success) {
       Alert.alert('Could not save changes', result.message || 'Please try again.');
@@ -147,7 +151,7 @@ const PersonalInformationScreen = ({navigation}) => {
 
             {isEditing ? (
               <>
-                <TouchableOpacity style={styles.photoButton} onPress={choosePhoto} accessibilityRole="button">
+                <TouchableOpacity style={styles.photoButton} onPress={choosePhoto} accessibilityRole="button" accessibilityLabel="Choose profile photo">
                   <Icon name="camera-outline" size={19} color={COLORS.accentDark} />
                   <Text style={styles.photoButtonText}>{photoAsset || user?.has_profile_photo ? 'Change profile photo' : 'Add profile photo'}</Text>
                 </TouchableOpacity>
@@ -198,7 +202,7 @@ const PersonalInformationScreen = ({navigation}) => {
                 <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing} disabled={isSaving}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.saveButton, isSaving && styles.disabled]} onPress={saveChanges} disabled={isSaving}>
+                <TouchableOpacity style={[styles.saveButton, isSaving && styles.disabled]} onPress={saveChanges} disabled={isSaving} accessibilityRole="button" accessibilityLabel="Save personal information changes">
                   {isSaving
                     ? <ActivityIndicator size="small" color={COLORS.textWhite} />
                     : <Text style={styles.saveButtonText}>Save changes</Text>}
@@ -252,7 +256,7 @@ const styles = StyleSheet.create({
   editActions: {flexDirection: 'row', gap: 9, marginTop: 8},
   cancelButton: {flex: 1, minHeight: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
   cancelButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.textGray},
-  saveButton: {flex: 1.4, minHeight: 46, borderRadius: 12, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center'},
+  saveButton: {flex: 1.4, minHeight: 48, borderRadius: 12, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center'},
   saveButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.textWhite},
   disabled: {opacity: 0.6},
   emailNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 10, textAlign: 'center'},

@@ -12,11 +12,13 @@ class Business extends Model
     protected $fillable = [
         'owner_id', 'name', 'description', 'location',
         'city', 'province', 'phone', 'email', 'address', 'logo',
-        'business_type', 'active', 'status', 'suspension_reason'
+        'business_type', 'currency', 'active', 'status', 'suspension_reason',
+        'plan_tier', 'subscription_status', 'subscription_ends_at',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'subscription_ends_at' => 'datetime',
     ];
 
     public function owner()
@@ -102,5 +104,16 @@ class Business extends Model
     public function isInactive()
     {
         return $this->status === 'inactive';
+    }
+
+    public function subscriptionIsCurrent(): bool
+    {
+        return $this->subscription_status === 'active'
+            && ($this->subscription_ends_at === null || $this->subscription_ends_at->isFuture());
+    }
+
+    public function subscriptionNeedsRenewal(): bool
+    {
+        return ! $this->subscriptionIsCurrent();
     }
 }

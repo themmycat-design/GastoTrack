@@ -32,7 +32,7 @@
                                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"/><path d="M8 8h8M8 12h6"/></svg>
                             </span>
                         </span>
-                        <strong class="mt-2 block text-3xl font-extrabold {{ $card['tone'] }}">{{ number_format((int) $card['count']) }}</strong>
+                        <strong class="mt-2 block text-3xl font-extrabold {{ $card['tone'] }}"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $card['count'] }}" data-owner-count-up-decimals="0">{{ number_format((int) $card['count']) }}</span></strong>
                     </a>
                 @endforeach
             </section>

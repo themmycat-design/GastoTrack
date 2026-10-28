@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class RegisteredUserController extends Controller
 {
@@ -62,10 +64,21 @@ class RegisteredUserController extends Controller
             return $owner;
         });
 
-        event(new Registered($user));
+        $verificationDeliveryFailed = false;
+        try {
+            event(new Registered($user));
+        } catch (TransportExceptionInterface $exception) {
+            // The owner and business are already committed. Leave verification
+            // pending and let the owner retry after mail delivery is restored.
+            $verificationDeliveryFailed = true;
+            Log::warning('Owner verification email delivery failed after registration.', [
+                'exception' => $exception::class,
+            ]);
+        }
 
         Auth::login($user);
 
-        return redirect()->route('verification.notice');
+        return redirect()->route('verification.notice')
+            ->with('verification_delivery_failed', $verificationDeliveryFailed);
     }
 }

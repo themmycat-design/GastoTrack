@@ -44,15 +44,15 @@ class PlatformReportController extends Controller
 
     public function export(): StreamedResponse
     {
-        $businesses = Business::with('owner', 'assignedOwner')
-            ->withCount(['users as staff_count' => fn ($query) => $query->where('role', 'staff')])
-            ->orderBy('name')->get();
-
-        return response()->streamDownload(function () use ($businesses) {
+        return response()->streamDownload(function () {
             $output = fopen('php://output', 'w');
             fputcsv($output, ['Business', 'Type', 'Owner', 'Location', 'Status', 'Staff Count', 'Registration Date']);
+            // Stream in bounded batches; a platform export must not load every tenant into memory.
+            $businesses = Business::with('owner', 'assignedOwner')
+                ->withCount(['users as staff_count' => fn ($query) => $query->where('role', 'staff')])
+                ->orderBy('id')->lazy(500);
             foreach ($businesses as $business) {
-                fputcsv($output, [
+                $row = [
                     $business->name,
                     $business->business_type,
                     $business->owner_account?->name,
@@ -60,7 +60,12 @@ class PlatformReportController extends Controller
                     $business->status,
                     $business->staff_count,
                     $business->created_at->toDateString(),
-                ]);
+                ];
+                // Spreadsheet applications execute leading formula characters.
+                fputcsv($output, array_map(static function ($value) {
+                    if (!is_string($value)) return $value;
+                    return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $value) ? "'".$value : $value;
+                }, $row));
             }
             fclose($output);
         }, 'gastotrack-platform-report-'.now()->format('Y-m-d').'.csv', [

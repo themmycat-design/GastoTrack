@@ -4,6 +4,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../src/services/api';
 import {AuthContext} from '../src/context/AuthContext';
 import {OrderProvider, useOrders} from '../src/context/OrderContext';
+import {recordStaffAction} from '../src/services/staffOffline';
+
+jest.mock('../src/services/staffOffline', () => ({
+  recordStaffAction: jest.fn(),
+  subscribeStaffOffline: jest.fn(() => () => {}),
+}));
 
 let mockStaffDay = '2026-10-11';
 jest.mock('../src/utils/useStaffDay', () => ({
@@ -49,6 +55,7 @@ describe('OrderProvider user-scoped storage', () => {
     AsyncStorage.removeItem.mockImplementation(async key => storage.delete(key));
     AsyncStorage.removeMany.mockResolvedValue(undefined);
     api.get.mockResolvedValue({data: {orders: [], meta: {current_page: 1, last_page: 1, total: 0}}});
+    recordStaffAction.mockReset();
   });
 
   afterEach(() => {
@@ -126,6 +133,64 @@ describe('OrderProvider user-scoped storage', () => {
       client_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
     }));
     expect(activeOrdersContext.cart).toEqual([]);
+  });
+
+  it('queues a staff cash order with its price and time, without claiming server completion', async () => {
+    await act(async () => {
+      tree = TestRenderer.create(
+        <AuthContext.Provider value={{userToken: 'staff-token', user: {id: 17, role: 'staff', business_id: 2}}}>
+          <OrderProvider><OrdersConsumer /></OrderProvider>
+        </AuthContext.Provider>,
+      );
+      await flushEffects();
+    });
+    await act(async () => {
+      activeOrdersContext.setCart([{product: {id: 42, name: 'Latte', price: 85}, quantity: 1}]);
+      await flushEffects();
+    });
+    recordStaffAction.mockResolvedValue({clientId: 'queued-id', synced: false});
+    let result;
+    await act(async () => {
+      result = await activeOrdersContext.createOrder({
+        items: [{product: {id: 42, price: 85}, quantity: 1}], paymentMethod: 'cash',
+      });
+      await flushEffects();
+    });
+    expect(result).toMatchObject({offlinePending: true, paymentStatus: 'offline_pending'});
+    expect(recordStaffAction).toHaveBeenCalledWith({userId: 17, businessId: 2}, 'cash_order',
+      expect.objectContaining({
+        payment_method: 'cash',
+        offline_recorded_at: expect.any(String),
+        items: [{product_id: 42, quantity: 1, expected_unit_price: '85.00'}],
+      }), expect.any(String));
+    expect(activeOrdersContext.cart).toEqual([]);
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('keeps edited ingredient amounts in the offline cash order outbox', async () => {
+    await act(async () => {
+      tree = TestRenderer.create(
+        <AuthContext.Provider value={{userToken: 'staff-token', user: {id: 17, role: 'staff', business_id: 2}}}>
+          <OrderProvider><OrdersConsumer /></OrderProvider>
+        </AuthContext.Provider>,
+      );
+      await flushEffects();
+    });
+    recordStaffAction.mockResolvedValue({clientId: 'queued-id', synced: false});
+    await act(async () => {
+      await activeOrdersContext.createOrder({
+        items: [{product: {id: 42, price: 85}, quantity: 1,
+          ingredientOverrides: [{stock_item_id: 11, quantity: 0}]}],
+        paymentMethod: 'cash',
+      });
+      await flushEffects();
+    });
+    expect(recordStaffAction).toHaveBeenCalledWith({userId: 17, businessId: 2}, 'cash_order',
+      expect.objectContaining({items: [{
+        product_id: 42, quantity: 1,
+        ingredient_overrides: [{stock_item_id: 11, quantity: 0}],
+        expected_unit_price: '85.00',
+      }]}), expect.any(String));
   });
 
   it('reuses the same order idempotency key after a failed response and preserves the cart', async () => {

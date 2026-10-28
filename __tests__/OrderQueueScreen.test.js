@@ -1,17 +1,20 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import {Alert, Modal, Text, TouchableOpacity} from 'react-native';
+import {Modal, Text, TouchableOpacity} from 'react-native';
 import OrderQueueScreen from '../src/screens/staff/OrderQueueScreen';
 import {useProducts} from '../src/context/ProductContext';
 import {useTransactions} from '../src/context/TransactionContext';
 import {useOrders} from '../src/context/OrderContext';
 import {subscribeToNotifications} from '../src/modules/NotificationModule';
+import {AppAlert} from '../src/services/AppDialogService';
+import api from '../src/services/api';
 
 jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => 'MockIcon');
 jest.mock('../src/components/staff/StaffScreenHeader', () => () => null);
 jest.mock('../src/context/ProductContext', () => ({useProducts: jest.fn()}));
 jest.mock('../src/context/TransactionContext', () => ({useTransactions: jest.fn()}));
 jest.mock('../src/context/OrderContext', () => ({useOrders: jest.fn()}));
+jest.mock('../src/services/api', () => ({post: jest.fn()}));
 jest.mock('../src/modules/NotificationModule', () => ({
   subscribeToNotifications: jest.fn(),
   isNotificationAccessGranted: jest.fn().mockResolvedValue(true),
@@ -38,6 +41,7 @@ const mountedScreens = [];
 
 beforeEach(() => {
   jest.clearAllMocks();
+  api.post.mockResolvedValue({data: {saved_ids: ['7e2e640f-c116-4294-9282-52f413523458']}});
   jest.useFakeTimers();
 });
 
@@ -55,7 +59,7 @@ const pressByLabel = async (screen, label) => {
   await ReactTestRenderer.act(async () => button.props.onPress());
 };
 
-const setup = ({cart = []} = {}) => {
+const setup = ({cart = [], selectedProduct = product} = {}) => {
   const setCart = jest.fn();
   const createOrder = jest.fn().mockResolvedValue(pendingOrder);
   const confirmPaymentFromNotification = jest.fn().mockResolvedValue({
@@ -67,7 +71,7 @@ const setup = ({cart = []} = {}) => {
   });
   let notificationListener;
 
-  useProducts.mockReturnValue({products: [product], isLoading: false});
+  useProducts.mockReturnValue({products: [selectedProduct], isLoading: false});
   useTransactions.mockReturnValue({PRODUCT_CATEGORIES: ['Milktea']});
   useOrders.mockReturnValue({
     createOrder,
@@ -106,6 +110,48 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(false);
   });
 
+  it('saves a no-sugar recipe as a distinct cart line', async () => {
+    const customizedProduct = {...product, ingredients: [
+      {stockId: 11, name: 'Sugar', quantity: 20, unit: 'g'},
+    ]};
+    const {screen, setCart} = setup({selectedProduct: customizedProduct});
+
+    await pressByLabel(screen, 'View Brown Sugar Milk Tea details');
+    await pressByLabel(screen, 'None Sugar');
+    await pressByLabel(screen, 'Add Brown Sugar Milk Tea to cart');
+
+    const customized = setCart.mock.calls[0][0]([]);
+    expect(customized).toEqual([{
+      product: customizedProduct, quantity: 1,
+      ingredientOverrides: [{stock_item_id: 11, quantity: 0}],
+    }]);
+
+    await pressByLabel(screen, 'View Brown Sugar Milk Tea details');
+    await pressByLabel(screen, 'Add Brown Sugar Milk Tea to cart');
+    expect(setCart.mock.calls[1][0](customized)).toEqual([
+      customized[0], {product: customizedProduct, quantity: 1},
+    ]);
+  });
+
+  it('lets staff edit a cart line before checkout', async () => {
+    const customizedProduct = {...product, ingredients: [
+      {stockId: 11, name: 'Sugar', quantity: 20, unit: 'g'},
+    ]};
+    const initialCart = [{product: customizedProduct, quantity: 1}];
+    const {screen, setCart} = setup({cart: initialCart, selectedProduct: customizedProduct});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Edit Brown Sugar Milk Tea cart item');
+    ReactTestRenderer.act(() => jest.advanceTimersByTime(350));
+    await pressByLabel(screen, 'Half Sugar');
+    await pressByLabel(screen, 'Save Brown Sugar Milk Tea cart changes');
+
+    expect(setCart.mock.calls[0][0](initialCart)).toEqual([{
+      product: customizedProduct, quantity: 1,
+      ingredientOverrides: [{stock_item_id: 11, quantity: 10}],
+    }]);
+  });
+
   it('chooses cashless wallet, waits for an exact notification match, then saves automatically', async () => {
     const {screen, createOrder, confirmPaymentFromNotification, getNotificationListener} = setup({
       cart: [{product, quantity: 1}],
@@ -141,10 +187,20 @@ describe('OrderQueueScreen ordering flow', () => {
 
     await ReactTestRenderer.act(async () => {
       getNotificationListener()({
+        transactionType: 'received', appSource: 'GCash', amount: '85.00',
+        reference: 'GCASH-REF-1',
+      });
+    });
+    expect(confirmPaymentFromNotification).not.toHaveBeenCalled();
+
+    await ReactTestRenderer.act(async () => {
+      getNotificationListener()({
         transactionType: 'received',
         appSource: 'GCash',
         amount: '85.00',
         merchant: 'GastoTrack Shop',
+        reference: 'GCASH-REF-1',
+        capturePayload: JSON.stringify({client_id: '7e2e640f-c116-4294-9282-52f413523458', source: 'gcash', reference: 'GCASH-REF-1'}),
       });
       await Promise.resolve();
       await Promise.resolve();
@@ -154,7 +210,7 @@ describe('OrderQueueScreen ordering flow', () => {
       amount: 85,
       currency: 'PHP',
       source: 'gcash',
-      notification_id: expect.stringMatching(/^[a-z0-9]+-[a-z0-9]+$/),
+      notification_id: '7e2e640f-c116-4294-9282-52f413523458',
     }));
     expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(false);
     expect(screen.root.findAllByType(Text).some(node => node.props.children === 'Payment notification matched the order and the order was saved. GastoTrack did not verify it with the wallet provider.')).toBe(true);
@@ -163,7 +219,7 @@ describe('OrderQueueScreen ordering flow', () => {
   it('cancels a waiting wallet order and returns to checkout with the cart restored', async () => {
     const cart = [{product, quantity: 1}];
     const {screen, setCart, createOrder, cancelOrder} = setup({cart});
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
 
     await pressByLabel(screen, 'View your cart');
     await pressByLabel(screen, 'Select Cashless payment method');

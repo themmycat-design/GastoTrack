@@ -14,9 +14,14 @@ use App\Http\Controllers\OwnerReportsController;
 use App\Http\Controllers\OwnerOrderController;
 use App\Http\Controllers\OwnerBugReportController;
 use App\Http\Controllers\OwnerNotificationController;
+use App\Http\Controllers\OwnerLiveStateController;
 use App\Http\Controllers\PlatformReportController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\BugReportController;
+use App\Http\Controllers\PlatformUserController;
+use App\Http\Controllers\AdminActivityLogController;
+use App\Http\Controllers\BusinessSubscriptionController;
+use App\Http\Controllers\BusinessBulkActionController;
 use App\Models\BugReport;
 use Illuminate\Support\Facades\Route;
 
@@ -41,7 +46,8 @@ Route::get('/business-status', function () {
 })->middleware(['auth', 'verified'])->name('business.status');
 
 // Owner Dashboard routes
-Route::middleware(['auth', 'verified', 'owner', 'owner.security'])->group(function () {
+Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscription.write'])->group(function () {
+    Route::get('/owner/live-state', OwnerLiveStateController::class)->name('owner.live-state');
     Route::post('/notifications/read-all', [OwnerNotificationController::class, 'readAll'])
         ->name('owner.notifications.read-all');
 
@@ -87,19 +93,28 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security'])->group(functi
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->middleware(['verified', 'owner.security'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->middleware(['verified', 'owner.security'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware(['verified', 'owner.security'])->name('profile.destroy');
+    Route::patch('/profile', [ProfileController::class, 'update'])->middleware(['verified', 'owner.security', 'owner.subscription.write'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware(['verified', 'owner.security', 'owner.subscription.write'])->name('profile.destroy');
 });
 
 // Super Admin routes
-Route::middleware(['auth', 'super_admin'])->prefix('super-admin')->name('super-admin.')->group(function () {
+Route::middleware(['auth', 'super_admin', 'platform.account.active'])->prefix('super-admin')->name('super-admin.')->group(function () {
     Route::get('/dashboard', [SuperAdminController::class, 'dashboard'])->name('dashboard');
+    Route::get('/users', [PlatformUserController::class, 'index'])->name('users.index');
+    Route::get('/users/{user}', [PlatformUserController::class, 'show'])->name('users.show');
+    Route::post('/users/{user}/password-reset', [PlatformUserController::class, 'sendPasswordReset'])->name('users.password-reset');
+    Route::post('/users/{user}/lock', [PlatformUserController::class, 'lock'])->name('users.lock');
+    Route::post('/users/{user}/unlock', [PlatformUserController::class, 'unlock'])->name('users.unlock');
+    Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::post('/businesses/bulk', BusinessBulkActionController::class)->name('businesses.bulk');
     Route::get('/businesses', [SuperAdminController::class, 'businesses'])->name('businesses');
     Route::get('/businesses/create', [SuperAdminController::class, 'create'])->name('businesses.create');
     Route::post('/businesses', [SuperAdminController::class, 'store'])->name('businesses.store');
     Route::post('/businesses/{business}/restore', [SuperAdminController::class, 'restore'])->name('businesses.restore');
     Route::delete('/businesses/{business}/permanent', [SuperAdminController::class, 'forceDestroy'])->name('businesses.force-destroy');
     Route::get('/businesses/{business}', [SuperAdminController::class, 'show'])->name('businesses.show');
+    Route::put('/businesses/{business}/subscription', [BusinessSubscriptionController::class, 'update'])->name('businesses.subscription.update');
+    Route::post('/businesses/{business}/subscription/extend', [BusinessSubscriptionController::class, 'extend'])->name('businesses.subscription.extend');
     Route::get('/businesses/{business}/edit', [SuperAdminController::class, 'edit'])->name('businesses.edit');
     Route::put('/businesses/{business}', [SuperAdminController::class, 'update'])->name('businesses.update');
     Route::delete('/businesses/{business}', [SuperAdminController::class, 'destroy'])->name('businesses.destroy');

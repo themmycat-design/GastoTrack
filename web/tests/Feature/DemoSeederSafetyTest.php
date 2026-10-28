@@ -33,8 +33,12 @@ class DemoSeederSafetyTest extends TestCase
 
     public function test_demo_business_and_financial_data_are_skipped_in_production(): void
     {
-        config(['app.env' => 'production']);
-        $this->seed();
+        $this->app->detectEnvironment(fn () => 'production');
+        try {
+            $this->artisan('db:seed', ['--force' => true])->assertExitCode(0);
+        } finally {
+            $this->app->detectEnvironment(fn () => 'testing');
+        }
 
         $this->assertDatabaseCount('businesses', 0);
         $this->assertDatabaseMissing('users', ['email' => 'owner@gastotrack.com']);

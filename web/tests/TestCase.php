@@ -17,7 +17,10 @@ abstract class TestCase extends BaseTestCase
             && method_exists($user, 'isOwner')
             && $user->isOwner()
             && $user->hasEnabledTwoFactorAuthentication()) {
-            $this->withSession(['owner.two_factor_user_id' => $user->getAuthIdentifier()]);
+            $this->withSession([
+                'owner.two_factor_user_id' => $user->getAuthIdentifier(),
+                'owner.two_factor_verified_at' => now()->timestamp,
+            ]);
         }
 
         return $this;

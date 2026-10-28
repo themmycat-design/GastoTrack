@@ -33,6 +33,74 @@ public class NotificationModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void queueStaffAction(int userId, int businessId, String clientId, String kind, String payload, Promise promise) {
+        try {
+            StaffOfflineStore.getInstance(getReactApplicationContext()).enqueue(userId, businessId, clientId, kind, payload);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_WRITE_ERROR", "Could not safely save this action on the device.");
+        }
+    }
+
+    @ReactMethod
+    public void getStaffActions(int userId, int businessId, Promise promise) {
+        try {
+            promise.resolve(StaffOfflineStore.getInstance(getReactApplicationContext()).list(userId, businessId).toString());
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_READ_ERROR", "Could not read offline actions.");
+        }
+    }
+
+    @ReactMethod
+    public void markStaffActionSynced(int userId, int businessId, String clientId, Promise promise) {
+        try {
+            StaffOfflineStore.getInstance(getReactApplicationContext()).markSynced(userId, businessId, clientId);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_SYNC_ERROR", "Could not update the offline action.");
+        }
+    }
+
+    @ReactMethod
+    public void markStaffActionRejected(int userId, int businessId, String clientId, String reason, Promise promise) {
+        try {
+            StaffOfflineStore.getInstance(getReactApplicationContext()).markRejected(userId, businessId, clientId, reason);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_REJECT_ERROR", "Could not save the sync error.");
+        }
+    }
+
+    @ReactMethod
+    public void retryStaffAction(int userId, int businessId, String clientId, Promise promise) {
+        try {
+            StaffOfflineStore.getInstance(getReactApplicationContext()).retry(userId, businessId, clientId);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_RETRY_ERROR", "Could not retry the offline action.");
+        }
+    }
+
+    @ReactMethod
+    public void saveStaffSnapshot(int userId, int businessId, String kind, String payload, Promise promise) {
+        try {
+            StaffOfflineStore.getInstance(getReactApplicationContext()).saveSnapshot(userId, businessId, kind, payload);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_SNAPSHOT_ERROR", "Could not cache staff data.");
+        }
+    }
+
+    @ReactMethod
+    public void getStaffSnapshot(int userId, int businessId, String kind, Promise promise) {
+        try {
+            promise.resolve(StaffOfflineStore.getInstance(getReactApplicationContext()).getSnapshot(userId, businessId, kind));
+        } catch (Exception exception) {
+            promise.reject("OFFLINE_SNAPSHOT_ERROR", "Could not read cached staff data.");
+        }
+    }
+
+    @ReactMethod
     public void setCaptureAccount(int userId, int businessId, Promise promise) {
         try {
             WalletCaptureStore.getInstance(getReactApplicationContext()).setActiveAccount(userId, businessId);
@@ -60,6 +128,35 @@ public class NotificationModule extends ReactContextBaseJavaModule {
             promise.resolve(true);
         } catch (Exception exception) {
             promise.reject("CAPTURE_SYNC_ERROR", "Could not clear synced wallet notifications.");
+        }
+    }
+
+    @ReactMethod
+    public void markCaptureRejected(String clientId, String reason, Promise promise) {
+        try {
+            WalletCaptureStore.getInstance(getReactApplicationContext()).markRejected(clientId, reason);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("CAPTURE_REJECT_ERROR", "Could not save the rejected capture.");
+        }
+    }
+
+    @ReactMethod
+    public void getRejectedCaptures(Promise promise) {
+        try {
+            promise.resolve(WalletCaptureStore.getInstance(getReactApplicationContext()).rejected().toString());
+        } catch (Exception exception) {
+            promise.reject("CAPTURE_READ_ERROR", "Could not read rejected wallet captures.");
+        }
+    }
+
+    @ReactMethod
+    public void retryRejectedCapture(String clientId, Promise promise) {
+        try {
+            WalletCaptureStore.getInstance(getReactApplicationContext()).retryRejected(clientId);
+            promise.resolve(true);
+        } catch (Exception exception) {
+            promise.reject("CAPTURE_RETRY_ERROR", "Could not retry the wallet capture.");
         }
     }
 

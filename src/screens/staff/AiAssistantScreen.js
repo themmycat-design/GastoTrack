@@ -1,7 +1,6 @@
 import React, {useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import api from '../../services/api';
 import {getAiErrorMessage} from '../../services/aiErrors';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';

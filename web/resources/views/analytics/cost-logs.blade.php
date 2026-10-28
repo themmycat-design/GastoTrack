@@ -25,17 +25,17 @@
                 <form method="GET" action="{{ route('analytics.cost-logs') }}" class="flex flex-wrap items-end gap-3">
                     <div>
                         <label for="start_date" class="mb-1 block text-xs font-bold text-slate-600">From</label>
-                        <input id="start_date" type="date" name="start_date" value="{{ $startDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="w-full min-w-40 px-3 py-2 text-sm">
+                        <input id="start_date" type="date" name="start_date" value="{{ $startDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="gt-focus min-h-11 w-full min-w-40 rounded-xl border border-[#DDE9E5] bg-white px-3 py-2 text-sm text-[#0A2E2A]">
                     </div>
                     <div>
                         <label for="end_date" class="mb-1 block text-xs font-bold text-slate-600">To</label>
-                        <input id="end_date" type="date" name="end_date" value="{{ $endDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="w-full min-w-40 px-3 py-2 text-sm">
+                        <input id="end_date" type="date" name="end_date" value="{{ $endDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="gt-focus min-h-11 w-full min-w-40 rounded-xl border border-[#DDE9E5] bg-white px-3 py-2 text-sm text-[#0A2E2A]">
                     </div>
-                    <button class="gt-focus rounded-xl bg-[#00A87E] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#08745D]">Show logs</button>
+                    <button class="gt-focus min-h-11 rounded-xl bg-[#08745D] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#065C4B]">Show logs</button>
                     <span class="pb-2 text-xs text-slate-500">{{ $startDate->format('M j, Y') }} – {{ $endDate->format('M j, Y') }}</span>
                 </form>
                 @if($errors->any())
-                    <p class="mt-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</p>
+                    <p role="alert" class="mt-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</p>
                 @endif
             </section>
 

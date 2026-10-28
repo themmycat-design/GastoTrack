@@ -11,8 +11,8 @@
     <style>
         :root {
             --sa-ink: #0A2E2A;
-            --sa-green: #00A87E;
-            --sa-green-dark: #08745D;
+            --sa-green: #08745D;
+            --sa-green-dark: #065C4B;
             --sa-canvas: #F4F8F7;
             --sa-border: #DDE9E5;
         }
@@ -68,12 +68,24 @@
         .sa-main table { min-width: 760px; border-collapse: separate; border-spacing: 0; }
         .sa-main thead { background: #F4F8F7; color: #607570; }
         .sa-main thead th { padding-top: .85rem; padding-bottom: .85rem; font-size: .68rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
-        .sa-main tbody tr { transition: background .15s ease; }
-        .sa-main tbody tr:hover { background: #F8FBFA; }
+        .sa-main tbody tr { transition: background .12s ease; }
+        .sa-main tbody tr:hover, .sa-main tbody tr:focus-within { background: #ECF7F3; }
         .sa-main tbody td { vertical-align: middle; }
         .sa-main table th:first-child, .sa-main table td:first-child { padding-left: 1.25rem; }
         .sa-main table th:last-child, .sa-main table td:last-child { padding-right: 1.25rem; }
-        .sa-main a:focus-visible, .sa-main button:focus-visible, .sa-sidebar a:focus-visible, .sa-sidebar button:focus-visible { outline: 3px solid rgba(0,200,151,.45); outline-offset: 2px; }
+        .sa-main a:focus-visible, .sa-main button:focus-visible, .sa-sidebar a:focus-visible, .sa-sidebar button:focus-visible { outline: 3px solid #08745D; outline-offset: 2px; }
+        .sa-main :is(input, select, textarea)::placeholder { color: #60756F; }
+        .sa-content > :is(div, section, form, nav) { animation: sa-content-enter 220ms cubic-bezier(.2,.75,.25,1) both; }
+        .sa-content > :is(div, section, form, nav):nth-child(2) { animation-delay: 35ms; }
+        .sa-content > :is(div, section, form, nav):nth-child(3) { animation-delay: 70ms; }
+        .sa-content > :is(div, section, form, nav):nth-child(n + 4) { animation-delay: 105ms; }
+        @keyframes sa-content-enter {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .sa-content > :is(div, section, form, nav) { animation: none; }
+        }
         @media (min-width: 1024px) {
             .sa-sidebar { position: fixed; inset: 0 auto 0 0; display: flex; width: 17rem; height: 100vh; flex-direction: column; }
             .sa-sidebar-nav { flex: 1; min-height: 0; overflow-y: auto; flex-direction: column; padding: 1rem .85rem; }
@@ -111,6 +123,8 @@
                 $links = [
                     ['super-admin.dashboard', 'super-admin.dashboard', 'fa-chart-line', 'Overview'],
                     ['super-admin.businesses', 'super-admin.businesses*', 'fa-building', 'Businesses'],
+                    ['super-admin.users.index', 'super-admin.users.*', 'fa-users', 'Users and staff'],
+                    ['super-admin.activity-logs.index', 'super-admin.activity-logs.*', 'fa-list-check', 'Admin activity'],
                     ['super-admin.bug-reports.index', 'super-admin.bug-reports.*', 'fa-bug', 'Bug reports'],
                     ['super-admin.reports.index', 'super-admin.reports.*', 'fa-file-lines', 'Platform Reports'],
                 ];

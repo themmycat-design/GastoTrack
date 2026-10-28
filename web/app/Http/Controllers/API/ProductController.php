@@ -41,7 +41,7 @@ class ProductController extends Controller
             'is_available' => 'nullable|boolean',
             'ingredients' => 'nullable|array',
             'ingredients.*.stock_id' => ['required', Rule::exists('stock_items', 'id')->where('business_id', $request->user()->business_id)],
-            'ingredients.*.quantity' => 'required|numeric|min:0',
+            'ingredients.*.quantity' => 'required|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
         ]);
 
         $imagePath = $this->storePhoto($request);
@@ -104,7 +104,7 @@ class ProductController extends Controller
             'display_order' => 'sometimes|integer|min:0', 'ingredients' => 'sometimes|array',
             'replace_ingredients' => 'sometimes|boolean',
             'ingredients.*.stock_id' => ['required', Rule::exists('stock_items', 'id')->where('business_id', $request->user()->business_id)],
-            'ingredients.*.quantity' => 'required|numeric|min:0.0001',
+            'ingredients.*.quantity' => 'required|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
         ]);
         $product = Product::where('business_id', $request->user()->business_id)
             ->findOrFail($id);

@@ -16,7 +16,7 @@ class Order extends Model
         'detected_payment_currency', 'payment_detected_at', 'payment_reference',
         'payment_confirmed_by', 'payment_confirmed_at', 'financials_committed_at',
         'cancelled_by', 'cancel_reason', 'cancelled_at', 'payment_type',
-        'prepared_at', 'ready_at', 'completed_at', 'client_id', 'idempotency_hash',
+        'prepared_at', 'ready_at', 'completed_at', 'offline_recorded_at', 'created_at', 'client_id', 'idempotency_hash',
         'refund_requested_at', 'refund_requested_by', 'refund_reason', 'refund_amount',
         'refund_reference', 'refund_confirmed_by', 'refund_confirmed_at', 'refund_restocked',
         'synced'
@@ -26,6 +26,7 @@ class Order extends Model
         'subtotal'     => 'decimal:2',
         'total'        => 'decimal:2',
         'completed_at' => 'datetime',
+        'offline_recorded_at' => 'datetime',
         'prepared_at'  => 'datetime',
         'ready_at'     => 'datetime',
         'payment_detected_at' => 'datetime',

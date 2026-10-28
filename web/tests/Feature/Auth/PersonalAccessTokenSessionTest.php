@@ -35,6 +35,7 @@ class PersonalAccessTokenSessionTest extends TestCase
 
         $this->getJson('/api/v1/user', $headers)->assertOk();
         $this->postJson('/api/v1/auth/logout', [], $headers)->assertOk();
+        $this->app['auth']->forgetGuards();
         $this->getJson('/api/v1/user', $headers)->assertUnauthorized();
     }
 

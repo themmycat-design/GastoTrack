@@ -37,26 +37,26 @@
                     <a href="{{ url('/') }}" class="text-sm font-semibold text-gray-500 hover:text-emerald-700">Back home</a>
                 </div>
 
-                <div class="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
-                    <div class="mb-7">
+                <div class="rounded-3xl border border-emerald-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
+                    <div class="mb-4">
                         <p class="text-sm font-bold text-emerald-700">Owner registration</p>
-                        <h2 class="mt-2 text-3xl font-extrabold tracking-tight text-gray-900">Create your workspace</h2>
-                        <p class="mt-2 text-sm leading-6 text-gray-500">Tell us who you are and which business you manage.</p>
+                        <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-gray-900">Create your workspace</h2>
+                        <p class="mt-1 text-sm leading-5 text-gray-500">Tell us who you are and which business you manage.</p>
                     </div>
 
-                    <form method="POST" action="{{ route('register') }}" class="space-y-5" x-data="{ showPassword: false }">
+                    <form method="POST" action="{{ route('register') }}" class="space-y-3" x-data="{ showPassword: false }">
                         @csrf
 
-                        <div class="grid gap-5 sm:grid-cols-2">
+                        <div class="space-y-3">
                             <div>
-                                <label for="name" class="mb-2 block text-sm font-bold text-gray-700">Owner name</label>
+                                <label for="name" class="mb-1 block text-sm font-bold text-gray-700">Owner name</label>
                                 <input id="name" type="text" name="name" value="{{ old('name') }}" required autofocus autocomplete="name"
                                     class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
                                     placeholder="Juan Dela Cruz">
                                 <x-input-error :messages="$errors->get('name')" class="mt-2" />
                             </div>
                             <div>
-                                <label for="business_name" class="mb-2 block text-sm font-bold text-gray-700">Business name</label>
+                                <label for="business_name" class="mb-1 block text-sm font-bold text-gray-700">Business name</label>
                                 <input id="business_name" type="text" name="business_name" value="{{ old('business_name') }}" required autocomplete="organization"
                                     class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
                                     placeholder="Your shop name">
@@ -64,9 +64,9 @@
                             </div>
                         </div>
 
-                        <div class="grid gap-5 sm:grid-cols-2">
+                        <div class="space-y-3">
                             <div>
-                                <label for="business_type" class="mb-2 block text-sm font-bold text-gray-700">Business type</label>
+                                <label for="business_type" class="mb-1 block text-sm font-bold text-gray-700">Business type</label>
                                 <select id="business_type" name="business_type" required class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
                                     <option value="">Select type</option>
                                     <option value="cafe" {{ old('business_type') === 'cafe' ? 'selected' : '' }}>Coffee or milk tea shop</option>
@@ -78,7 +78,7 @@
                                 <x-input-error :messages="$errors->get('business_type')" class="mt-2" />
                             </div>
                             <div>
-                                <label for="email" class="mb-2 block text-sm font-bold text-gray-700">Email address</label>
+                                <label for="email" class="mb-1 block text-sm font-bold text-gray-700">Email address</label>
                                 <input id="email" type="email" name="email" value="{{ old('email') }}" required autocomplete="username"
                                     class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
                                     placeholder="owner@yourshop.com">
@@ -86,9 +86,9 @@
                             </div>
                         </div>
 
-                        <div class="grid gap-5 sm:grid-cols-2">
+                        <div class="space-y-3">
                             <div>
-                                <label for="password" class="mb-2 block text-sm font-bold text-gray-700">Password</label>
+                                <label for="password" class="mb-1 block text-sm font-bold text-gray-700">Password</label>
                                 <div class="relative">
                                     <input id="password" :type="showPassword ? 'text' : 'password'" name="password" required autocomplete="new-password"
                                         data-password-strength="password-strength-indicator" minlength="8"
@@ -100,21 +100,21 @@
                                 <x-input-error :messages="$errors->get('password')" class="mt-2" />
                             </div>
                             <div>
-                                <label for="password_confirmation" class="mb-2 block text-sm font-bold text-gray-700">Confirm password</label>
+                                <label for="password_confirmation" class="mb-1 block text-sm font-bold text-gray-700">Confirm password</label>
                                 <input id="password_confirmation" :type="showPassword ? 'text' : 'password'" name="password_confirmation" required autocomplete="new-password"
                                     class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
                                     placeholder="Repeat your password">
                             </div>
                         </div>
 
-                        <p class="rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">This creates the owner account. Staff accounts can be added later from Staff Management.</p>
+                        <p class="rounded-xl bg-emerald-50 px-4 py-2 text-xs leading-5 text-emerald-800">This creates the owner account. Staff accounts can be added later from Staff Management.</p>
 
-                        <button type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-200">
+                        <button type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-200">
                             Create owner workspace
                         </button>
                     </form>
 
-                    <div class="mt-7 border-t border-gray-100 pt-6 text-center text-sm text-gray-500">
+                    <div class="mt-4 border-t border-gray-100 pt-4 text-center text-sm text-gray-500">
                         Already have an account?
                         <a href="{{ route('login') }}" class="ml-1 font-extrabold text-emerald-700 hover:underline">Sign in</a>
                     </div>

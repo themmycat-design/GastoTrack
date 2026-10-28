@@ -8,6 +8,11 @@
     --gt-ink: #0A2E2A;
     --gt-canvas: #F4F8F7;
     --gt-border: #DDE9E5;
+    --gt-surface: #FFFFFF;
+    --gt-surface-muted: #ECF7F3;
+    --gt-text-muted: #60756F;
+    --gt-action: #08745D;
+    --gt-action-text: #FFFFFF;
 }
 
 .gt-card {
@@ -15,6 +20,302 @@
     border-radius: 1.25rem;
     background: #fff;
     box-shadow: 0 8px 24px rgba(10, 46, 42, .045);
+}
+
+/* Owner workspace dark mode (toggled from the owner top bar). */
+html.gt-dark {
+    color-scheme: dark;
+    --gt-ink: #E2ECE8;
+    --gt-canvas: #111A17;
+    --gt-border: #34463E;
+    --gt-surface: #192521;
+    --gt-surface-muted: #20372E;
+    --gt-text-muted: #A5B5AE;
+    --gt-action: #08745D;
+    --gt-action-text: #FFFFFF;
+}
+
+html.gt-dark body.gt-owner-page {
+    background-color: #111a17 !important;
+    color: #e5efeb !important;
+}
+
+html.gt-dark body.gt-owner-page .gt-card,
+html.gt-dark body.gt-owner-page [class~="bg-white"],
+html.gt-dark body.gt-owner-page [class~="bg-white/90"],
+html.gt-dark body.gt-owner-page [class~="bg-[#F4F8F7]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#EAF8F2]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#EAF2EF]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#F8FCFA]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#F8FBFA]"],
+html.gt-dark body.gt-owner-page [class~="bg-slate-50"],
+html.gt-dark body.gt-owner-page [class~="bg-gray-50"] {
+    background-color: #192521 !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-amber-50/60"] {
+    background-color: #2b281d !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-gradient-to-br"][class~="from-[#EAF8F2]"] {
+    background-color: #192521 !important;
+    background-image: linear-gradient(135deg, #20372e, #192521) !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-gradient-to-br"][class~="from-[#F6FCF9]"] {
+    background-color: #192521 !important;
+    background-image: linear-gradient(135deg, #20372e, #192521) !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#FBFDFC]"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#F4F8F7]"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#EAF8F2]"]:hover {
+    background-color: #26372f !important;
+}
+
+html.gt-dark body.gt-owner-page .gt-card,
+html.gt-dark body.gt-owner-page [class~="border-[#DDE9E5]"],
+html.gt-dark body.gt-owner-page [class~="border-[#EAF2EF]"],
+html.gt-dark body.gt-owner-page [class~="border-[#C8DED7]"],
+html.gt-dark body.gt-owner-page [class~="border-amber-200"],
+html.gt-dark body.gt-owner-page [class~="border-gray-100"],
+html.gt-dark body.gt-owner-page [class~="border-gray-200"],
+html.gt-dark body.gt-owner-page [class~="border-slate-200"] {
+    border-color: #34463e !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="text-[#0A2E2A]"],
+html.gt-dark body.gt-owner-page [class~="text-[#173F39]"],
+html.gt-dark body.gt-owner-page [class~="text-gray-900"],
+html.gt-dark body.gt-owner-page [class~="text-gray-800"],
+html.gt-dark body.gt-owner-page [class~="text-gray-700"],
+html.gt-dark body.gt-owner-page [class~="text-slate-700"],
+html.gt-dark body.gt-owner-page [class~="text-slate-600"] {
+    color: #e2ece8 !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="text-gray-500"],
+html.gt-dark body.gt-owner-page [class~="text-slate-500"],
+html.gt-dark body.gt-owner-page [class~="text-slate-400"] {
+    color: #a5b5ae !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="text-[#08745D]"],
+html.gt-dark body.gt-owner-page [class~="text-emerald-700"],
+html.gt-dark body.gt-owner-page [class~="text-green-700"] {
+    color: #53d6b1 !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="hover:text-[#08745D]"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:text-[#00A87E]"]:hover,
+html.gt-dark body.gt-owner-page .group:hover [class~="group-hover:text-[#08745D]"],
+html.gt-dark body.gt-owner-page .group:focus-within [class~="group-hover:text-[#08745D]"] {
+    color: #71dfbf !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="text-amber-700"],
+html.gt-dark body.gt-owner-page [class~="text-amber-800"] {
+    color: #f2c46d !important;
+}
+
+html.gt-dark body.gt-owner-page .gt-owner-overview-banner {
+    border-color: #34463e;
+    background: radial-gradient(circle at 88% 8%, rgba(0, 200, 151, .13), transparent 20rem), linear-gradient(120deg, #1b3029 0%, #192521 54%, #20392f 100%);
+}
+
+html.gt-dark body.gt-owner-page .gt-owner-goal-link {
+    border-color: #3a554a;
+    background: rgba(25, 37, 33, .9);
+    color: #71dfbf;
+}
+
+html.gt-dark body.gt-owner-page .gt-owner-goal-link strong {
+    color: #e2ece8;
+}
+
+html.gt-dark body.gt-owner-page input:not([type="checkbox"]):not([type="radio"]),
+html.gt-dark body.gt-owner-page select,
+html.gt-dark body.gt-owner-page textarea {
+    border-color: #40534b;
+    background-color: #121b18;
+    color: #e5efeb;
+}
+
+html.gt-dark body.gt-owner-page input::placeholder,
+html.gt-dark body.gt-owner-page textarea::placeholder {
+    color: #91a39b;
+}
+
+html.gt-dark body.gt-owner-page table tbody tr,
+html.gt-dark body.gt-owner-page [class~="divide-[#EAF2EF]"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #34463e !important;
+}
+
+/* Complete the dark palette for tinted surfaces, alerts, tables, and hover states. */
+html.gt-dark body.gt-owner-page [class~="bg-[#D7F1E6]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#DDF4EA]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#E6F7F0]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#EAF8F2]"],
+html.gt-dark body.gt-owner-page [class~="bg-emerald-50"] {
+    background-color: #20372e !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-[#F0F8F5]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#F0FAF5]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#F7FAF9]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#F8FAF9]"],
+html.gt-dark body.gt-owner-page [class~="bg-[#FBFDFC]"] {
+    background-color: #192521 !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-amber-50"],
+html.gt-dark body.gt-owner-page [class~="bg-amber-50/70"],
+html.gt-dark body.gt-owner-page [class~="bg-amber-100"] {
+    background-color: #2b281d !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-rose-50"],
+html.gt-dark body.gt-owner-page [class~="bg-rose-100"] {
+    background-color: #35212a !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-orange-50"] { background-color: #33271e !important; }
+html.gt-dark body.gt-owner-page [class~="bg-sky-50"] { background-color: #1c2c36 !important; }
+html.gt-dark body.gt-owner-page [class~="bg-slate-100"] { background-color: #29362f !important; }
+html.gt-dark body.gt-owner-page [class~="bg-slate-200"] { background-color: #34463e !important; }
+
+/* White labels need the deeper brand green; the bright green remains on charts and progress bars. */
+html.gt-dark body.gt-owner-page [class~="bg-[#00A87E]"][class~="text-white"],
+html.gt-dark body.gt-owner-page [class~="bg-[#00C897]"][class~="text-white"] {
+    background-color: #08745d !important;
+}
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#08745D]"][class~="text-white"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#00A87E]"][class~="text-white"]:hover {
+    background-color: #005c49 !important;
+}
+
+html.gt-dark body.gt-owner-page .group:hover [class~="group-hover:bg-[#EAF8F2]"],
+html.gt-dark body.gt-owner-page .group:focus-within [class~="group-hover:bg-[#EAF8F2]"] {
+    background-color: #26372f !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="bg-gradient-to-br"][class~="to-white"] {
+    background-color: #192521 !important;
+    background-image: linear-gradient(135deg, #20372e, #192521) !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="hover:bg-rose-50"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-rose-100"]:hover {
+    background-color: #482630 !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="hover:bg-amber-50"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-amber-100"]:hover {
+    background-color: #423522 !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#F8FCFA]"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#F8FBFA]"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#F0F8F5]"]:hover,
+html.gt-dark body.gt-owner-page [class~="hover:bg-[#DDF4EA]"]:hover {
+    background-color: #26372f !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="border-[#B8DDD0]"],
+html.gt-dark body.gt-owner-page [class~="border-[#BBD9CF]"],
+html.gt-dark body.gt-owner-page [class~="border-[#D4E2DE]"],
+html.gt-dark body.gt-owner-page [class~="border-[#E5EEEA]"],
+html.gt-dark body.gt-owner-page [class~="border-[#CDE9DC]"] {
+    border-color: #34463e !important;
+}
+
+html.gt-dark body.gt-owner-page [class~="border-emerald-100"],
+html.gt-dark body.gt-owner-page [class~="border-emerald-200"] { border-color: #315743 !important; }
+html.gt-dark body.gt-owner-page [class~="border-amber-200"] { border-color: #725c32 !important; }
+html.gt-dark body.gt-owner-page [class~="border-rose-200"] { border-color: #693740 !important; }
+
+html.gt-dark body.gt-owner-page [class~="text-[#00A87E]"],
+html.gt-dark body.gt-owner-page [class~="text-emerald-800"],
+html.gt-dark body.gt-owner-page [class~="text-emerald-900"] { color: #9be2c0 !important; }
+html.gt-dark body.gt-owner-page [class~="text-[#315F55]"] { color: #add7c8 !important; }
+html.gt-dark body.gt-owner-page [class~="text-gray-600"] { color: #e2ece8 !important; }
+
+html.gt-dark body.gt-owner-page [class~="text-amber-500"],
+html.gt-dark body.gt-owner-page [class~="text-amber-900"] { color: #f2c46d !important; }
+html.gt-dark body.gt-owner-page [class~="text-orange-700"],
+html.gt-dark body.gt-owner-page [class~="text-orange-800"] { color: #ffc28b !important; }
+html.gt-dark body.gt-owner-page [class~="text-rose-600"],
+html.gt-dark body.gt-owner-page [class~="text-rose-700"],
+html.gt-dark body.gt-owner-page [class~="text-rose-800"],
+html.gt-dark body.gt-owner-page [class~="text-rose-900"] { color: #ff9eae !important; }
+html.gt-dark body.gt-owner-page [class~="text-red-600"],
+html.gt-dark body.gt-owner-page [class~="hover:text-rose-700"]:hover { color: #ff9eae !important; }
+html.gt-dark body.gt-owner-page [class~="text-sky-700"],
+html.gt-dark body.gt-owner-page [class~="text-sky-800"] { color: #8ed5f5 !important; }
+
+html.gt-dark body.gt-owner-page [class~="ring-slate-200"] { --tw-ring-color: #52655c !important; }
+html.gt-dark body.gt-owner-page [class~="ring-amber-200"] { --tw-ring-color: #725c32 !important; }
+html.gt-dark body.gt-owner-page [class~="ring-rose-200"] { --tw-ring-color: #693740 !important; }
+html.gt-dark body.gt-owner-page [class~="ring-sky-200"] { --tw-ring-color: #31516b !important; }
+html.gt-dark body.gt-owner-page [class~="ring-emerald-200"],
+html.gt-dark body.gt-owner-page [class~="ring-[#C8DED7]"] { --tw-ring-color: #315743 !important; }
+
+html.gt-dark body.gt-owner-page .gt-card { box-shadow: 0 10px 28px rgba(0, 0, 0, .2); }
+
+body.gt-owner-page aside[data-owner-navigation] [data-owner-analytics-nav][aria-current="page"] {
+    background-color: #eaf8f2;
+    border-color: #c8ded7;
+    color: #08745d;
+}
+
+body.gt-owner-page aside[data-owner-navigation] [data-owner-analytics-nav]:not([aria-current="page"]):hover {
+    background-color: #eaf8f2;
+    border-color: #c8ded7;
+    color: #08745d;
+}
+
+html.gt-dark body.gt-owner-page aside[data-owner-navigation] [data-owner-analytics-nav][aria-current="page"] {
+    background-color: #203d33 !important;
+    border-color: #3a6a55 !important;
+    color: #71dfbf !important;
+}
+
+html.gt-dark body.gt-owner-page aside[data-owner-navigation] [data-owner-analytics-nav]:not([aria-current="page"]):hover {
+    background-color: #26372f !important;
+    color: #71dfbf !important;
+}
+
+/* The bug-report form uses a pale gradient in light mode; keep its heading
+   surface dark when the page-wide dark palette brightens the heading text. */
+html.gt-dark body.gt-owner-page .gt-bug-reports-page .gt-bug-report-form-header {
+    border-color: #34463e !important;
+    background-color: #192521 !important;
+    background-image: linear-gradient(110deg, #20372e, #192521) !important;
+}
+
+html.gt-dark body.gt-owner-page .gt-owner-dashboard-loader {
+    background: radial-gradient(circle at 50% 43%, rgba(0, 200, 151, .12), transparent 18rem), linear-gradient(145deg, #111a17 0%, #14231d 65%, #1b3028 100%);
+}
+html.gt-dark body.gt-owner-page .gt-owner-dashboard-loader-title { color: #53d6b1; }
+html.gt-dark body.gt-owner-page .gt-owner-dashboard-loader-caption { color: #a5b5ae; }
+html.gt-dark body.gt-owner-page .gt-owner-dashboard-loader-track { background: #293a33; }
+
+html.gt-dark body.gt-owner-page .gt-label { color: #e2ece8; }
+html.gt-dark body.gt-owner-page .gt-btn-secondary {
+    border-color: #405c50;
+    background-color: #20372e;
+    color: #71dfbf;
+}
+html.gt-dark body.gt-owner-page .gt-btn-secondary:hover { background-color: #2a493b; }
+html.gt-dark body.gt-owner-page .gt-btn-danger {
+    border-color: #693740;
+    background-color: #35212a;
+    color: #ff9eae;
+}
+html.gt-dark body.gt-owner-page .gt-btn-danger:hover { background-color: #482630; }
+html.gt-dark body.gt-owner-page .gt-skip-link {
+    background-color: #20372e;
+    color: #e2ece8;
 }
 
 .gt-owner-overview-banner {
@@ -53,6 +354,14 @@
     font-weight: 800;
     white-space: nowrap;
 }
+
+.gt-snapshot-donut-track { stroke: #E5EEEA; }
+.gt-snapshot-donut-value { stroke: #00A87E; stroke-linecap: round; }
+.gt-snapshot-donut-negative { stroke: #FB7185; }
+
+html.gt-dark body.gt-owner-page .gt-snapshot-donut-track { stroke: #34463e; }
+html.gt-dark body.gt-owner-page .gt-snapshot-donut-value { stroke: #53d6b1; }
+html.gt-dark body.gt-owner-page .gt-snapshot-donut-negative { stroke: #ff9eae; }
 
 .gt-label {
     display: block;
@@ -167,17 +476,55 @@
 :is(.gt-owner-page, .gt-admin-page) td { overflow-wrap: anywhere; }
 
 .gt-owner-page main .gt-enter {
-    /* Owner content uses one shared entrance controller, avoiding nested effects. */
+    animation: gt-owner-content-enter 240ms cubic-bezier(.22, .8, .25, 1) both;
+}
+
+/* Keep page-entry motion visible even if the optional JS observer is unavailable. */
+.gt-owner-page main > div > :is(section, article, form, .gt-card) {
+    animation: gt-owner-content-enter 240ms cubic-bezier(.22, .8, .25, 1) both;
+}
+
+.gt-owner-page main > div > :is(section, article, form, .gt-card):nth-child(2),
+.gt-owner-page main .gt-enter-1 { animation-delay: 35ms; }
+.gt-owner-page main > div > :is(section, article, form, .gt-card):nth-child(3),
+.gt-owner-page main .gt-enter-2 { animation-delay: 70ms; }
+.gt-owner-page main > div > :is(section, article, form, .gt-card):nth-child(4),
+.gt-owner-page main .gt-enter-3 { animation-delay: 105ms; }
+.gt-owner-page main > div > :is(section, article, form, .gt-card):nth-child(5),
+.gt-owner-page main .gt-enter-4 { animation-delay: 120ms; }
+.gt-owner-page main > div > :is(section, article, form, .gt-card):nth-child(n + 6) {
+    animation-delay: 120ms;
+}
+
+/* Overview has one reveal sequence; its figures and charts animate separately in JS. */
+.gt-owner-overview main .gt-enter,
+.gt-owner-overview main > div > :is(section, article, form, .gt-card) {
     animation: none;
+}
+.gt-owner-overview main [data-overview-reveal] {
+    animation: gt-owner-content-enter 240ms cubic-bezier(.22, .8, .25, 1) backwards;
+}
+.gt-owner-overview main [data-overview-step="1"] { animation-delay: 30ms; }
+.gt-owner-overview main [data-overview-step="2"] { animation-delay: 60ms; }
+.gt-owner-overview main [data-overview-step="3"] { animation-delay: 90ms; }
+.gt-owner-overview main [data-overview-step="4"] { animation-delay: 120ms; }
+.gt-owner-overview main [data-overview-step="5"] { animation-delay: 150ms; }
+.gt-owner-overview main [data-overview-step="6"] { animation-delay: 180ms; }
+html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gt-owner-overview main [data-overview-reveal] { animation: none !important; }
 }
 
 .gt-owner-page [data-owner-dialog]:not(.hidden) > .gt-card {
-    animation: gt-owner-dialog-enter 450ms cubic-bezier(.25, .8, .25, 1);
+    animation: gt-owner-dialog-enter 180ms cubic-bezier(.2, .75, .25, 1);
 }
 
 .gt-stock-overview-ring {
     transform-origin: center;
-    animation: gt-stock-ring-clockwise 1.2s cubic-bezier(.35, .7, .25, 1) both;
+    animation: gt-stock-ring-clockwise .8s cubic-bezier(.35, .7, .25, 1) both;
 }
 
 @keyframes gt-stock-ring-clockwise {
@@ -241,7 +588,7 @@
 }
 
 .gt-lift {
-    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 
 .gt-lift:hover {
@@ -256,7 +603,7 @@
 }
 
 .gt-owner-page main > div button:not(:disabled) {
-    transition: background-color 160ms ease, border-color 160ms ease, scale 120ms ease-out;
+    transition: background-color 110ms ease, border-color 110ms ease, scale 90ms ease-out;
 }
 
 .gt-owner-page main > div button:not(:disabled):active {
@@ -269,13 +616,13 @@
 }
 
 .gt-enter {
-    animation: gt-enter .55s cubic-bezier(.2, .75, .25, 1) both;
+    animation: gt-enter .24s cubic-bezier(.2, .75, .25, 1) both;
 }
 
-.gt-enter-1 { animation-delay: .06s; }
-.gt-enter-2 { animation-delay: .12s; }
-.gt-enter-3 { animation-delay: .18s; }
-.gt-enter-4 { animation-delay: .24s; }
+.gt-enter-1 { animation-delay: .035s; }
+.gt-enter-2 { animation-delay: .07s; }
+.gt-enter-3 { animation-delay: .105s; }
+.gt-enter-4 { animation-delay: .12s; }
 
 .gt-hero-glow {
     background:
@@ -497,6 +844,11 @@
 @keyframes gt-enter {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gt-owner-content-enter {
+    from { opacity: 0; transform: translate3d(0, 10px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes gt-spark-shower {

@@ -7,6 +7,8 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Notification;
+use Symfony\Component\Mailer\Exception\UnexpectedResponseException;
 use Tests\TestCase;
 
 class EmailVerificationTest extends TestCase
@@ -56,6 +58,18 @@ class EmailVerificationTest extends TestCase
         );
 
         $this->actingAs($user)->get($verificationUrl);
+
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_resend_shows_delivery_failure_without_verifying_the_account(): void
+    {
+        $user = User::factory()->unverified()->create();
+        Notification::shouldReceive('send')->once()->andThrow(new UnexpectedResponseException('SMTP unavailable'));
+
+        $this->actingAs($user)->from('/verify-email')->post(route('verification.send'))
+            ->assertRedirect('/verify-email')
+            ->assertSessionHas('verification_delivery_failed', true);
 
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }

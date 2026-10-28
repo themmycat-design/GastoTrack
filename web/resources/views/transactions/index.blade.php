@@ -78,7 +78,7 @@
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <p class="text-sm font-semibold text-slate-500">{{ $summary['label'] }}</p>
-                                    <p class="mt-3 text-2xl font-extrabold tracking-tight {{ $summary['color'] }} sm:text-3xl">&#8369;{{ number_format($summary['value'], 2) }}</p>
+                                    <p class="mt-3 text-2xl font-extrabold tracking-tight {{ $summary['color'] }} sm:text-3xl"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $summary['value'] }}" data-owner-count-up-prefix="₱" data-owner-count-up-decimals="2">&#8369;{{ number_format($summary['value'], 2) }}</span></p>
                                     <p class="mt-2 text-xs text-slate-400">Across all business transactions</p>
                                 </div>
                                 <span class="flex h-11 w-11 items-center justify-center rounded-2xl {{ $summary['iconBg'] }} text-xl font-bold {{ $summary['color'] }}" aria-hidden="true">{{ $summary['symbol'] }}</span>

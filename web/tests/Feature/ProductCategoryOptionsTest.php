@@ -40,9 +40,9 @@ class ProductCategoryOptionsTest extends TestCase
 
         $product->update(['category' => 'Coffee']);
         $this->deleteJson('/api/v1/transaction-options/'.$option['id'])->assertOk();
-        $this->getJson('/api/v1/transaction-options')->assertOk()
-            ->assertJsonMissing(['transaction_type' => 'product', 'name' => 'Pastries'])
-            ->assertJsonFragment(['transaction_type' => 'income', 'name' => 'Sales']);
+        $options = $this->getJson('/api/v1/transaction-options')->assertOk()
+            ->assertJsonFragment(['transaction_type' => 'income', 'name' => 'Sales'])->json('options');
+        $this->assertFalse(collect($options)->contains(fn ($item) => $item['transaction_type'] === 'product' && $item['name'] === 'Pastries'));
 
         $coffee = collect($this->getJson('/api/v1/transaction-options')->json('options'))
             ->first(fn ($item) => $item['transaction_type'] === 'product' && $item['name'] === 'Coffee');
@@ -50,9 +50,9 @@ class ProductCategoryOptionsTest extends TestCase
             'name' => 'Hot Coffee', 'transaction_type' => 'product',
         ])->assertOk();
         $this->assertSame('Hot Coffee', $product->fresh()->category);
-        $this->getJson('/api/v1/transaction-options')->assertOk()
-            ->assertJsonMissing(['transaction_type' => 'product', 'name' => 'Coffee'])
-            ->assertJsonFragment(['transaction_type' => 'product', 'name' => 'Hot Coffee']);
+        $options = $this->getJson('/api/v1/transaction-options')->assertOk()
+            ->assertJsonFragment(['transaction_type' => 'product', 'name' => 'Hot Coffee'])->json('options');
+        $this->assertFalse(collect($options)->contains(fn ($item) => $item['transaction_type'] === 'product' && $item['name'] === 'Coffee'));
     }
 
     public function test_existing_product_categories_are_imported_and_isolated_by_business(): void
@@ -67,7 +67,7 @@ class ProductCategoryOptionsTest extends TestCase
         $this->getJson('/api/v1/transaction-options')->assertOk()
             ->assertJsonFragment(['transaction_type' => 'product', 'name' => 'Seasonal']);
         Sanctum::actingAs($secondStaff);
-        $this->getJson('/api/v1/transaction-options')->assertOk()
-            ->assertJsonMissing(['transaction_type' => 'product', 'name' => 'Seasonal']);
+        $options = $this->getJson('/api/v1/transaction-options')->assertOk()->json('options');
+        $this->assertFalse(collect($options)->contains(fn ($item) => $item['transaction_type'] === 'product' && $item['name'] === 'Seasonal'));
     }
 }

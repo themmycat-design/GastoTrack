@@ -35,11 +35,11 @@
                     <p class="text-xs font-bold uppercase tracking-[.16em] text-[#00A87E]">{{ \Carbon\CarbonImmutable::parse($currentMonth)->format('F Y') }}</p>
                     <h3 id="monthly-progress-heading" class="mt-2 text-lg font-extrabold">Monthly target</h3>
                     @if($currentMonthGoal)
-                        <p class="mt-5 text-3xl font-extrabold tracking-tight text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $currentMonthGoal['current_amount'], 2) }} <span class="text-base font-medium text-slate-500">of {{ $currencyPrefix }}{{ number_format((float) $currentMonthGoal['target_amount'], 2) }}</span></p>
+                        <p class="mt-5 text-3xl font-extrabold tracking-tight text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $currentMonthGoal['current_amount'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $currentMonthGoal['current_amount'], 2) }}</span> <span class="text-base font-medium text-slate-500">of <span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $currentMonthGoal['target_amount'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $currentMonthGoal['target_amount'], 2) }}</span></span></p>
                         <div class="mt-5 h-3 overflow-hidden rounded-full bg-[#EAF2EF]" role="progressbar" aria-label="Monthly sales goal progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $currentMonthGoal['progress_percentage'] }}">
                             <div class="h-full rounded-full bg-[#00C897]" style="width: {{ $currentMonthGoal['progress_percentage'] }}%"></div>
                         </div>
-                        <p class="mt-3 text-sm font-semibold {{ $currentMonthGoal['target_reached'] ? 'text-[#08745D]' : 'text-slate-600' }}">{{ $currentMonthGoal['target_reached'] ? 'Target reached' : number_format($currentMonthGoal['progress_percentage'], 1).'% of target' }}</p>
+                        <p class="mt-3 text-sm font-semibold {{ $currentMonthGoal['target_reached'] ? 'text-[#08745D]' : 'text-slate-600' }}">{{ $currentMonthGoal['target_reached'] ? 'Target reached' : '' }}@unless($currentMonthGoal['target_reached'])<span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $currentMonthGoal['progress_percentage'] }}" data-owner-count-up-suffix="% of target" data-owner-count-up-decimals="1">{{ number_format($currentMonthGoal['progress_percentage'], 1) }}% of target</span>@endunless</p>
                     @else
                         <p class="mt-5 text-sm text-slate-500">No sales target is set for this month yet.</p>
                     @endif
@@ -49,11 +49,11 @@
                     <p class="text-xs font-bold uppercase tracking-[.16em] text-[#00A87E]">{{ \Carbon\CarbonImmutable::parse($currentWeekStart)->format('M j') }} - {{ $currentWeekEnd->format('M j, Y') }}</p>
                     <h3 id="weekly-progress-heading" class="mt-2 text-lg font-extrabold">Weekly target</h3>
                     @if($currentWeekGoal)
-                        <p class="mt-5 text-3xl font-extrabold tracking-tight text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $currentWeekGoal['current_amount'], 2) }} <span class="text-base font-medium text-slate-500">of {{ $currencyPrefix }}{{ number_format((float) $currentWeekGoal['target_amount'], 2) }}</span></p>
+                        <p class="mt-5 text-3xl font-extrabold tracking-tight text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $currentWeekGoal['current_amount'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $currentWeekGoal['current_amount'], 2) }}</span> <span class="text-base font-medium text-slate-500">of <span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $currentWeekGoal['target_amount'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $currentWeekGoal['target_amount'], 2) }}</span></span></p>
                         <div class="mt-5 h-3 overflow-hidden rounded-full bg-[#EAF2EF]" role="progressbar" aria-label="Weekly sales goal progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $currentWeekGoal['progress_percentage'] }}">
                             <div class="h-full rounded-full bg-[#00C897]" style="width: {{ $currentWeekGoal['progress_percentage'] }}%"></div>
                         </div>
-                        <p class="mt-3 text-sm font-semibold {{ $currentWeekGoal['target_reached'] ? 'text-[#08745D]' : 'text-slate-600' }}">{{ $currentWeekGoal['target_reached'] ? 'Target reached' : number_format($currentWeekGoal['progress_percentage'], 1).'% of target' }}</p>
+                        <p class="mt-3 text-sm font-semibold {{ $currentWeekGoal['target_reached'] ? 'text-[#08745D]' : 'text-slate-600' }}">{{ $currentWeekGoal['target_reached'] ? 'Target reached' : '' }}@unless($currentWeekGoal['target_reached'])<span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $currentWeekGoal['progress_percentage'] }}" data-owner-count-up-suffix="% of target" data-owner-count-up-decimals="1">{{ number_format($currentWeekGoal['progress_percentage'], 1) }}% of target</span>@endunless</p>
                     @else
                         <p class="mt-5 text-sm text-slate-500">No sales target is set for this week yet.</p>
                     @endif
@@ -64,7 +64,7 @@
                 <article class="gt-card gt-enter p-5 sm:p-6" aria-labelledby="set-monthly-goal-heading">
                     <h3 id="set-monthly-goal-heading" class="text-lg font-extrabold">Set a monthly target</h3>
                     <p class="mt-1 text-xs text-slate-500">Choose this month or a future month. Saving again updates that month's target.</p>
-                    <form method="POST" action="{{ route('goals.store') }}" class="mt-5 space-y-4">
+                    <form data-submit-feedback method="POST" action="{{ route('goals.store') }}" class="mt-5 space-y-4">
                         @csrf
                         <input type="hidden" name="goal_type" value="{{ $monthlyType }}">
                         <div>
@@ -79,14 +79,14 @@
                                 @error('target_amount') <p class="mt-1 text-xs text-rose-700">{{ $message }}</p> @enderror
                             @endif
                         </div>
-                        <button type="submit" class="gt-focus w-full rounded-xl bg-[#00A87E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#08745D]">Save monthly target</button>
+                        <button type="submit" class="gt-focus min-h-11 w-full rounded-xl bg-[#08745D] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#065C4B]"><span data-submit-label>Save monthly target</span></button>
                     </form>
                 </article>
 
                 <article class="gt-card gt-enter p-5 sm:p-6" aria-labelledby="set-weekly-goal-heading">
                     <h3 id="set-weekly-goal-heading" class="text-lg font-extrabold">Set a weekly target</h3>
                     <p class="mt-1 text-xs text-slate-500">Weeks run Monday through Sunday in your shop's timezone. Saving again updates that week's target.</p>
-                    <form method="POST" action="{{ route('goals.store') }}" class="mt-5 space-y-4">
+                    <form data-submit-feedback method="POST" action="{{ route('goals.store') }}" class="mt-5 space-y-4">
                         @csrf
                         <input type="hidden" name="goal_type" value="{{ $weeklyType }}">
                         <div>
@@ -102,7 +102,7 @@
                                 @error('target_amount') <p class="mt-1 text-xs text-rose-700">{{ $message }}</p> @enderror
                             @endif
                         </div>
-                        <button type="submit" class="gt-focus w-full rounded-xl bg-[#00A87E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#08745D]">Save weekly target</button>
+                        <button type="submit" class="gt-focus min-h-11 w-full rounded-xl bg-[#08745D] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#065C4B]"><span data-submit-label>Save weekly target</span></button>
                     </form>
                 </article>
             </section>

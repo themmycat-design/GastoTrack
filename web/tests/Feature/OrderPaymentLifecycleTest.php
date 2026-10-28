@@ -55,6 +55,130 @@ class OrderPaymentLifecycleTest extends TestCase
         Sanctum::actingAs($this->staff);
     }
 
+    public function test_order_keeps_recipe_variants_separate_and_deducts_edited_amounts(): void
+    {
+        $sugar = StockItem::create([
+            'business_id' => $this->business->id, 'name' => 'Sugar', 'unit' => 'g',
+            'current_quantity' => 100, 'minimum_quantity' => 0, 'unit_cost' => 0.1, 'active' => true,
+        ]);
+        ProductIngredient::create([
+            'product_id' => $this->product->id, 'stock_item_id' => $sugar->id, 'quantity' => 20,
+        ]);
+
+        $payload = [
+            'client_id' => 'b4907912-8ca3-4c14-aad8-71fb1bbb15ba',
+            'payment_method' => 'cash',
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 1],
+                ['product_id' => $this->product->id, 'quantity' => 1,
+                    'ingredient_overrides' => [['stock_item_id' => $sugar->id, 'quantity' => 0]]],
+                ['product_id' => $this->product->id, 'quantity' => 1,
+                    'ingredient_overrides' => [['stock_item_id' => $sugar->id, 'quantity' => 10]]],
+            ],
+        ];
+
+        $order = $this->postJson('/api/v1/orders', $payload)->assertCreated()->json('order');
+        $this->assertCount(3, $order['items']);
+        $this->assertSame(400.0, (float) $this->stock->fresh()->current_quantity);
+        $this->assertSame(70.0, (float) $sugar->fresh()->current_quantity);
+        $sugarAmounts = collect($order['items'])->map(fn ($item) => collect($item['ingredients_snapshot'])
+            ->firstWhere('stock_item_id', $sugar->id)['quantity'])->sort()->values()->all();
+        $this->assertEquals([0, 10, 20], $sugarAmounts);
+        $this->postJson('/api/v1/orders', $payload)->assertOk()->assertJsonPath('order.id', $order['id']);
+        $this->assertDatabaseCount('orders', 1);
+
+        $changed = $payload;
+        $changed['items'][1]['ingredient_overrides'][0]['quantity'] = 5;
+        $this->postJson('/api/v1/orders', $changed)->assertStatus(409);
+        $this->assertSame(70.0, (float) $sugar->fresh()->current_quantity);
+    }
+
+    public function test_order_rejects_ingredient_increases_and_unknown_recipe_ingredients(): void
+    {
+        $payload = [
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1,
+                'ingredient_overrides' => [['stock_item_id' => $this->stock->id, 'quantity' => 201]]]],
+        ];
+        $this->postJson('/api/v1/orders', $payload)->assertUnprocessable();
+        $payload['items'][0]['ingredient_overrides'][0] = ['stock_item_id' => $this->stock->id + 9999, 'quantity' => 0];
+        $this->postJson('/api/v1/orders', $payload)->assertUnprocessable();
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertSame(1000.0, (float) $this->stock->fresh()->current_quantity);
+    }
+
+    public function test_offline_cash_order_sync_keeps_customized_recipe_variants(): void
+    {
+        $sugar = StockItem::create([
+            'business_id' => $this->business->id, 'name' => 'Sugar', 'unit' => 'g',
+            'current_quantity' => 100, 'minimum_quantity' => 0, 'active' => true,
+        ]);
+        ProductIngredient::create([
+            'product_id' => $this->product->id, 'stock_item_id' => $sugar->id, 'quantity' => 20,
+        ]);
+        $payload = [
+            'client_id' => 'b67ee043-5854-41ae-afcb-ae71862c29b7',
+            'payment_method' => 'cash',
+            'offline_recorded_at' => now()->subMinutes(5)->toIso8601String(),
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 1, 'expected_unit_price' => '120.00'],
+                ['product_id' => $this->product->id, 'quantity' => 1, 'expected_unit_price' => '120.00',
+                    'ingredient_overrides' => [['stock_item_id' => $sugar->id, 'quantity' => 0]]],
+            ],
+        ];
+
+        $this->postJson('/api/v1/orders', $payload)->assertCreated()->assertJsonCount(2, 'order.items');
+        $this->assertSame(600.0, (float) $this->stock->fresh()->current_quantity);
+        $this->assertSame(80.0, (float) $sugar->fresh()->current_quantity);
+        $this->postJson('/api/v1/orders', $payload)->assertOk();
+        $this->assertDatabaseCount('orders', 1);
+    }
+
+    public function test_offline_cash_order_sync_uses_original_sale_day_and_replays_once(): void
+    {
+        $recordedAt = now()->subDays(2)->startOfDay()->addHours(4)->toIso8601String();
+        $payload = [
+            'client_id' => '79c93602-0e2d-4d9e-a194-84b97cf25628',
+            'payment_method' => 'cash',
+            'offline_recorded_at' => $recordedAt,
+            'items' => [[
+                'product_id' => $this->product->id, 'quantity' => 1,
+                'expected_unit_price' => '120.00',
+            ]],
+        ];
+
+        $created = $this->postJson('/api/v1/orders', $payload)->assertCreated()
+            ->assertJsonPath('order.status', 'completed')->json('order');
+        $this->postJson('/api/v1/orders', $payload)->assertOk()->assertJsonPath('order.id', $created['id']);
+
+        $order = Order::findOrFail($created['id']);
+        $this->assertSame($recordedAt, $order->offline_recorded_at->toIso8601String());
+        $this->assertSame($order->offline_recorded_at->timestamp, $order->completed_at->timestamp);
+        $this->assertSame($order->offline_recorded_at->timestamp, $order->created_at->timestamp);
+        $this->assertSame($order->offline_recorded_at->setTimezone(config('business.timezone'))->toDateString(),
+            Transaction::where('order_id', $order->id)->firstOrFail()->transaction_date->toDateString());
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertSame(800.0, (float) $this->stock->fresh()->current_quantity);
+    }
+
+    public function test_offline_cash_order_rejects_changed_price_without_creating_a_sale(): void
+    {
+        $this->product->update(['price' => 130]);
+        $this->postJson('/api/v1/orders', [
+            'client_id' => 'ad248c11-450a-4587-8787-647e12e640b3',
+            'payment_method' => 'cash',
+            'offline_recorded_at' => now()->subMinutes(10)->toIso8601String(),
+            'items' => [[
+                'product_id' => $this->product->id, 'quantity' => 1,
+                'expected_unit_price' => '120.00',
+            ]],
+        ])->assertUnprocessable();
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('transactions', 0);
+        $this->assertSame(1000.0, (float) $this->stock->fresh()->current_quantity);
+    }
+
     public function test_cashless_notification_is_only_a_signal_and_idempotent_order_commits_once_after_staff_confirmation(): void
     {
         $payload = [
@@ -141,8 +265,23 @@ class OrderPaymentLifecycleTest extends TestCase
             'currency' => 'PHP',
             'source' => 'gcash',
             'reference' => 'GCASH-REF-20261012-0001',
-            'notification_id' => 'device-event-20261012-01',
+            'notification_id' => '7e2e640f-c116-4294-9282-52f413523458',
         ];
+
+        DB::table('wallet_notification_captures')->insert([
+            'client_id' => $signal['notification_id'],
+            'business_id' => $this->staff->business_id,
+            'user_id' => $this->staff->id,
+            'source' => 'gcash',
+            'direction' => 'received',
+            'amount' => 120,
+            'currency' => 'PHP',
+            'reference' => $signal['reference'],
+            'message' => 'You received PHP 120.00. Ref '.$signal['reference'],
+            'captured_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', $signal)
             ->assertOk()
@@ -185,7 +324,7 @@ class OrderPaymentLifecycleTest extends TestCase
             'amount' => 120,
             'currency' => 'PHP',
             'source' => 'gcash',
-            'notification_id' => 'device-event-20261012-no-ref',
+            'notification_id' => 'c650ac17-a85d-4aec-85e1-94ec75c51c44',
         ])->assertUnprocessable()->assertJsonValidationErrors('reference');
 
         $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
@@ -193,7 +332,7 @@ class OrderPaymentLifecycleTest extends TestCase
             'currency' => 'PHP',
             'source' => 'gcash',
             'reference' => 'GCASH-REF-20261012-0002',
-            'notification_id' => 'device-event-20261012-02',
+            'notification_id' => 'bf054e4a-91c0-40c4-a107-255350807f33',
         ])->assertUnprocessable();
 
         $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
@@ -201,7 +340,7 @@ class OrderPaymentLifecycleTest extends TestCase
             'currency' => 'PHP',
             'source' => 'maya',
             'reference' => 'MAYA-REF-20261012-0003',
-            'notification_id' => 'device-event-20261012-03',
+            'notification_id' => '2616d6c3-e2a6-4c93-93d5-9a2660d8a5d9',
         ])->assertUnprocessable();
 
         $this->assertDatabaseHas('orders', [
@@ -210,6 +349,26 @@ class OrderPaymentLifecycleTest extends TestCase
             'status' => 'pending',
         ]);
         $this->assertSame(1000.0, (float) $this->stock->fresh()->current_quantity);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_wallet_auto_confirmation_rejects_a_signal_not_saved_by_the_staff_device(): void
+    {
+        $created = $this->postJson('/api/v1/orders', [
+            'client_id' => '825b56b0-dc2a-4542-bccd-9cad188e2c68',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'gcash',
+        ])->assertCreated()->json('order');
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
+            'amount' => 120,
+            'currency' => 'PHP',
+            'source' => 'gcash',
+            'reference' => 'UNSAVED-REF-01',
+            'notification_id' => '0cdf8a2d-27f5-4d24-9f6c-0ff8421c2c4c',
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('orders', ['id' => $created['id'], 'status' => 'pending']);
         $this->assertDatabaseCount('transactions', 0);
     }
 

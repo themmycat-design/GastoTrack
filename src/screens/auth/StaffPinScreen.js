@@ -5,12 +5,15 @@ import {COLORS} from '../../theme';
 
 const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete'];
 
-const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onSignOut}) => {
+const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, onSignOut}) => {
   const insets = useSafeAreaInsets();
-  const title = mode === 'setup' ? 'Create your MPIN' : mode === 'confirm' ? 'Confirm your MPIN' : 'Enter your MPIN';
+  const title = mode === 'setup' ? 'Create your MPIN' : mode === 'confirm' ? 'Confirm your MPIN'
+    : mode === 'locked' ? 'MPIN locked' : 'Enter your MPIN';
   const hint = mode === 'setup'
     ? 'Choose four numbers to protect your staff workspace.'
-    : mode === 'confirm' ? 'Enter the same four numbers again.' : 'Unlock your staff workspace.';
+    : mode === 'confirm' ? 'Enter the same four numbers again.'
+      : mode === 'locked' ? 'Sign in with your email and password to reset the attempt limit.'
+        : 'Unlock your staff workspace.';
 
   return (
     <View style={[styles.page, {paddingTop: Math.max(insets.top, 20) + 28, paddingBottom: Math.max(insets.bottom, 16)}]}>
@@ -25,7 +28,7 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onSignOut}) 
         {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
         {busy ? <ActivityIndicator color={COLORS.accentDark} /> : null}
       </View>
-      <View style={styles.keypad}>
+      {mode !== 'locked' ? <View style={styles.keypad}>
         {keys.map((key, index) => key ? (
           <TouchableOpacity
             key={key}
@@ -37,7 +40,10 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onSignOut}) 
             <Text style={[styles.keyText, key === 'delete' && styles.deleteText]}>{key === 'delete' ? '⌫' : key}</Text>
           </TouchableOpacity>
         ) : <View key={`empty-${index}`} style={styles.key} />)}
-      </View>
+      </View> : <View />}
+      {onRecover ? <TouchableOpacity accessibilityRole="button" onPress={onRecover} disabled={busy} style={styles.signOut}>
+        <Text style={styles.signOutText}>Forgot MPIN? Create a new one</Text>
+      </TouchableOpacity> : null}
       <TouchableOpacity accessibilityRole="button" onPress={onSignOut} disabled={busy} style={styles.signOut}>
         <Text style={styles.signOutText}>Sign out</Text>
       </TouchableOpacity>
@@ -61,7 +67,7 @@ const styles = StyleSheet.create({
   key: {width: '33.333%', height: 68, alignItems: 'center', justifyContent: 'center'},
   keyText: {fontSize: 28, fontWeight: '600', color: COLORS.textDark},
   deleteText: {fontSize: 27, color: COLORS.accentDark},
-  signOut: {padding: 12, alignItems: 'center'},
+  signOut: {minHeight: 48, padding: 12, alignItems: 'center', justifyContent: 'center'},
   signOutText: {color: COLORS.accentDark, fontSize: 13, fontWeight: '700', textAlign: 'center'},
 });
 

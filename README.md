@@ -2,7 +2,15 @@
 
 GastoTrack is a staff-facing React Native POS and financial-recording app backed by a Laravel API. Staff can browse products, place orders, track inventory, record income and expenses, scan receipts with on-device OCR, and ask the business-scoped AI assistant for read-only guidance. Business owners use the Laravel web dashboard; the mobile app does not provide owner management screens.
 
-The app requires a live API for account data and order/transaction changes; a saved cart can be restored, but this is not offline synchronization.
+After an online sign-in, staff can record manual transactions, cash orders, and stock adjustments while disconnected. The Android app stores these actions in an account-scoped SQLite outbox and retries them when the app is open and the Laravel API becomes reachable. They do not enter shared sales totals or deduct shared stock until the server confirms them. Captured GCash/Maya notifications use a separate device queue.
+
+## Staff offline recording
+
+- Open the app online at least once to sign in and cache products, transaction options, and the first page of stock items. The cached catalog can be stale; product photos may still need the server.
+- Manual income/expense entries, cash orders, and adjustments to loaded stock items are saved to device SQLite first. The Home screen shows waiting or rejected records. Pull down to retry immediately; the open app also retries on foreground and every 30 seconds. Successful offline orders and stock movements retain their original device-recorded time (within 30 days).
+- Cash orders remain **unconfirmed locally**. Laravel checks the saved product price and current ingredient stock when syncing. If either changed, the record stays visible as rejected for staff review; it is not silently recorded at a new price or with negative stock. Successful offline cash orders retain their original device-recorded sale time (within 30 days) for daily reporting.
+- GCash/Maya payment confirmation, AI suggestions/chat, account changes, product edits, receipt transaction submission, and server reports still require the API. On-device OCR can read a picture offline, but AI categorization and saving it cannot complete offline.
+- Offline sync runs while the app is open or when staff reopen it; it is not guaranteed to run while Android has stopped the app. A new APK containing the native SQLite module and the `2026_10_21_000004` and `2026_10_21_000005` Laravel migrations are required before using this feature. Back up and stage-test migrations before applying them to a live database.
 
 ## Demo deployment: Laravel on alwaysdata, Android via Firebase
 
@@ -127,52 +135,51 @@ GastoTrack has two entry points: owners use the website, and staff use the Andro
 ### Owner website (this PC)
 
 1. Make sure MySQL is running and the database settings in `web/.env` are correct.
-2. Open PowerShell and start Laravel:
+2. Open a VS Code terminal with **Command Prompt** and start Laravel:
 
-   ```powershell
-   Set-Location C:\Users\Chris\GastoTrack\web
-   powershell -ExecutionPolicy Bypass -File ..\scripts\start-api.ps1
+   ```cmd
+   C:\Users\Chris\GastoTrack\scripts\start-api.cmd
    ```
 
 3. On this PC, open [the GastoTrack website](http://127.0.0.1:8000). Sign in at [http://127.0.0.1:8000/login](http://127.0.0.1:8000/login), or create an account at [http://127.0.0.1:8000/register](http://127.0.0.1:8000/register).
 
 Leave this terminal open while using the website or mobile app. This local website address is for this PC; it is not a public hosted link.
 
-The startup script enables the 5 MB product-photo uploads advertised in the app. PHP's default 2 MB limit rejects larger photos before Laravel can save them. Stop any old server on port 8000 before starting this script. CGI/FastCGI deployments use web/public/.user.ini; if your host overrides these settings, configure upload_max_filesize=6M and post_max_size=8M in its PHP settings.
+If your VS Code terminal is already in `C:\Users\Chris\GastoTrack\web`, run `.\start-api.cmd` instead. The startup script enables the 5 MB product and staff profile photo uploads advertised in the app. PHP's default 2 MB limit rejects larger photos before Laravel can save them. Stop any old server on port 8000 before starting this script. The script uses PHP 8.4 from Herd when available, or a compatible PHP on PATH; you can pass the full path to another PHP 8.4 executable as its first argument. CGI/FastCGI deployments use web/public/.user.ini; if your host overrides these settings, configure upload_max_filesize=6M and post_max_size=8M in its PHP settings.
 
 ### Staff app (real Android phone)
 
-After pairing and connecting the phone over Wireless debugging, run these commands in **PowerShell** (not Command Prompt):
+After pairing and connecting the phone over Wireless debugging, run these commands in a VS Code **Command Prompt** terminal. Replace `DEVICE_SERIAL` with the exact current serial from `adb devices -l`:
 
-```powershell
-Set-Location C:\Users\Chris\GastoTrack
+```cmd
+cd /d C:\Users\Chris\GastoTrack
 adb devices -l
-$phone = Read-Host "Paste the phone serial shown by adb devices -l"
-.\scripts\connect-android-wireless.ps1 -Serial $phone
-npm.cmd run android -- --device $phone
+adb -s DEVICE_SERIAL reverse tcp:8000 tcp:8000
+adb -s DEVICE_SERIAL reverse tcp:8081 tcp:8081
+npm.cmd run android -- --device DEVICE_SERIAL
 ```
 
-Keep the Laravel terminal above running. The helper connects the selected phone to Laravel on port `8000` and Metro on port `8081`; the Android development build uses `http://127.0.0.1:8000/api/v1` through that tunnel. The Android command builds, installs, and opens the app. If more than one device is listed, paste the exact serial for your phone, not the emulator.
+Keep the Laravel terminal above running. The ADB reverse commands connect the selected phone to Laravel on port `8000` and Metro on port `8081`; the Android development build uses `http://127.0.0.1:8000/api/v1` through that tunnel. The Android command builds, installs, and opens the app. If more than one device is listed, use the exact serial for your phone, not the emulator.
 
 ## First-time wireless setup
 
 The development API defaults to `http://127.0.0.1:8000/api/v1`. ADB reverse tunnels that phone-local address to this PC, so you do not need to enter the PC's changing Wi-Fi IP into the app. The debug build allows HTTP; release builds require HTTPS.
 
 1. Put the phone and PC on the same Wi-Fi. On Android, open **Developer options > Wireless debugging > Pair device with pairing code**.
-2. In PowerShell, run the `adb pair` command shown on the phone (it looks like `adb pair PHONE_IP:PAIRING_PORT`) and enter the displayed pairing code.
+2. In the VS Code terminal, run the `adb pair` command shown on the phone (it looks like `adb pair PHONE_IP:PAIRING_PORT`) and enter the displayed pairing code.
 3. On the main Wireless debugging screen, use the other address/port to connect (not the pairing port): `adb connect PHONE_IP:DEBUG_PORT`. Then continue with **Staff app (real Android phone)** above.
 
-Pairing is usually a one-time step. If Wireless debugging reconnects with a new port, run `adb connect` again and use the new serial from `adb devices -l`. Keep using PowerShell for the `$phone` variable and `.ps1` helper; those commands do not work when pasted into Command Prompt.
+Pairing is usually a one-time step. If Wireless debugging reconnects with a new port, run `adb connect` again and use the new serial from `adb devices -l`. Replace `DEVICE_SERIAL` in all three commands above each time the debugging port changes.
 
 If the phone shows a Metro HTTP 500 mentioning `DependencyGraph.js` or `Cannot read properties of undefined (reading 'get')`, stop the existing Metro process with **Ctrl+C**, then restart Metro from the repository root with `npm.cmd start -- --reset-cache`. Wait for **Dev server ready**, keep that terminal open, and tap **Reload** in the app. This is a Metro bundle failure; rebuilding or reinstalling the APK is not normally needed.
 
 Quick checks:
 
-```powershell
+```cmd
 npm.cmd test -- --runInBand
 npm.cmd run lint
-Set-Location android
-.\gradlew.bat :app:assembleDebug
+cd /d C:\Users\Chris\GastoTrack\android
+gradlew.bat :app:assembleDebug
 ```
 
 The project intentionally does not include real payment-provider integration or release signing credentials. Do not use manual payment confirmation as proof from GCash/Maya.
@@ -181,8 +188,16 @@ Staff daily workspace: Today views refresh when the device date changes and when
 
 Set `BUSINESS_TIMEZONE=Asia/Manila` in `web/.env` (the default is Asia/Manila), then run `php artisan config:clear` or rebuild the Laravel configuration cache. Keep the staff device in the same local timezone as the shop; daily sale dates and manual-transaction validation use the configured shop timezone. Existing historical transaction dates are not rewritten.
 
-Transactions Activity has two views on both the staff app and owner website. Daily transaction shows order sales and manually recorded income/expenses. Raw transaction shows GCash/Maya Android notification captures separately; these are **unverified signals**, never sales or payment confirmations. The owner sees captures from the business's staff devices; each staff account sees its own captures. Notification text can contain private wallet information, so grant Android notification access only on a shop-managed device and keep device/account access controlled. Phone numbers and common OTP patterns are redacted before storage, but staff should still review privacy requirements before enabling capture.
+The owner Transactions Activity has Daily and Raw views. Daily shows order sales and manually recorded income/expenses; Raw shows GCash/Maya Android notification captures separately. Staff see their daily records and any rejected wallet captures that need retry. Wallet notification text can contain private information, so grant Android notification access only on a shop-managed device and keep device/account access controlled. Phone numbers and common OTP patterns are redacted before storage, but staff should still review privacy requirements before enabling capture.
 
-To enable Raw transaction, run `php artisan migrate` in `web`, rebuild and reinstall the Android app (`npm.cmd run android` from the repository root on Windows), sign in as staff, and grant GastoTrack notification access in Android settings. Keep Laravel reachable from the device; captures queue privately on the device and retry syncing when the signed-in app is running. Captures start with notifications received after this version is installed and a staff account is active; old device notifications cannot be recovered. iOS does not provide this Android notification listener. Raw entries do not replace checking the official wallet account before authorized manual payment confirmation.
+To enable Raw transaction, apply the Laravel migrations in your own deployment process, rebuild and reinstall the Android app (`npm.cmd run android` from the repository root on Windows), sign in as staff, and grant GastoTrack notification access in Android settings. Keep Laravel reachable from the device; captures queue privately on the device and retry syncing when the signed-in app is running. Rejected captures appear in staff Transactions for review and retry. Captures start with notifications received after this version is installed and a staff account is active; old device notifications cannot be recovered. iOS does not provide this Android notification listener. A cashless order still confirms automatically after an exact wallet/amount/reference match, but only when the signal was saved on the staff device and accepted by the API. This is not independent verification by GCash or Maya: wallet-app checks and reconciliation remain necessary, and misleading or spoofed notifications remain a financial risk.
 
 Owner weekly and monthly sales goals: open **Goals** in the owner website to set a target for the current or a future week/month. Weeks run Monday through Sunday in `BUSINESS_TIMEZONE`. The overview and Goals page show current-period progress, calculated from completed, payment-confirmed orders whose sale was committed; pending/detected wallet notifications do not count. A pending refund stays counted until staff records its confirmed manual refund, after which the original period's progress decreases. Cancelled orders do not count. These targets are not net profit or total ledger income, and they do not reset or delete owner records. Existing manual goals remain separate and retain their prior values.
+
+Inventory quantities and ingredient unit costs accept up to four decimal places; monetary totals are rounded to two decimals after multiplying quantity by unit cost. Stock adjustment notes accept up to 500 characters. Apply the `2026_10_21_000001` through `2026_10_21_000005` migrations to a backed-up staging database before production. The server-side `staff_offline` SQLite connection and its existing data file are preserved, but the unsafe `staff:sync` command and dual-database setup scripts are not part of mobile sync. The Android outbox is a separate device SQLite database; Laravel saves confirmed records into its configured database. Archiving a business retains its records; the separate Super Admin permanent-delete action removes its associated records.
+
+### Platform administration
+
+The Super Admin console has a global user directory, admin activity log, manual subscription controls on each business detail page, and page-scoped bulk business actions. Apply `2026_10_28_000001_add_platform_subscriptions_and_admin_activity_logs.php` with `php artisan migrate --force` after backing up and testing on a staging database. This migration does not change existing orders or transactions. Existing businesses default to an active Free plan with no end date. Free permits two staff accounts; Basic, Pro, and Enterprise require a subscription end date when activated. When a plan is expired or suspended, the owner can still read records but cannot change business data, and staff API access is blocked until renewal. Pending business approval remains separate from subscription activation. Multi-branch and inventory forecasting are not yet implemented, so changing a plan does not create those features.
+
+Bulk Select All applies only to the current business-list page, never to all filtered pages. The action checks all selected records before updating any, limits each request to 100 distinct businesses, and exports only selected platform-safe business fields. A Super Admin password-reset action sends a reset link, requires the target to change their password, and revokes their mobile tokens; the configured mail service must be working. Admin activity records action, administrator ID, target ID, IP, and time; it does not include passwords or tenant financial rows. Do not run `migrate:fresh` on an existing installation.

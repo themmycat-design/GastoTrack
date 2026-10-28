@@ -25,6 +25,14 @@ class EnsureOwnerAccountSecurity
             return $next($request);
         }
 
+        if ($user->must_reset_password) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->with('error', 'A password reset is required before signing in.');
+        }
+
         if (!$user->hasVerifiedEmail()) {
             return redirect()->route('verification.notice');
         }

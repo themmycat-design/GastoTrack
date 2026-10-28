@@ -113,9 +113,9 @@ class StockController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'unit' => 'required|string|max:50',
-            'current_quantity' => 'required|numeric|min:0',
-            'minimum_quantity' => 'required|numeric|min:0',
-            'unit_cost' => 'required|numeric|min:0',
+            'current_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
         
@@ -149,8 +149,8 @@ class StockController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'unit' => 'required|string|max:50',
-            'minimum_quantity' => 'required|numeric|min:0',
-            'unit_cost' => 'required|numeric|min:0',
+            'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
         
@@ -195,7 +195,7 @@ class StockController extends Controller
         
         $validated = $request->validate([
             'type' => 'required|in:add,subtract,set',
-            'quantity' => 'required|numeric|min:0',
+            'quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'reason' => 'nullable|string|max:500',
             'movement_category' => 'nullable|in:adjustment,waste',
         ]);
@@ -211,11 +211,12 @@ class StockController extends Controller
             $quantity = (float) $validated['quantity'];
 
             $quantityAfter = match ($validated['type']) {
-                'add' => $quantityBefore + $quantity,
-                'subtract' => $quantityBefore - $quantity,
-                'set' => $quantity,
+                'add' => round($quantityBefore + $quantity, 4),
+                'subtract' => round($quantityBefore - $quantity, 4),
+                'set' => round($quantity, 4),
             };
             abort_if($quantityAfter < 0, 422, 'Adjustment would make stock negative.');
+            abort_if($quantityAfter > 99999999.9999, 422, 'Adjustment would exceed the maximum stock quantity.');
 
             $lockedStock->update(['current_quantity' => $quantityAfter]);
             StockMovement::create([

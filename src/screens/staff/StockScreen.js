@@ -1,9 +1,10 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView,
+  ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {productPhotoUpload} from '../../utils/productPhoto';
 import {useStock} from '../../context/StockContext';
@@ -12,9 +13,11 @@ import {useTransactions} from '../../context/TransactionContext';
 import {COLORS} from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
 import {needsStockAlternativeCheck} from '../../utils/stockAlternatives';
+import {createIdempotencyKey} from '../../config/orderIdempotency';
 
 const emptyProductForm = {
   name: '', category: 'Coffee', price: '', emoji: '☕', description: '',
@@ -50,6 +53,7 @@ const StockScreen = () => {
   const [activeTab, setActiveTab] = useState('stock');
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
+  const adjustmentAttempt = useRef(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [adjustType, setAdjustType] = useState('add');
   const [adjustMovementCategory, setAdjustMovementCategory] = useState('adjustment');
@@ -181,17 +185,25 @@ const StockScreen = () => {
       Alert.alert('Not enough stock', `Only ${selectedItem.quantity} ${selectedItem.unit} is available.`);
       return;
     }
+    const reason = adjustReason.trim() || 'Manual stock adjustment';
+    const category = adjustType === 'deduct' ? adjustMovementCategory : 'adjustment';
+    const fingerprint = JSON.stringify([selectedItem.id, adjustType, quantity, reason, category]);
+    if (adjustmentAttempt.current?.fingerprint !== fingerprint) {
+      adjustmentAttempt.current = {fingerprint, clientId: createIdempotencyKey(), recordedAt: new Date().toISOString()};
+    }
     setIsAdjusting(true);
     try {
       const updated = await adjustStock(
         selectedItem.id, adjustType, quantity,
-        adjustReason.trim() || 'Manual stock adjustment',
-        adjustType === 'deduct' ? adjustMovementCategory : 'adjustment',
+        reason, category, adjustmentAttempt.current.clientId, adjustmentAttempt.current.recordedAt,
       );
+      adjustmentAttempt.current = null;
       setSelectedItem(updated);
       setAdjustValue('');
       setAdjustReason('');
-      Alert.alert('Stock updated', `${updated.name} now has ${updated.quantity} ${updated.unit}.`);
+      Alert.alert(updated.offlinePending ? 'Saved on this device' : 'Stock updated', updated.offlinePending
+        ? 'The stock change is waiting to sync. The displayed quantity will update after the server accepts it.'
+        : `${updated.name} now has ${updated.quantity} ${updated.unit}.`);
     } catch (error) {
       const data = error.response?.data;
       const details = Object.values(data?.errors || {}).flat().join('\n');
@@ -428,7 +440,7 @@ const StockScreen = () => {
       }} /> : null}
 
       {listLoading && !isRefreshing && filteredItems.length === 0 ? (
-        <View style={styles.centerState}><ActivityIndicator color={COLORS.accent} size="large" /><Text style={styles.stateText}>Loading inventory...</Text></View>
+        <StockListSkeleton products={activeTab === 'products'} />
       ) : (
         <FlatList
           keyboardShouldPersistTaps="handled"
@@ -487,7 +499,7 @@ const StockScreen = () => {
             <Text style={styles.fieldLabel}>Low-stock level</Text>
             <TextInput style={styles.input} value={stockForm.threshold} onChangeText={value => setStockField('threshold', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Unit cost</Text>
-            <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={COLORS.placeholder} />
+            <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.0000" placeholderTextColor={COLORS.placeholder} />
             <TouchableOpacity style={[styles.primaryButton, isSavingStock && styles.disabledButton]} onPress={saveStock} disabled={isSavingStock}>
               {isSavingStock ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Add stock item</Text>}
             </TouchableOpacity>
@@ -656,6 +668,21 @@ const StockScreen = () => {
   );
 };
 
+const StockListSkeleton = ({products}) => (
+  <SkeletonPlaceholder style={styles.skeletonList} accessibilityLabel={products ? 'Loading products' : 'Loading inventory'}>
+    {[0, 1, 2, 3, 4].map(item => (
+      <View key={item} style={styles.skeletonStockCard}>
+        <SkeletonBlock width={products ? 58 : 44} height={44} radius={12} />
+        <View style={styles.skeletonStockCopy}>
+          <SkeletonBlock width="76%" height={14} />
+          <SkeletonBlock width="48%" height={11} style={styles.skeletonStockSubtitleSpacer} />
+        </View>
+        <SkeletonBlock width={66} height={22} radius={12} />
+      </View>
+    ))}
+  </SkeletonPlaceholder>
+);
+
 const styles = StyleSheet.create({
   headerCopy: {flex: 1, minWidth: 0, marginRight: 8},
   closeButton: {width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted},
@@ -667,6 +694,10 @@ const styles = StyleSheet.create({
   summaryItem: {flex: 1, alignItems: 'center'}, summaryCount: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, summaryLabel: {fontSize: 12, fontWeight: '600', marginTop: 2},
   searchBox: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
   searchInput: {flex: 1, paddingVertical: 9, paddingHorizontal: 8, color: COLORS.textDark}, list: {paddingHorizontal: 16, paddingBottom: 20}, emptyList: {flexGrow: 1},
+  skeletonList: {paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20},
+  skeletonStockCard: {minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, marginBottom: 8, borderRadius: 15, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonStockCopy: {flex: 1},
+  skeletonStockSubtitleSpacer: {marginTop: 8},
   card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border},
   iconBox: {width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'}, iconOk: {backgroundColor: '#E8F5E9'}, iconWarning: {backgroundColor: '#FFF3E0'}, productThumbnail: {width: '100%', height: '100%', resizeMode: 'cover'},
   cardBody: {flex: 1, marginHorizontal: 10}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
@@ -676,9 +707,9 @@ const styles = StyleSheet.create({
   modalHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
   quantityPanel: {backgroundColor: COLORS.surfaceMuted, borderRadius: 14, padding: 14, marginBottom: 6}, quantityValue: {fontSize: 28, fontWeight: '700', color: COLORS.textDark}, quantityHint: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
   fieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 12, marginBottom: 5}, adjustToggle: {flexDirection: 'row', gap: 8},
-  toggleButton: {flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, toggleButtonActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, toggleText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray}, toggleTextActive: {color: '#FFFFFF'},
+  toggleButton: {flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, toggleButtonActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, toggleText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray}, toggleTextActive: {color: '#FFFFFF'},
   input: {backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 11, color: COLORS.textDark},
-  primaryButton: {backgroundColor: COLORS.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 12, marginTop: 14}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 10, textAlign: 'center'},
+  primaryButton: {minHeight: 48, justifyContent: 'center', backgroundColor: COLORS.accentDark, borderRadius: 12, alignItems: 'center', paddingVertical: 12, marginTop: 14}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 10, textAlign: 'center'},
   productHero: {height: 190, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'}, productHeroImage: {width: '100%', height: '100%', resizeMode: 'cover'}, noImage: {alignItems: 'center'}, noImageText: {fontSize: 12, color: COLORS.textGray, marginTop: 6},
   detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 10},
   ingredientRow: {flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.surfaceMuted, borderRadius: 9, padding: 11, marginBottom: 7}, ingredientName: {fontSize: 13, color: COLORS.textDark}, ingredientQuantity: {fontSize: 13, fontWeight: '700', color: COLORS.accent},
@@ -693,14 +724,14 @@ const styles = StyleSheet.create({
   productShortage: {backgroundColor: '#FFF8ED', borderRadius: 12, padding: 12, marginTop: 12},
   stockAlertText: {fontSize: 11, fontWeight: '700', color: COLORS.danger, marginTop: 3},
   productActions: {gap: 8, marginTop: 14},
-  secondaryButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
+  secondaryButton: {minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8},
   secondaryButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
-  deleteButton: {minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#F1C6C6', backgroundColor: '#FFF7F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 9},
+  deleteButton: {minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: '#F1C6C6', backgroundColor: '#FFF7F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 9},
   deleteButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.danger},
-  imagePicker: {height: 190, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, overflow: 'hidden', alignItems: 'center', justifyContent: 'center'}, imagePreview: {width: '100%', height: '100%', resizeMode: 'cover'}, imagePlaceholder: {alignItems: 'center', paddingHorizontal: 20}, imagePlaceholderTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark, marginTop: 8}, imagePlaceholderHint: {fontSize: 11, color: COLORS.textGray, marginTop: 4}, imagePickerBadge: {position: 'absolute', right: 10, bottom: 10, minHeight: 34, borderRadius: 17, paddingHorizontal: 12, backgroundColor: COLORS.accent, flexDirection: 'row', alignItems: 'center', gap: 6}, imagePickerBadgeText: {fontSize: 12, fontWeight: '700', color: '#FFFFFF'},
+  imagePicker: {height: 190, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, overflow: 'hidden', alignItems: 'center', justifyContent: 'center'}, imagePreview: {width: '100%', height: '100%', resizeMode: 'cover'}, imagePlaceholder: {alignItems: 'center', paddingHorizontal: 20}, imagePlaceholderTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark, marginTop: 8}, imagePlaceholderHint: {fontSize: 11, color: COLORS.textGray, marginTop: 4}, imagePickerBadge: {position: 'absolute', right: 10, bottom: 10, minHeight: 34, borderRadius: 17, paddingHorizontal: 12, backgroundColor: COLORS.accentDark, flexDirection: 'row', alignItems: 'center', gap: 6}, imagePickerBadgeText: {fontSize: 12, fontWeight: '700', color: '#FFFFFF'},
   priceInputWrap: {minHeight: 46, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12},
   peso: {fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginRight: 5}, priceInput: {flex: 1, color: COLORS.textDark, paddingVertical: 10},
-  categoryOptions: {flexDirection: 'row', flexWrap: 'wrap', gap: 8}, categoryOption: {paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, categoryOptionActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent}, categoryOptionText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, categoryOptionTextActive: {color: '#FFFFFF'},
+  categoryOptions: {flexDirection: 'row', flexWrap: 'wrap', gap: 8}, categoryOption: {minHeight: 48, justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, categoryOptionActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, categoryOptionText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, categoryOptionTextActive: {color: '#FFFFFF'},
   descriptionInput: {minHeight: 76, textAlignVertical: 'top'},
   availabilityRow: {marginTop: 16, padding: 13, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}, availabilityTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark}, availabilityHint: {fontSize: 11, color: COLORS.textGray, marginTop: 3, maxWidth: 245},
   recipeHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 9}, recipeRow: {minHeight: 52, borderRadius: 11, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, paddingHorizontal: 11, paddingVertical: 7, marginBottom: 8, flexDirection: 'row', alignItems: 'center'}, recipeRowSelected: {backgroundColor: COLORS.surfaceMuted, borderColor: COLORS.accent}, recipeSelector: {flex: 1, flexDirection: 'row', alignItems: 'center'}, recipeNameWrap: {marginLeft: 9}, recipeName: {fontSize: 13, fontWeight: '600', color: COLORS.textDark}, recipeUnit: {fontSize: 10, color: COLORS.textGray, marginTop: 2}, recipeQuantity: {width: 72, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.textDark, textAlign: 'center', paddingVertical: 7, paddingHorizontal: 6},

@@ -46,34 +46,37 @@
                 </div>
                 <nav class="inline-flex flex-wrap gap-1 self-start rounded-xl border border-[#DDE9E5] bg-white p-1 shadow-sm lg:self-auto" aria-label="Analytics period">
                     @foreach(['week' => 'Weekly', 'month' => 'Monthly', 'year' => 'Yearly'] as $option => $label)
-                        <a href="{{ route('analytics.index', ['period' => $option]) }}" aria-current="{{ $period === $option ? 'page' : 'false' }}" class="gt-focus rounded-lg px-4 py-2 text-sm font-bold transition {{ $period === $option ? 'bg-[#00A87E] text-white shadow-sm' : 'text-slate-600 hover:bg-[#EAF8F2] hover:text-[#08745D]' }}">{{ $label }}</a>
+                        <a href="{{ route('analytics.index', ['period' => $option]) }}" aria-current="{{ $period === $option ? 'page' : 'false' }}" class="gt-focus inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-bold transition {{ $period === $option ? 'bg-[#08745D] text-white shadow-sm' : 'text-slate-600 hover:bg-[#EAF8F2] hover:text-[#08745D]' }}">{{ $label }}</a>
                     @endforeach
                 </nav>
             </section>
 
-            <section class="gt-card px-5 py-4 sm:px-6" aria-label="Reporting period">
+            <div class="relative z-30">
+            <section class="gt-card gt-enter px-5 py-4 sm:px-6" aria-label="Reporting period">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <p class="text-sm font-extrabold text-[#0A2E2A]">{{ $periodNames[$period] }} · {{ $rangeLabel }}</p>
                         <p class="mt-1 text-xs text-slate-500">Compared with {{ $comparisonLabel }} · amounts in {{ $currencyCode }}</p>
                     </div>
-                    <details class="group relative w-full sm:w-auto">
-                        <summary class="gt-focus inline-flex cursor-pointer list-none items-center rounded-xl border border-[#C8DED7] bg-[#F8FCFA] px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Custom dates</summary>
-                        <form method="GET" action="{{ route('analytics.index') }}" class="mt-3 grid gap-3 sm:absolute sm:right-0 sm:z-20 sm:w-[420px] sm:grid-cols-2 sm:rounded-2xl sm:border sm:border-[#DDE9E5] sm:bg-white sm:p-4 sm:shadow-xl">
-                            <input type="hidden" name="period" value="custom">
-                            <div>
-                                <label for="start_date" class="mb-1 block text-xs font-bold text-slate-600">From</label>
-                                <input id="start_date" type="date" name="start_date" value="{{ $startDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="w-full px-3 py-2 text-sm">
-                            </div>
-                            <div>
-                                <label for="end_date" class="mb-1 block text-xs font-bold text-slate-600">To</label>
-                                <input id="end_date" type="date" name="end_date" value="{{ $endDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="w-full px-3 py-2 text-sm">
-                            </div>
-                            <button class="gt-focus rounded-xl bg-[#00A87E] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#08745D] sm:col-span-2">Apply dates</button>
-                        </form>
-                    </details>
+                    <button type="button" data-analytics-dates-toggle data-owner-live-preserve aria-controls="analytics-custom-dates" aria-expanded="{{ $period === 'custom' ? 'true' : 'false' }}" class="gt-focus ml-auto inline-flex min-h-11 items-center rounded-xl border border-[#C8DED7] bg-[#F8FCFA] px-4 py-2.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Custom dates</button>
                 </div>
             </section>
+
+            <section id="analytics-custom-dates" data-owner-live-preserve class="gt-card relative z-40 ml-auto mt-3 w-full max-w-[420px] p-4 sm:absolute sm:right-0 sm:top-full sm:shadow-xl" aria-label="Custom date range" @if($period !== 'custom') hidden @endif>
+                <form method="GET" action="{{ route('analytics.index') }}" class="grid w-full gap-3 sm:grid-cols-2">
+                    <input type="hidden" name="period" value="custom">
+                    <div>
+                        <label for="start_date" class="mb-1 block text-xs font-bold text-slate-600">From</label>
+                        <input id="start_date" type="date" name="start_date" value="{{ $startDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="gt-focus min-h-11 w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2 text-sm text-[#0A2E2A]">
+                    </div>
+                    <div>
+                        <label for="end_date" class="mb-1 block text-xs font-bold text-slate-600">To</label>
+                        <input id="end_date" type="date" name="end_date" value="{{ $endDate->format('Y-m-d') }}" max="{{ now()->toDateString() }}" required class="gt-focus min-h-11 w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2 text-sm text-[#0A2E2A]">
+                    </div>
+                    <button class="gt-focus min-h-11 rounded-xl bg-[#08745D] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#065C4B] sm:col-span-2">Apply dates</button>
+                </form>
+            </section>
+            </div>
 
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Financial metrics">
                 @foreach($metricCards as $index => $card)
@@ -99,7 +102,7 @@
                                 @endif
                             </span>
                         </div>
-                        <p class="mt-3 break-words text-2xl font-extrabold tracking-tight {{ $card['key'] === 'expenses' || (in_array($card['key'], ['income', 'movement'], true) && $card['amount'] < 0) ? 'text-rose-600' : 'text-[#08745D]' }} sm:text-3xl">{{ $amount }}</p>
+                        <p class="mt-3 break-words text-2xl font-extrabold tracking-tight {{ $card['key'] === 'expenses' || (in_array($card['key'], ['income', 'movement'], true) && $card['amount'] < 0) ? 'text-rose-600' : 'text-[#08745D]' }} sm:text-3xl"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $card['amount'] }}" data-owner-count-up-prefix="{{ $card['key'] === 'transactions' ? '' : $currencyPrefix }}" data-owner-count-up-decimals="{{ $card['key'] === 'transactions' ? 0 : 2 }}">{{ $amount }}</span></p>
                         @if($card['key'] === 'movement')
                             <p class="mt-2 text-xs leading-5 text-slate-400">Recorded income minus recorded expenses; not accounting profit or a reconciled cash balance.</p>
                         @elseif($growth === null && $card['key'] !== 'transactions')
@@ -128,14 +131,14 @@
                 <div class="grid gap-4 p-5 sm:p-6 xl:grid-cols-3">
                     <article class="rounded-2xl border border-[#DDE9E5] bg-[#F8FCFA] p-4 sm:p-5">
                         <p class="text-sm font-bold text-slate-500">Recipe ingredient cost</p>
-                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $costInsights['ingredientCost'], 2) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $costInsights['ingredientCost'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $costInsights['ingredientCost'], 2) }}</span></p>
                         <p class="mt-2 text-xs leading-5 text-slate-500">Cost of recipe ingredients; recipe costs cover {{ number_format((float) $costInsights['ingredientCostCoveragePercent'], 1) }}% of eligible product sales.
                             @if($costInsights['ingredientCostEstimated']) Some older sales use current inventory costs or recipes. @endif
                         </p>
                     </article>
                     <article class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
                         <p class="text-sm font-bold text-slate-500">Recorded waste cost</p>
-                        <p class="mt-2 text-2xl font-extrabold text-amber-700">{{ $currencyPrefix }}{{ number_format((float) $costInsights['wasteCost'], 2) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-amber-700"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $costInsights['wasteCost'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $costInsights['wasteCost'], 2) }}</span></p>
                         <p class="mt-2 text-xs leading-5 text-slate-500">Only stock deductions explicitly marked waste or spoilage are counted.
                             @if($costInsights['wasteCostEstimated']) Some waste has no saved unit cost and uses the current inventory cost when available. @endif
                         </p>
@@ -151,7 +154,7 @@
                     </article>
                     <article class="rounded-2xl border border-[#C8DED7] bg-gradient-to-br from-[#EAF8F2] to-white p-4 sm:p-5">
                         <p class="text-sm font-bold text-slate-500">Estimated product gross margin</p>
-                        <p class="mt-2 text-2xl font-extrabold {{ $costInsights['grossMargin'] < 0 ? 'text-rose-600' : 'text-[#08745D]' }}">{{ $currencyPrefix }}{{ number_format((float) $costInsights['grossMargin'], 2) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold {{ $costInsights['grossMargin'] < 0 ? 'text-rose-600' : 'text-[#08745D]' }}"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $costInsights['grossMargin'] }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $costInsights['grossMargin'], 2) }}</span></p>
                         <p class="mt-2 text-xs leading-5 text-slate-500">Sales minus known product costs, across {{ number_format((float) $costInsights['costCoveragePercent'], 1) }}% of eligible product sales. Not net profit; excludes labor, rent, and other overhead.</p>
                     </article>
                 </div>
@@ -309,19 +312,69 @@
     </main>
 </div>
 
-@if($hasLedgerData)
+@php
+    $analyticsChartState = [
+        'chart' => $chart,
+        'links' => $chartLinks,
+        'periods' => $comparisonPeriods,
+        'currencyPrefix' => $currencyPrefix,
+    ];
+@endphp
+<script type="application/json" data-owner-analytics-chart-state>@json($analyticsChartState)</script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const datesToggle = document.querySelector('[data-analytics-dates-toggle]');
+    const datesPanel = document.getElementById('analytics-custom-dates');
+    datesToggle?.addEventListener('click', () => {
+        const willOpen = datesPanel.hidden;
+        datesPanel.hidden = !willOpen;
+        datesToggle.setAttribute('aria-expanded', String(willOpen));
+        if (willOpen) datesPanel.querySelector('input[type="date"]')?.focus();
+    });
+
     if (typeof Chart === 'undefined') return;
 
-    const chartData = @json($chart);
-    const chartLinks = @json($chartLinks);
-    const periods = @json($comparisonPeriods);
-    const currencyPrefix = @json($currencyPrefix);
-    const moneyTick = value => currencyPrefix + Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    let chartState = JSON.parse(document.querySelector('[data-owner-analytics-chart-state]').textContent);
+    const moneyTick = value => chartState.currencyPrefix + Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    const charts = [];
+    const chartPalette = () => {
+        const dark = document.documentElement.classList.contains('gt-dark');
+        return {
+            dark,
+            text: dark ? '#C6D5CE' : '#64748B',
+            grid: dark ? 'rgba(148, 163, 184, .18)' : 'rgba(100, 116, 139, .16)',
+        };
+    };
+    const applyChartTheme = () => {
+        const palette = chartPalette();
+        Chart.defaults.color = palette.text;
+        Chart.defaults.borderColor = palette.grid;
 
-    @if($hasCurrentData)
-    new Chart(document.getElementById('incomeExpenseChart'), {
+        charts.forEach(chart => {
+            chart.options.color = palette.text;
+            chart.options.plugins.legend.labels.color = palette.text;
+            Object.values(chart.options.scales ?? {}).forEach(scale => {
+                scale.ticks.color = palette.text;
+                scale.grid.color = palette.grid;
+            });
+            if (chart.canvas.id === 'periodComparisonChart' && chart.data.datasets[2]) {
+                chart.data.datasets[2].backgroundColor = palette.dark ? 'rgba(120, 177, 151, .72)' : 'rgba(10, 46, 42, .55)';
+            }
+            chart.update('none');
+        });
+    };
+    applyChartTheme();
+    window.addEventListener('gastotrack:theme-change', applyChartTheme);
+
+    const renderCharts = () => {
+        charts.splice(0).forEach(chart => chart.destroy());
+        const chartData = chartState.chart;
+        const chartLinks = chartState.links;
+        const periods = chartState.periods;
+        const incomeCanvas = document.getElementById('incomeExpenseChart');
+        const comparisonCanvas = document.getElementById('periodComparisonChart');
+
+        if (incomeCanvas) charts.push(new Chart(incomeCanvas, {
         type: 'line',
         data: {
             labels: chartData.labels,
@@ -333,28 +386,48 @@ document.addEventListener('DOMContentLoaded', () => {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            color: chartPalette().text,
             interaction: { intersect: false, mode: 'index' },
+            plugins: { legend: { labels: { color: chartPalette().text } } },
             onHover: (event, elements) => { if (event.native?.target) event.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
             onClick: (event, elements) => { if (elements.length && chartLinks[elements[0].index]) window.location.assign(chartLinks[elements[0].index]); },
-            scales: { y: { beginAtZero: true, ticks: { callback: moneyTick } } },
+            scales: {
+                x: { ticks: { color: chartPalette().text }, grid: { color: chartPalette().grid } },
+                y: { beginAtZero: true, ticks: { color: chartPalette().text, callback: moneyTick }, grid: { color: chartPalette().grid } },
+            },
         },
-    });
-    @endif
+        }));
 
-    new Chart(document.getElementById('periodComparisonChart'), {
+        if (comparisonCanvas) charts.push(new Chart(comparisonCanvas, {
         type: 'bar',
         data: {
             labels: periods.labels,
             datasets: [
                 { label: 'Recorded income', data: periods.income, backgroundColor: 'rgba(0, 168, 126, .75)' },
                 { label: 'Recorded expenses', data: periods.expenses, backgroundColor: 'rgba(225, 29, 72, .65)' },
-                { label: 'Net recorded movement', data: periods.movement, backgroundColor: 'rgba(10, 46, 42, .55)' },
+                { label: 'Net recorded movement', data: periods.movement, backgroundColor: chartPalette().dark ? 'rgba(120, 177, 151, .72)' : 'rgba(10, 46, 42, .55)' },
             ],
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: moneyTick } } } },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            color: chartPalette().text,
+            plugins: { legend: { labels: { color: chartPalette().text } } },
+            scales: {
+                x: { ticks: { color: chartPalette().text }, grid: { color: chartPalette().grid } },
+                y: { ticks: { color: chartPalette().text, callback: moneyTick }, grid: { color: chartPalette().grid } },
+            },
+        },
+        }));
+    };
+    renderCharts();
+    window.addEventListener('gastotrack:owner-live', event => {
+        const freshState = event.detail.freshDocument.querySelector('[data-owner-analytics-chart-state]');
+        if (!freshState) return;
+        chartState = JSON.parse(freshState.textContent);
+        renderCharts();
     });
 });
 </script>
-@endif
 </body>
 </html>

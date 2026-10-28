@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="mb-6">
-    <a href="{{ route('super-admin.bug-reports.show', $report) }}" class="text-sm font-bold text-emerald-700 hover:text-emerald-900">&larr; Report details</a>
+    <a href="{{ route('super-admin.bug-reports.show', $report) }}" class="inline-flex min-h-11 items-center rounded-lg text-sm font-bold text-emerald-700 hover:text-emerald-900">&larr; Report details</a>
     <p class="mb-1 mt-3 text-xs font-bold uppercase tracking-[.12em] text-emerald-700">Issue triage</p>
     <h1>Update bug report</h1>
     <p class="mt-2 text-sm text-slate-600">{{ $report->subject }}</p>
@@ -40,13 +40,13 @@
         <label class="text-sm font-bold text-slate-700">Status
             <select name="status" required class="mt-1.5 w-full rounded-xl border-slate-300 text-sm font-normal">@foreach(\App\Models\BugReport::STATUSES as $value)<option value="{{ $value }}" @selected(old('status', $report->status ?: 'open') === $value)>{{ ucwords(str_replace('_', ' ', $value)) }}</option>@endforeach</select>
         </label>
-        <label class="sm:col-span-2 text-sm font-bold text-slate-700">Update for reporter
+        <label class="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-950">Update for reporter
             <textarea name="public_update" maxlength="5000" rows="3" class="mt-1.5 w-full rounded-xl border-slate-300 text-sm font-normal">{{ old('public_update', $report->public_update) }}</textarea>
-            <span class="mt-1.5 block text-xs font-normal text-slate-500">Visible to the owner and the staff member who submitted the report.</span>
+            <span class="mt-1.5 block text-xs font-normal text-emerald-900">Visible to the owner and the staff member who submitted the report.</span>
         </label>
-        <label class="sm:col-span-2 text-sm font-bold text-slate-700">Internal resolution notes
+        <label class="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-800">Internal resolution notes
             <textarea name="resolution_notes" maxlength="5000" rows="3" class="mt-1.5 w-full rounded-xl border-slate-300 text-sm font-normal">{{ old('resolution_notes', $report->resolution_notes) }}</textarea>
-            <span class="mt-1.5 block text-xs font-normal text-slate-500">Visible to Super Admins only.</span>
+            <span class="mt-1.5 block text-xs font-normal text-slate-600">Visible to Super Admins only.</span>
         </label>
     </div>
     <div class="mt-7 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">

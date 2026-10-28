@@ -14,9 +14,9 @@ class StockItem extends Model
     ];
 
     protected $casts = [
-        'current_quantity'  => 'decimal:2',
-        'minimum_quantity' => 'decimal:2',
-        'unit_cost' => 'decimal:2',
+        'current_quantity'  => 'decimal:4',
+        'minimum_quantity' => 'decimal:4',
+        'unit_cost' => 'decimal:4',
         'active' => 'boolean',
     ];
 

@@ -82,6 +82,6 @@ class OwnerTwoFactorController extends Controller
 
         $request->session()->forget('owner.two_factor.recovery_codes');
 
-        return redirect()->route('dashboard');
+        return redirect()->route('dashboard')->with('owner.dashboard_loading', true);
     }
 }

@@ -1,0 +1,157 @@
+GASTOTRACK SYSTEM REVIEW
+Reviewed commit: 4322d14
+
+1. EXECUTIVE SUMMARY
+
+Alpha score: 47/100. Production score: 47/100. Both are in the Prototype band.
+Alpha verdict: CONDITIONAL GO for a supervised demonstration using synthetic data.
+Production verdict: NO-GO.
+The three largest blockers are unauthorized same-business transaction edits through sync, incorrect OCR totals reaching automatic recording, and device notifications being sufficient to confirm sales.
+Jest: 79 passed, 1 failed. Laravel: 89 passed, 41 failures, 2 errors. ESLint: 0 errors, 6 warnings.
+The web production build and Android debug build passed. Physical-device behavior and production MySQL correctness remain unverified.
+The 50% demonstration objective does not raise the score; passing tests alone does not establish 50% scope completion.
+The tracked working tree was unchanged during the review.
+
+2. WEIGHTED SCORECARD
+
+Scores use 0-5. READ means source inspection; RAN means an executed check.
+
+Dimension | Weight | Score | Confidence | Evidence | Biggest risk | Remedy
+Functional completeness | 15 | 3/5 | High | READ: web/routes/web.php, web/routes/api.php, App.tsx, SalesGoals::recordedSales() | Basic offline recording is not implemented as claimed | Define and test supported workflow boundaries
+Correctness and integrity | 15 | 2/5 | High | RAN: synthetic sync overwrite and OCR examples; READ: SyncController::sync(), OrderController::commitOrderFinancials() | Financial records can be incorrectly created or overwritten | Secure sync mutations and require reliable receipt totals
+Security and privacy | 15 | 2/5 | High | READ: owner security middleware, Fortify, PIN gate; RAN: cross-staff overwrite | Sync bypasses ownership protection used by normal editing | Apply one authorization policy to every write path
+Reliability | 10 | 2/5 | High | READ: WalletCaptureSync.js, WalletCaptureStore.java | A rejected capture can block later uploads | Add per-item outcomes and quarantine
+UX and accessibility | 10 | 3/5 | Medium | READ: shared components, staff screens, web/resources/css/app.css | Visual and assistive-technology behavior untested | Test keyboard, TalkBack, contrast, and small screens
+Testing and QA | 10 | 2/5 | High | RAN: complete Jest, Laravel, and ESLint suites | Failures prevent a dependable regression baseline | Repair fixtures, investigate failures, and gate CI
+Performance | 5 | 3/5 | Medium | READ: paginated wallet queries; SyncController::sync(); SalesGoals::recordedSales() | Unbounded sync responses and materialized report collections | Paginate sync and benchmark large tenants
+Architecture | 5 | 3/5 | High | READ: services/controllers; OrderQueueScreen.js has 1,480 lines | Large screens and inconsistent validation | Extract workflow services and shared policies
+Deployment and operations | 5 | 2/5 | Medium | READ: release workflow; RAN: web/Android builds | CI does not enforce application tests | Add test gates, monitoring, and restore verification
+AI and OCR safety | 4 | 2/5 | High | RAN: OCR edge cases; READ: scanner and AI controller | Wrong extracted amounts can autosave | Separate extraction confidence from permission to save
+Documentation | 3 | 2/5 | High | READ: README and system diagrams | Payment and schema descriptions are stale | Update documentation from verified behavior
+Thesis alignment | 3 | 2/5 | High | READ: offline, payment, OCR, and onboarding paths | Contradictory claims describe different behavior | Revise scope and limitations to match implementation
+
+Weighted calculation: 9 + 6 + 6 + 4 + 6 + 4 + 3 + 3 + 2 + 1.6 + 1.2 + 1.2 = 47/100.
+The financial-integrity cap of 69 applies because a financial-record overwrite was reproduced and an incorrect receipt amount demonstrated. It does not change the lower score. No critical authentication bypass or cross-business leak was established, so the security cap of 59 was not applied.
+
+Inventory: bare React Native 0.87.1 and React 19.2.3; Laravel 13 dependency range with PHP ^8.4.1, Sanctum, and Fortify; Blade, Alpine, Tailwind, and Vite 8.3.1. Native integrations include a notification listener, SQLite wallet queue, ML Kit OCR, camera, and OS Keychain. Mobile uses Keychain for credentials/PIN and AsyncStorage for local state. AI calls Gemini from the backend. There is one Android/Firebase distribution workflow and no application-test CI job. Thirty-five migration files define 25 application/framework tables, excluding migration history. These include users, businesses, transactions, goals, products, ingredients, stock items/movements, orders/items/payment events, wallet captures, notifications, activity logs, transaction options, bug reports, trusted devices, tokens, and framework tables.
+
+3. MODULE SCORECARDS
+
+Mobile Staff app - 60/100. Risks: wrong receipt totals can autosave; PIN attempt count resets on restart; no durable order/manual-transaction outbox.
+Native Android module - 40/100. Risks: real wallet formats unverified; rejected captures can stall uploads; queue lifecycle and retention need testing.
+Backend API - 40/100. Risks: sync permits cross-staff financial edits; notification payloads can confirm sales without provider verification; stock adjustment retries lack idempotency.
+Owner web dashboard - 60/100. Risks: many tests encounter MFA redirects; trusted-device expiry boundaries need testing; visual/accessibility behavior unverified.
+Super Admin portal - 60/100. Risks: test failures weaken confidence; CSV export needs formula-injection hardening; operational oversight is limited.
+Database schema - 60/100. Risks: production MySQL not exercised; quantity precision differs from some four-decimal calculations; application policy gaps remain despite constraints.
+
+Demonstrated sync defect: In isolated SQLite memory with synthetic records, staff A's PHP 245 income transaction was submitted to SyncController::sync() by staff B using its client_id. It became a PHP 1 expense owned by staff B. The controller matches client_id and business_id but does not enforce the original staff owner. This establishes a same-business authorization and financial-integrity defect, not a cross-business leak. Evidence: web/app/Http/Controllers/API/SyncController.php, sync().
+
+4. TEN PRIORITIZED FIXES
+
+1) Secure sync writes. Why: prevents demonstrated cross-staff overwrite. Files: API/SyncController.php and API/TransactionController.php. Effort: S-M. Verify staff B cannot change staff A's record and rejected requests leave all fields unchanged.
+2) Reject ambiguous OCR totals. Why: cash tendered can become the recorded amount. Files: OCRService.js and ReceiptScannerScreen.js. Effort: M. Verify split-line TOTAL 245/CASH 500 yields 245 or review/error, never automatic 500.
+3) Separate notification matching from payment confirmation or require authorized staff verification. Why: a matching device signal alone can commit a sale. Files: API/OrderController.php and OrderQueueScreen.js. Effort: M. Verify a fabricated notification cannot commit a sale and audit metadata matches actual verification.
+4) Repair fixtures and investigate remaining test failures. Why: the suites are not a reliable regression gate. Files: web/tests/TestCase.php and affected PHP/Jest tests. Effort: M. Verify full suites pass without weakening assertions or security.
+5) Add test/lint CI gates before distribution. Why: the release workflow does not run application tests. Files: .github/workflows/. Effort: S. Verify failing Jest or Laravel tests prevent a release.
+6) Quarantine rejected wallet captures. Why: one bad item may block later valid uploads. Files: WalletCaptureSync.js, WalletCaptureStore.java, wallet API controller. Effort: M. Verify one invalid item is isolated while later captures sync once.
+7) Persist PIN lockout and define recovery. Why: restart resets attempt accounting. Files: StaffPinGate.js and staffPinStorage.js. Effort: M. Verify restart does not reset failed attempts and recovery checks identity.
+8) Add stock-adjustment idempotency. Why: retry after a lost response can adjust stock twice. Files: API/StockController.php and mobile caller. Effort: M. Verify identical retried requests change stock once.
+9) Preserve original trusted-device MFA expiry. Why: restoring trust near expiry writes a fresh verified timestamp. Files: OwnerTrustedDeviceService.php and EnsureOwnerAccountSecurity.php. Effort: S-M. Verify restoration near day 30 cannot create another 30-day MFA allowance. Actual browser-session lifetime may shorten the effect; this finding is static.
+10) Standardize stock/recipe precision and test MySQL. Why: some calculations round to four decimals while quantities are stored at two. Files: quantity migrations, models, order financial logic. Effort: M. Verify fractional deductions and reversals reconcile exactly.
+
+5. THESIS ALIGNMENT
+
+Claim | Actual behavior | Assessment
+Three separate roles | Role-specific web routes and staff-only API sign-in | MATCH
+Owners manage products, staff, inventory, financial records, goals | Owner controllers/views provide these | MATCH, subject to tests
+Cash and cashless POS | Both exist | MATCH, with payment trust issue
+Wallet notifications require manual verification | Matching signal can automatically complete and commit order | CONFLICT
+Only GCash/Maya capture | These are stored; native parser recognizes more wallet packages | MATCH for persisted captures
+On-device OCR then AI categorization | ML Kit extracts text; backend AI suggests configured category | MATCH
+Successful OCR requires staff verification | Successful categorization may save directly | CONFLICT if retained in thesis
+Manual fallback when AI fails | Manual category/edit flow exists | MATCH
+Basic transactions and inventory work offline and sync later | No complete mobile outbox found | MISSING
+Offline limited to local carts and queued notifications | Matches inspected behavior more closely | MATCH
+Recipe-based deduction | Server deductions, snapshots, locks, reversals exist | MATCH, pending precision/concurrency testing
+Substitutes for low or unavailable stock | Inspected AI endpoint targets out-of-stock items | PARTIAL
+Weekly/monthly sales goals | Calculated from eligible orders and ledger sales | MATCH
+Database-driven analytics | Inspected reports use database records | MATCH
+Super Admin does not browse private transaction/order records | Inspected controllers do not query these for viewing | MATCH within reviewed paths
+Staff onboarding through unique codes | Owners create staff accounts with passwords | MISSING if claimed
+Budgets, split bills, multi-branch, automated substitutions excluded | Not established as implemented | CONSISTENT with limitations
+
+Thesis correction: retain the limited-offline statement and remove the claim that basic financial and stock mutations work offline. Resolve the contradiction between manual notification verification and the automatic-confirmation path.
+
+6. REGRESSION VERIFICATION
+
+CONFIRMED means the stated claim is supported; it does not mean the behavior is desirable.
+
+A. Previously reported as open
+- No offline outbox for orders/manual transactions: CONFIRMED. Mobile financial writes depend on API success; local carts and wallet queue do not form a complete outbox. No NetInfo dependency found.
+- No crash reporting integration: CONFIRMED. No Sentry/Crashlytics integration found in inspected manifests/build configuration.
+- Only CI workflow distributes APK without application tests: CONFIRMED. See .github/workflows/android-firebase-distribution.yml.
+- Only GCash/Maya stored despite additional native parsing: CONFIRMED. See wallet API validation and WalletCaptureStore.java.
+- One rejected capture can block later captures: CONFIRMED. WalletCaptureSync.js retries unacknowledged batches without quarantine.
+- Raw view admits promotional noise due to no Payments only button: REFUTED as stated. Queries use transactionSignals() and batch validation rejects nontransaction signals. Real-world parser accuracy unverified.
+- Split-line TOTAL 245/CASH 500 selects 500: CONFIRMED, RAN. See OCRService.js extractAmount().
+- 19/10/2026 becomes invalid 2026-19-10; future date detected: CONFIRMED at parser level, RAN. Scanner validation later rejects invalid/future dates before saving.
+- GCash received PHP 1 screenshot becomes Expense: CONFIRMED, RAN. Conservative for purchase receipts but unsuitable as a general wallet-image classifier; explicit documentation not established.
+- Super Admin controllers contain no Transaction/Order queries: CONFIRMED for inspected controllers. This does not imply operators lack database access.
+- Owners create staff with passwords, not codes: CONFIRMED. StaffController::store() hashes a password.
+
+B. Previously reported as fixed or new
+- Release rejects non-HTTPS API URLs: CONFIRMED in source, src/config/apiConfig.js and release guards. Actual signed release not built.
+- Order idempotency, locking, refund audit events: CONFIRMED in source; production concurrency unverified.
+- PIN attempt count in React state resets on restart: CONFIRMED. Restart still requires PIN, so killing the app is not an immediate unlock.
+- Owner MFA is custom TOTP with no package: REFUTED. Fortify and Google2FA are installed; time-window checking, constant-time comparison, and replay-cache handling exist.
+- Product/profile uploads validate type and size: CONFIRMED. API validates JPEG/PNG/WebP up to 5 MB.
+- Violation reports renamed to bug reports; diagram stale: CONFIRMED. Reversible 2026_10_16_130000 migration; diagram still shows VIOLATION_REPORTS and omits owner_trusted_devices.
+- Tests were only statically counted: REFUTED for this review. Twenty Jest suites/80 tests and 132 Laravel tests were executed.
+- Four wallets are captured: REFUTED for persisted captures. Only GCash/Maya accepted.
+- Gemini Vision performs OCR: REFUTED. ML Kit runs on-device.
+- Owners use operational Android app: REFUTED. API login restricts staff and mobile blocks owners.
+- Complete offline-to-online financial sync exists: REFUTED. Wallet queue exists; full financial outbox does not.
+- Staff onboarding uses unique codes: REFUTED. Owner-created accounts use passwords.
+
+MFA note: Fortify/Google2FA supplies time-window checking and hash_equals comparison. Recovery codes are encrypted and replaced after use. Trusted-device tokens are stored as hashes; the cookie is HttpOnly and secure in production. Concurrent replay resistance, recovery-code races, and exact expiry boundaries were not proven.
+
+7. DEMONSTRATED STRENGTHS
+
+1) commitOrderFinancials() and reversal logic centralize financial effects with database transactions, stock locks, and recorded financial state.
+2) Schema constraints help prevent duplicate order sales, reversals, and payment references.
+3) Owner security uses Fortify, encrypted MFA data, and hashed trusted-device tokens.
+4) Bug-report access is scoped: staff access is reporter/business-limited, screenshots use authorized private routes, and resolution notes are separate.
+5) Web production build and Android debug APK generation succeeded with installed dependencies.
+
+8. UNVERIFIED AREAS AND QUALIFICATIONS
+
+- Physical Android installation/behavior: permissions, process termination, camera/photos, keyboard overlap, PIN interaction.
+- Real wallet notifications: formats, false positives, delayed delivery, reference extraction.
+- Production MySQL/MariaDB: locking, SQL mode, precision, migration status. Isolated tests used SQLite.
+- Live AI: no Gemini calls, adversarial prompt tests, factual-accuracy or cost measurements.
+- OCR accuracy: synthetic edge cases reproduced; no representative receipt dataset measured.
+- Accessibility: source provisions seen; TalkBack, contrast, focus order, and responsive rendering not interactively audited.
+- Operations: backup restoration, production TLS, hosted availability, crash alerts, Firebase distribution not exercised.
+- Security: no full penetration test, concurrent token/recovery replay test, or cross-tenant fuzzing.
+- Privacy: notification disclosure, minimization, and retention need product review; this makes no legal-compliance determination.
+- Earlier ZIP, SQL dump, and unrelated document attachments were outside this repository review.
+
+Test-failure qualification: 41 Laravel failures do not establish 41 broken features. web/tests/TestCase.php sets owner.two_factor_user_id but omits owner.two_factor_verified_at, now required by middleware; this explains many redirects. Other failures include revoked-token reuse returning 200 within a multi-request test, category and seeder expectations, route-method expectations, an undefined stock-notification array index, and a nonexistent TopSellingProductsTest helper. The token-test failure alone does not establish a production auth bypass. The failing Jest wallet test omits the official reference number required by the current screen.
+
+9. COMMANDS EXECUTED AND RESULTS
+
+- git rev-parse --short HEAD: 4322d14.
+- Initial/final git status --short and final git diff --stat: clean; no tracked changes during review.
+- npm.cmd test -- --runInBand: 19 suites passed, 1 failed; 79 tests passed, 1 failed.
+- npm.cmd run lint: 0 errors, 6 warnings.
+- PHP 8.4 artisan test --compact in web/: 132 tests; 89 passed, 41 failures, 2 errors, 691 assertions.
+- Focused token-session check: revoked-token expectation still failed; production cause unverified.
+- npm.cmd run build -- --outDir "$env:TEMP\gastotrack-review-web-4322d14": passed; output outside tracked source.
+- .\gradlew.bat :app:assembleDebug --offline --no-daemon: blocked by Gradle user-home lock access.
+- Same build with --gradle-user-home C:\Users\Chris\.gradle: passed; 339 actionable tasks and deprecation warnings.
+- In-memory Node OCR reproductions: confirmed wrong total, invalid/future detected dates, and Expense classification.
+- Initial isolated PHP sync reproduction: blocked because Business::factory() does not exist.
+- Corrected isolated PHP sync reproduction: confirmed cross-staff overwrite using synthetic SQLite in-memory records only.
+- Source inspection used Get-Content, rg, file enumeration, and Git checks across manifests, routes, migrations, controllers, screens, dependencies, tests, and workflow.
+
+No source fixes, dependency installations, business-database migrations, deployments, commits, or pushes were part of the review. Disposable test/build artifacts were generated.

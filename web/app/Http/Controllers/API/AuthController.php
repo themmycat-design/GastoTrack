@@ -32,6 +32,7 @@ class AuthController extends Controller
         }
 
         abort_if($user->status !== 'active', 403, 'This account is inactive. Contact your business owner.');
+        abort_if($user->must_reset_password, 403, 'A password reset is required before signing in. Check your email.');
         abort_if(!$user->isStaff(), 403, 'Only staff accounts can sign in through the GastoTrack mobile app.');
 
         $business = $user->business;
@@ -48,6 +49,7 @@ class AuthController extends Controller
         }
 
         abort_if($business->isInactive() || !$business->active, 403, 'This business is inactive.');
+        abort_if($business->subscriptionNeedsRenewal(), 403, 'Your subscription has expired or is suspended. Contact the platform administrator to renew.');
 
         // Delete old tokens and create new one
         $user->tokens()->delete();

@@ -20,10 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'owner' => \App\Http\Middleware\EnsureUserIsOwner::class,
-            'set.database' => \App\Http\Middleware\SetDatabaseConnection::class,
             'super_admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
             'business.active' => \App\Http\Middleware\EnsureBusinessIsActive::class,
             'owner.security' => \App\Http\Middleware\EnsureOwnerAccountSecurity::class,
+            'owner.subscription.write' => \App\Http\Middleware\EnsureOwnerSubscriptionCanWrite::class,
+            'platform.account.active' => \App\Http\Middleware\EnsurePlatformAccountActive::class,
         ]);
         
     })

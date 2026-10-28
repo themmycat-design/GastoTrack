@@ -227,7 +227,7 @@ class BackendApiTest extends TestCase
         $this->putJson('/api/v1/stock/'.$stock['id'], ['name' => 'Renamed by Staff'], $staffHeaders)->assertForbidden();
         $this->postJson('/api/v1/stock/'.$stock['id'].'/adjust', [
             'type' => 'add', 'quantity' => 50, 'reason' => 'Supplier delivery',
-        ], $staffHeaders)->assertOk()->assertJsonPath('item.current_quantity', '650.00');
+        ], $staffHeaders)->assertOk()->assertJsonPath('item.current_quantity', '650.0000');
         $this->postJson('/api/v1/stock/'.$stock['id'].'/adjust', [
             'type' => 'deduct', 'quantity' => 1000, 'reason' => 'Invalid count',
         ], $staffHeaders)->assertUnprocessable();
@@ -260,7 +260,7 @@ class BackendApiTest extends TestCase
         $this->putJson('/api/v1/transactions/'.$orderTransaction->id, [
             'amount' => 1,
         ], $staffHeaders)->assertStatus(409);
-        $this->deleteJson('/api/v1/transactions/'.$orderTransaction->id, [], $staffHeaders)->assertForbidden();
+        $this->deleteJson('/api/v1/transactions/'.$orderTransaction->id, [], $staffHeaders)->assertStatus(409);
 
         $this->app['auth']->forgetGuards();
         $this->putJson('/api/v1/orders/'.$order['id'], ['status' => 'completed'], $ownerHeaders)->assertForbidden();

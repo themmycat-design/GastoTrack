@@ -1,7 +1,6 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,12 +9,14 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import {useFocusEffect} from '@react-navigation/native';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useTransactions} from '../../context/TransactionContext';
 import {useProducts} from '../../context/ProductContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 
 const TransactionOptionsScreen = ({navigation, route}) => {
@@ -173,7 +174,7 @@ const TransactionOptionsScreen = ({navigation, route}) => {
         </View>
 
         <ApiErrorBanner message={optionsError} onRetry={fetchTransactionOptions} />
-        {optionsLoading ? <ActivityIndicator style={styles.loader} color={COLORS.accent} /> : groups.map(group => (
+        {optionsLoading && !groups.some(group => group.values.length) ? <OptionsSkeleton groupCount={groups.length} /> : groups.map(group => (
           <View key={group.key} style={styles.listCard}>
             <Text style={styles.sectionTitle}>{group.title}</Text>
             {group.values.map((value, index) => {
@@ -198,14 +199,32 @@ const TransactionOptionsScreen = ({navigation, route}) => {
   );
 };
 
+const OptionsSkeleton = ({groupCount}) => (
+  <SkeletonPlaceholder style={styles.skeletonOptions} accessibilityLabel="Loading categories and payment sources">
+    {Array.from({length: groupCount}, (_, group) => (
+      <View key={group} style={styles.skeletonOptionsCard}>
+        <SkeletonBlock width={group === 0 ? 136 : 112} height={12} style={styles.skeletonOptionsGroupTitle} />
+        {[0, 1, 2].map(row => (
+          <View key={row} style={styles.skeletonOptionRow}>
+            <SkeletonBlock width={34} height={34} radius={10} />
+            <SkeletonBlock width={row === 1 ? '48%' : '65%'} height={13} style={styles.skeletonOptionLabel} />
+            <SkeletonBlock width={22} height={22} radius={7} />
+          </View>
+        ))}
+      </View>
+    ))}
+  </SkeletonPlaceholder>
+);
+
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
   content: {padding: 16, paddingBottom: 28},
   addCard: {backgroundColor: COLORS.surface, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: 16, ...SHADOWS.card},
   cardHeading: {flexDirection: 'row', alignItems: 'center'}, headingIcon: {width: 44, height: 44, borderRadius: 13, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, headingCopy: {flex: 1, marginLeft: 11}, cardTitle: {fontSize: 16, fontWeight: '700', color: COLORS.textDark},
-  typeSelector: {flexDirection: 'row', backgroundColor: COLORS.surfaceMuted, borderRadius: RADIUS.pill, padding: 4, marginTop: 12}, typeButton: {flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill}, typeButtonActive: {backgroundColor: COLORS.accent}, typeText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray}, typeTextActive: {color: '#FFFFFF'},
-  inputRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12}, input: {flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13, fontSize: 14, color: COLORS.textDark}, addButton: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center'}, cancelButton: {width: 44, height: 48, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center'}, disabled: {opacity: 0.6},
-  loader: {marginTop: 22}, listCard: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, marginTop: 12}, sectionTitle: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.7, paddingTop: 12, paddingBottom: 6}, optionRow: {minHeight: 50, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border}, lastRow: {borderBottomWidth: 0}, optionIcon: {width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, optionName: {flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginLeft: 9}, editButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}, deleteButton: {width: 38, height: 38, alignItems: 'center', justifyContent: 'center'},
+  typeSelector: {flexDirection: 'row', backgroundColor: COLORS.surfaceMuted, borderRadius: RADIUS.pill, padding: 4, marginTop: 12}, typeButton: {flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill}, typeButtonActive: {backgroundColor: COLORS.accentDark}, typeText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray}, typeTextActive: {color: '#FFFFFF'},
+  inputRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12}, input: {flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 13, fontSize: 14, color: COLORS.textDark}, addButton: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center'}, cancelButton: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center'}, disabled: {opacity: 0.6},
+  skeletonOptions: {marginTop: 12}, skeletonOptionsCard: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, paddingTop: 13, paddingBottom: 5, marginTop: 10}, skeletonOptionRow: {minHeight: 50, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border}, skeletonOptionsGroupTitle: {marginBottom: 12}, skeletonOptionLabel: {flex: 1, marginLeft: 10},
+  listCard: {backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, marginTop: 12}, sectionTitle: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.7, paddingTop: 12, paddingBottom: 6}, optionRow: {minHeight: 50, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border}, lastRow: {borderBottomWidth: 0}, optionIcon: {width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, optionName: {flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginLeft: 9}, editButton: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center'}, deleteButton: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center'},
 });
 
 export default TransactionOptionsScreen;

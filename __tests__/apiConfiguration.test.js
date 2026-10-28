@@ -39,6 +39,17 @@ describe('order retry identity', () => {
     const retry = {items: [{product_id: 1, quantity: 2}, {product_id: 2, quantity: 1}], payment_method: 'gcash'};
     expect(orderRequestSignature(first)).toBe(orderRequestSignature(retry));
   });
+
+  it('keeps recipe variants distinct in order retry signatures', () => {
+    const regular = {product_id: 7, quantity: 1};
+    const noSugar = {product_id: 7, quantity: 1,
+      ingredient_overrides: [{stock_item_id: 11, quantity: 0}]};
+    const halfSugar = {product_id: 7, quantity: 1,
+      ingredient_overrides: [{stock_item_id: 11, quantity: 10}]};
+    const payload = {items: [regular, noSugar], payment_method: 'cash'};
+    expect(orderRequestSignature(payload)).toBe(orderRequestSignature({...payload, items: [noSugar, regular]}));
+    expect(orderRequestSignature(payload)).not.toBe(orderRequestSignature({...payload, items: [regular, halfSugar]}));
+  });
 });
 
 describe('API error feedback', () => {

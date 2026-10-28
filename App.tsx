@@ -18,14 +18,16 @@ import LoginScreen from './src/screens/LoginScreens';
 import OwnerBlockedScreen from './src/screens/auth/OwnerBlockedScreen';
 import { COLORS } from './src/theme';
 import AppErrorBoundary from './src/components/AppErrorBoundary';
+import AppDialogHost from './src/components/AppDialogHost';
 import WalletCaptureSync from './src/components/WalletCaptureSync';
+import StaffOfflineSync from './src/components/StaffOfflineSync';
 import StaffPinGate from './src/components/StaffPinGate';
 
 const RootStack = createNativeStackNavigator();
 
 // Ginawa natin itong hiwalay na component para maka-access sa AuthContext
 const AppNav = () => {
-  const { isLoading, userToken, userRole, user, logout } = useContext(AuthContext);
+  const { isLoading, userToken, userRole, user, logout, freshPasswordSignIn, consumeFreshPasswordSignIn } = useContext(AuthContext);
 
   console.log('[AppNav] isLoading:', isLoading, 'userToken:', userToken ? 'exists' : 'null');
 
@@ -56,7 +58,8 @@ const AppNav = () => {
   // Kapag nakapag-login na, ilalabas na yung original RootStack mo
   console.log('[AppNav] User logged in, showing StaffNavigator');
   return (
-    <StaffPinGate key={user.id} userId={user.id} onSignOut={logout}>
+    <StaffPinGate key={user.id} userId={user.id} onSignOut={logout}
+      passwordAuthenticated={freshPasswordSignIn} onPinUnlocked={consumeFreshPasswordSignIn}>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         <RootStack.Screen name="Main" component={StaffNavigator} />
         <RootStack.Screen name="ReceiptScanner" component={ReceiptScannerScreen} />
@@ -70,6 +73,7 @@ const App = () => (
     <AuthProvider>
       <AppErrorBoundary>
         <WalletCaptureSync />
+        <StaffOfflineSync />
         <StockProvider>
           <ProductProvider>
             <TransactionProvider>
@@ -77,6 +81,7 @@ const App = () => (
                 <NavigationContainer>
                   <AppNav />
                 </NavigationContainer>
+                <AppDialogHost />
               </OrderProvider>
             </TransactionProvider>
           </ProductProvider>

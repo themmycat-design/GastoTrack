@@ -2,6 +2,7 @@
 
 import Alpine from 'alpinejs';
 import { initOwnerMotion } from './owner-motion';
+import { initOwnerLive } from './owner-live';
 
 window.Alpine = Alpine;
 
@@ -71,6 +72,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const revealItems = [...document.querySelectorAll('.gt-scroll-reveal')]
     .filter(item => !item.closest('.gt-owner-page'));
 initOwnerMotion(reducedMotion);
+initOwnerLive();
 
 const welcomeHero = document.querySelector('.gt-welcome-hero');
 const cursorGlow = welcomeHero?.querySelector('.gt-welcome-cursor-glow');

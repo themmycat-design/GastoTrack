@@ -30,6 +30,26 @@ describe('receipt scanning and review suggestions', () => {
     expect(formatForTransaction(parsed, expenseCategories).category).toBe('Ingredients');
   });
 
+  it('reads a split-line total without substituting cash tendered or item prices', () => {
+    expect(parseReceiptData('Coffee shop\nTOTAL\n245.00\nCASH\n500.00').amount).toBe(245);
+    expect(parseReceiptData('Coffee shop\nCoffee PHP 245.00\nCASH TENDERED PHP 500.00').amount).toBeNull();
+    expect(parseReceiptData('Coffee shop\nTOTAL 245.00\nGRAND TOTAL 500.00').amount).toBeNull();
+  });
+
+  it('validates dates and does not invent missing or ambiguous dates', () => {
+    expect(parseReceiptData('Cafe\n19/10/2026\nTOTAL 245.00').date).toBe('2026-10-19');
+    expect(parseReceiptData('Cafe\n03/04/2026\nTOTAL 245.00').dateDetected).toBe(false);
+    expect(parseReceiptData('Cafe\n01/01/2099\nTOTAL 245.00').date).toBeNull();
+    expect(parseReceiptData('Cafe\n31/02/2026\nTOTAL 245.00').date).toBeNull();
+    expect(parseReceiptData('Cafe\nTOTAL 245.00').date).toBeNull();
+  });
+
+  it('does not classify a bare wallet notification as an expense receipt', () => {
+    const parsed = parseReceiptData('GCash\nYou have received PHP 1.00');
+    expect(parsed.type).toBeNull();
+    expect(parsed.amount).toBeNull();
+  });
+
   it('matches packaging to an available shop category, never an invisible option', () => {
     const parsed = parseReceiptData('Milk Tea Shop\nPaper cups\nTOTAL PHP 95.00');
     expect(formatForTransaction(parsed, expenseCategories).category).toBe('Supplies');

@@ -8,6 +8,7 @@ use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\NotificationService;
+use Illuminate\Database\QueryException;
 
 class StockController extends Controller
 {
@@ -33,10 +34,10 @@ class StockController extends Controller
         abort_unless($request->user()->isOwner() || $request->user()->isStaff(), 403, 'Only owners and staff can create stock items.');
         $request->validate([
             'name'      => 'required|string|max:255',
-            'current_quantity' => 'required|numeric|min:0',
-            'unit'      => 'required|string',
-            'minimum_quantity' => 'required|numeric|min:0',
-            'unit_cost' => 'required|numeric|min:0',
+            'current_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit'      => 'required|string|max:50',
+            'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
         ]);
 
         $item = StockItem::create([
@@ -78,7 +79,8 @@ class StockController extends Controller
 
         $data = $request->validate([
             'name' => 'sometimes|string|max:255', 'unit' => 'sometimes|string|max:50',
-            'minimum_quantity' => 'sometimes|numeric|min:0', 'unit_cost' => 'sometimes|numeric|min:0',
+            'minimum_quantity' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'sometimes|boolean',
         ]);
         $item->update($data);
@@ -116,26 +118,58 @@ class StockController extends Controller
     {
         $request->validate([
             'type'     => 'required|in:add,deduct',
-            'quantity' => 'required|numeric|min:0.01',
+            'quantity' => 'required|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
             'reason'   => 'nullable|string|max:500',
             'movement_category' => 'nullable|in:adjustment,waste',
+            'client_id' => 'nullable|uuid',
+            'offline_recorded_at' => 'nullable|date',
         ]);
+
+        $offlineRecordedAt = $request->filled('offline_recorded_at')
+            ? \Carbon\CarbonImmutable::parse($request->input('offline_recorded_at'))->utc()
+            : null;
+        abort_if($offlineRecordedAt && (!$request->filled('client_id')
+            || $offlineRecordedAt->greaterThan(now()->addMinutes(2))
+            || $offlineRecordedAt->lessThan(now()->subDays(30))), 422,
+            'The offline stock adjustment time is invalid or outside the allowed 30-day range.');
 
         $movementCategory = $request->input('movement_category', 'adjustment');
         abort_if($movementCategory === 'waste' && $request->type !== 'deduct', 422, 'Waste can only be recorded when deducting stock.');
 
-        $item = DB::transaction(function () use ($request, $id, $movementCategory) {
+        $clientId = $request->input('client_id');
+        $reason = $request->input('reason') ?: 'Manual adjustment';
+
+        try {
+            [$item, $created] = DB::transaction(function () use ($request, $id, $movementCategory, $clientId, $reason, $offlineRecordedAt) {
             $item = StockItem::where('business_id', $request->user()->business_id)
                 ->lockForUpdate()
                 ->findOrFail($id);
+            if ($clientId) {
+                $existing = StockMovement::where('client_id', $clientId)->lockForUpdate()->first();
+                if ($existing) {
+                    abort_unless((int) $existing->stock_item_id === (int) $item->id, 409,
+                        'This stock adjustment identifier cannot be reused.');
+                    abort_unless((int) $existing->user_id === (int) $request->user()->id, 403,
+                        'Only the original recorder can retry this adjustment.');
+                    $same = $existing->type === ($request->type === 'add' ? 'in' : 'out')
+                        && (int) round((float) $existing->quantity * 10000) === (int) round((float) $request->quantity * 10000)
+                        && $existing->reason === $reason
+                        && $existing->movement_category === $movementCategory
+                        && ($existing->offline_recorded_at?->timestamp === $offlineRecordedAt?->timestamp)
+                        && $existing->order_id === null && $existing->reversal_of_id === null;
+                    abort_unless($same, 409, 'This adjustment identifier was already used with different details.');
+                    return [$item, false];
+                }
+            }
             $before = (float) $item->current_quantity;
             $quantity = (float) $request->quantity;
 
             if ($request->type === 'add') {
-                $item->current_quantity = $before + $quantity;
+                $item->current_quantity = round($before + $quantity, 4);
+                abort_if($item->current_quantity > 99999999.9999, 422, 'Adjustment would exceed the maximum stock quantity.');
             } else {
                 abort_if($quantity > $before, 422, 'Adjustment would make stock negative.');
-                $item->current_quantity = $before - $quantity;
+                $item->current_quantity = round($before - $quantity, 4);
             }
 
             $item->save();
@@ -145,16 +179,22 @@ class StockController extends Controller
                 'quantity'        => $quantity,
                 'previous_quantity' => $before,
                 'new_quantity'     => $item->current_quantity,
-                'reason'          => $request->reason ?? 'Manual adjustment',
+                'reason'          => $reason,
                 'user_id'         => $request->user()->id,
                 'movement_category' => $movementCategory,
                 'unit_cost_at_movement' => $item->unit_cost,
+                'client_id' => $clientId,
+                'offline_recorded_at' => $offlineRecordedAt,
+                'created_at' => $offlineRecordedAt ?: now(),
             ]);
 
-            return $item;
-        });
+            return [$item, true];
+            });
+        } catch (QueryException $exception) {
+            abort(409, 'This stock adjustment identifier conflicted with another request. Retry to retrieve its result.');
+        }
 
-        app(NotificationService::class)->notifyLowStock($item);
+        if ($created) app(NotificationService::class)->notifyLowStock($item);
 
         $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);
 

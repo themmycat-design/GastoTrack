@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   button: {
     minHeight: 48,
     borderRadius: 12,
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,

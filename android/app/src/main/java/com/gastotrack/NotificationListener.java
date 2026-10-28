@@ -9,6 +9,7 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
+import org.json.JSONObject;
 
 public class NotificationListener extends NotificationListenerService {
 
@@ -66,14 +67,16 @@ public class NotificationListener extends NotificationListenerService {
 
         // Persist before emitting: the React Native runtime may not be alive
         // while Android delivers a notification in the background.
+        JSONObject capture;
         try {
-            WalletCaptureStore.getInstance(this).capture(sbn, parsed);
+            capture = WalletCaptureStore.getInstance(this).capture(sbn, parsed);
         } catch (RuntimeException ignored) {
             // A storage failure must not crash Android's notification listener.
+            return;
         }
 
-        // Emit the parsed transaction to the React Native JS side
-        emitTransactionEvent(parsed);
+        // Only a persisted, account-scoped transaction can trigger an order match.
+        if (capture != null) emitTransactionEvent(parsed, capture);
     }
 
     @Override
@@ -84,7 +87,7 @@ public class NotificationListener extends NotificationListenerService {
     // ----------------------------------------------------------------
     // Emit event to JavaScript via React Native event emitter
     // ----------------------------------------------------------------
-    private void emitTransactionEvent(NotificationParser.ParsedTransaction parsed) {
+    private void emitTransactionEvent(NotificationParser.ParsedTransaction parsed, JSONObject capture) {
         if (reactContext == null) return;
         if (!reactContext.hasActiveCatalystInstance()) return;
 
@@ -95,6 +98,7 @@ public class NotificationListener extends NotificationListenerService {
         params.putString("merchant",         parsed.merchant != null ? parsed.merchant : "");
         params.putString("reference",        parsed.reference != null ? parsed.reference : "");
         params.putString("rawMessage",       parsed.rawMessage);
+        params.putString("capturePayload", capture.toString());
 
         reactContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)

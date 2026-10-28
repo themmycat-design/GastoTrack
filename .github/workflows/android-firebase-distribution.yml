@@ -89,6 +89,30 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Verify mobile tests and lint before signing
+        run: |
+          npm test -- --runInBand
+          npm run lint -- --no-fix
+
+      - name: Set up PHP for API regression tests
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Verify Laravel API before signing
+        working-directory: web
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+          php artisan test
+
       - name: Prepare production API configuration and signing key
         shell: bash
         env:

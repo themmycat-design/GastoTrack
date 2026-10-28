@@ -186,7 +186,7 @@ class SuperAdminTest extends TestCase
         $this->actingAs($admin)
             ->get(route('super-admin.businesses'))
             ->assertOk()
-            ->assertSee('Delete');
+            ->assertSee('Archive');
 
         $this->assertDatabaseHas('users', [
             'email' => 'owner@sunrisecafe.example',
@@ -348,7 +348,7 @@ class SuperAdminTest extends TestCase
 
         $this->actingAs($admin)->get(route('super-admin.bug-reports.index'))->assertOk()->assertSee('Policy complaint');
         $this->actingAs($admin)->get('/super-admin/bug-reports/create')->assertNotFound();
-        $this->actingAs($admin)->post('/super-admin/bug-reports', [])->assertNotFound();
+        $this->actingAs($admin)->post('/super-admin/bug-reports', [])->assertStatus(405);
 
         $this->actingAs($admin)->put(route('super-admin.bug-reports.update', $report), [
             'business_id' => $business->id,
@@ -365,5 +365,17 @@ class SuperAdminTest extends TestCase
         $this->actingAs($admin)->get(route('super-admin.reports.export'))
             ->assertOk()
             ->assertDownload();
+    }
+
+    public function test_platform_export_escapes_spreadsheet_formulas_in_business_names(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+        Business::create(['name' => '=HYPERLINK("unsafe")', 'status' => 'active', 'active' => true]);
+
+        $csv = $this->actingAs($admin)->get(route('super-admin.reports.export'))
+            ->assertOk()->streamedContent();
+
+        $this->assertStringContainsString("'=HYPERLINK", $csv);
+        $this->assertStringNotContainsString("\n=HYPERLINK", $csv);
     }
 }

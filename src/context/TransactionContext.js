@@ -3,6 +3,7 @@ import api from '../services/api';
 import { AuthContext } from './AuthContext'; 
 import {getApiErrorMessage} from '../services/apiErrors';
 import {productCategoriesFromOptions} from '../constants/productCategories';
+import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
 
 export const TransactionContext = createContext();
 
@@ -72,7 +73,10 @@ export const TransactionProvider = ({ children }) => {
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState(null);
-  const { userToken } = useContext(AuthContext);
+  const {userToken, user, business} = useContext(AuthContext);
+  const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
+    ? {userId: user.id, businessId: user.business_id || business.id} : null,
+  [user?.role, user?.id, user?.business_id, business?.id]);
 
   const incomeCategories = useMemo(() => optionsLoaded
     ? mergeOptions([], transactionOptions.filter(option => option.kind === 'category' && option.transaction_type === 'income').map(option => option.name))
@@ -94,14 +98,24 @@ export const TransactionProvider = ({ children }) => {
     try {
       const response = await api.get('/transaction-options');
       setTransactionOptions(response.data?.options || []);
+      if (offlineAccount) saveStaffSnapshot(offlineAccount, 'transaction_options', response.data?.options || []).catch(() => {});
       setOptionsLoaded(true);
       setOptionsError(null);
     } catch (error) {
+      if (offlineAccount) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'transaction_options');
+          if (cached) {
+            setTransactionOptions(cached);
+            setOptionsLoaded(true);
+          }
+        } catch {}
+      }
       setOptionsError(getApiErrorMessage(error));
     } finally {
       setOptionsLoading(false);
     }
-  }, [userToken]);
+  }, [userToken, offlineAccount]);
 
   const addTransactionOption = async optionData => {
     try {
@@ -158,6 +172,10 @@ export const TransactionProvider = ({ children }) => {
     }
   }, [userToken]);
 
+  useEffect(() => subscribeStaffOffline(event => {
+    if (event === 'synced' && userToken) fetchTransactions();
+  }), [fetchTransactions, userToken]);
+
   const queryTransactions = useCallback(async ({page = 1, search, source, category, from, to} = {}) => {
     const params = {page};
     if (search?.trim()) params.search = search.trim();
@@ -201,7 +219,10 @@ export const TransactionProvider = ({ children }) => {
   // Mag-save ng bagong transaction
   const addTransaction = async (transactionData) => {
     try {
-      const response = await api.post('/transactions', toApiPayload(transactionData));
+      const response = offlineAccount && String(transactionData.entryMethod || 'manual').toLowerCase() === 'manual'
+        ? await recordStaffAction(offlineAccount, 'transaction', toApiPayload(transactionData), transactionData.clientId || transactionData.client_id)
+        : {synced: true, data: (await api.post('/transactions', toApiPayload(transactionData))).data};
+      if (!response.synced) return {success: true, queued: true, clientId: response.clientId};
       const transaction = normalizeTransaction(response.data.transaction || response.data);
       setTransactions(current => [transaction, ...current]);
       setPagination(current => ({...current, total: current.total + 1}));

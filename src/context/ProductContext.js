@@ -1,8 +1,9 @@
-import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import api, {API_URL} from '../services/api';
 import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
 import {productPhotoUpload} from '../utils/productPhoto';
+import {getStaffSnapshot, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
 
 export const ProductContext = createContext();
 
@@ -17,6 +18,7 @@ const normalizeProduct = product => ({
     ...ingredient,
     stockId: ingredient.stock_item_id || ingredient.stock_id || ingredient.stockId,
     name: ingredient.name || ingredient.stock_item?.name || ingredient.stockItem?.name,
+    unit: ingredient.unit || ingredient.stock_item?.unit || ingredient.stockItem?.unit,
   })),
 });
 
@@ -60,23 +62,34 @@ export const ProductProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  const { userToken } = useContext(AuthContext);
+  const {userToken, user, business} = useContext(AuthContext);
+  const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
+    ? {userId: user.id, businessId: user.business_id || business.id} : null,
+  [user?.role, user?.id, user?.business_id, business?.id]);
 
   const fetchProducts = useCallback(async () => {
     if (!userToken) return;
     setIsLoading(true);
     try {
       const response = await api.get('/products');
-      setProducts(extractProducts(response.data));
+      const fetched = extractProducts(response.data);
+      setProducts(fetched);
+      if (offlineAccount) saveStaffSnapshot(offlineAccount, 'products', fetched).catch(() => {});
       setLoadError(null);
       return {success: true};
     } catch (error) {
+      if (offlineAccount) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'products');
+          if (cached) setProducts(cached);
+        } catch {}
+      }
       setLoadError(getApiErrorMessage(error));
       return {success: false, error};
     } finally {
       setIsLoading(false);
     }
-  }, [userToken]);
+  }, [userToken, offlineAccount]);
 
   useEffect(() => {
     if (userToken) {
@@ -86,6 +99,10 @@ export const ProductProvider = ({ children }) => {
       setLoadError(null);
     }
   }, [userToken, fetchProducts]);
+
+  useEffect(() => subscribeStaffOffline(event => {
+    if (event === 'synced' && userToken) fetchProducts();
+  }), [fetchProducts, userToken]);
 
   const createProduct = async productData => {
     const hasImage = Boolean(productData.imageAsset?.uri);

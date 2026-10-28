@@ -41,7 +41,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Active items</p>
-                        <p class="mt-2 text-2xl font-extrabold text-[#0A2E2A]">{{ number_format($totalItems) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#0A2E2A]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $totalItems }}" data-owner-count-up-decimals="0">{{ number_format($totalItems) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Z"/><path d="m4.5 7.5 7.5 4 7.5-4M12 12v8.5"/></svg>
@@ -53,7 +53,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Low stock</p>
-                        <p class="mt-2 text-2xl font-extrabold text-amber-700">{{ number_format($lowStockCount) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-amber-700"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $lowStockCount }}" data-owner-count-up-decimals="0">{{ number_format($lowStockCount) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 3 9 17H3L12 3Z"/><path d="M12 9v4m0 3h.01"/></svg>
@@ -65,7 +65,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Out of stock</p>
-                        <p class="mt-2 text-2xl font-extrabold text-rose-600">{{ number_format($outOfStockCount) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-rose-600"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $outOfStockCount }}" data-owner-count-up-decimals="0">{{ number_format($outOfStockCount) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
@@ -77,7 +77,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Inventory value</p>
-                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $currencyPrefix }}{{ number_format((float) $totalValue, 2) }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (float) $totalValue }}" data-owner-count-up-prefix="{{ $currencyPrefix }}" data-owner-count-up-decimals="2">{{ $currencyPrefix }}{{ number_format((float) $totalValue, 2) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="12" cy="12" r="3"/><path d="M7 9h.01M17 15h.01"/></svg>
@@ -101,13 +101,13 @@
                 <!-- Search -->
                 <div>
                     <label for="inventory-search" class="mb-2 block text-xs font-bold text-slate-600">Search items</label>
-                    <input id="inventory-search" type="search" name="search" value="{{ request('search') }}" placeholder="Search by name" class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2.5 text-sm text-[#0A2E2A] placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
+                    <input id="inventory-search" type="search" name="search" value="{{ request('search') }}" placeholder="Search by name" class="gt-focus min-h-11 w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2.5 text-sm text-[#0A2E2A] placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                 </div>
 
                 <!-- Low Stock Filter -->
                 <div>
                     <label for="inventory-stock-status" class="mb-2 block text-xs font-bold text-slate-600">Stock level</label>
-                    <select id="inventory-stock-status" name="stock_status" class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2.5 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
+                    <select id="inventory-stock-status" name="stock_status" class="gt-focus min-h-11 w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2.5 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                         <option value="">All levels</option>
                         <option value="in" {{ request('stock_status') === 'in' ? 'selected' : '' }}>In stock</option>
                         <option value="low" {{ request('stock_status') === 'low' ? 'selected' : '' }}>Low stock</option>
@@ -119,7 +119,7 @@
                 <!-- Active Filter -->
                 <div>
                     <label for="inventory-availability" class="mb-2 block text-xs font-bold text-slate-600">Availability</label>
-                    <select id="inventory-availability" name="active" class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2.5 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
+                    <select id="inventory-availability" name="active" class="gt-focus min-h-11 w-full rounded-xl border border-[#DDE9E5] bg-white px-3 py-2.5 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                         <option value="">All items</option>
                         <option value="1" {{ request('active') === '1' ? 'selected' : '' }}>Active</option>
                         <option value="0" {{ request('active') === '0' ? 'selected' : '' }}>Inactive</option>
@@ -128,10 +128,10 @@
 
                 <!-- Buttons -->
                 <div class="flex items-end gap-2 sm:col-span-2 xl:col-span-1">
-                    <button type="submit" class="gt-focus rounded-xl bg-[#00A87E] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#08745D]">
+                    <button type="submit" class="gt-focus min-h-11 rounded-xl bg-[#08745D] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#065C4B]">
                         Filter
                     </button>
-                    <a id="clear-inventory-filters" href="{{ route('stock.index') }}" class="gt-focus rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
+                    <a id="clear-inventory-filters" href="{{ route('stock.index') }}" class="gt-focus inline-flex min-h-11 items-center rounded-xl border border-[#C8DED7] bg-white px-4 py-2.5 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">
                         Clear
                     </a>
                 </div>
@@ -229,18 +229,18 @@
                         <div class="relative h-40 w-40 shrink-0" role="img" aria-label="{{ $inStockCount }} in stock, {{ $lowStockCount }} low stock, {{ $outOfStockCount }} out of stock">
                             <div class="gt-stock-overview-ring absolute inset-0 rounded-full" @if($totalItems > 0) style="background: conic-gradient(#00A87E 0 {{ $inPercentage }}%, #F59E0B {{ $inPercentage }}% {{ $inPercentage + $lowPercentage }}%, #E11D48 {{ $inPercentage + $lowPercentage }}% 100%)" @else style="background: #EAF2EF" @endif aria-hidden="true"></div>
                             <div class="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
-                                <strong class="text-3xl font-extrabold text-[#0A2E2A]">{{ number_format($totalItems) }}</strong>
+                                <strong class="text-3xl font-extrabold text-[#0A2E2A]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $totalItems }}" data-owner-count-up-decimals="0">{{ number_format($totalItems) }}</span></strong>
                                 <span class="text-xs text-slate-500">active items</span>
                             </div>
                         </div>
                         <div class="min-w-[165px] flex-1 space-y-3 text-sm">
-                            <a href="{{ route('stock.index', ['stock_status' => 'in', 'active' => 1]) }}" class="gt-focus flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-[#EAF8F2]"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-[#00A87E]"></span>In stock</span><strong>{{ $inStockCount }} <span class="text-xs font-medium text-slate-400">({{ number_format($inPercentage, 0) }}%)</span></strong></a>
-                            <a href="{{ route('stock.index', ['stock_status' => 'low', 'active' => 1]) }}" class="gt-focus flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-amber-50"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>Low stock</span><strong>{{ $lowStockCount }} <span class="text-xs font-medium text-slate-400">({{ number_format($lowPercentage, 0) }}%)</span></strong></a>
-                            <a href="{{ route('stock.index', ['stock_status' => 'out', 'active' => 1]) }}" class="gt-focus flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-rose-50"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-rose-500"></span>Out of stock</span><strong>{{ $outOfStockCount }} <span class="text-xs font-medium text-slate-400">({{ number_format($outPercentage, 0) }}%)</span></strong></a>
+                            <a href="{{ route('stock.index', ['stock_status' => 'in', 'active' => 1]) }}" class="gt-focus flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-[#EAF8F2]"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-[#00A87E]"></span>In stock</span><strong><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $inStockCount }}" data-owner-count-up-decimals="0">{{ number_format((int) $inStockCount) }}</span> <span class="text-xs font-medium text-slate-400">({{ number_format($inPercentage, 0) }}%)</span></strong></a>
+                            <a href="{{ route('stock.index', ['stock_status' => 'low', 'active' => 1]) }}" class="gt-focus flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-amber-50"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>Low stock</span><strong><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $lowStockCount }}" data-owner-count-up-decimals="0">{{ number_format((int) $lowStockCount) }}</span> <span class="text-xs font-medium text-slate-400">({{ number_format($lowPercentage, 0) }}%)</span></strong></a>
+                            <a href="{{ route('stock.index', ['stock_status' => 'out', 'active' => 1]) }}" class="gt-focus flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-rose-50"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-rose-500"></span>Out of stock</span><strong><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $outOfStockCount }}" data-owner-count-up-decimals="0">{{ number_format((int) $outOfStockCount) }}</span> <span class="text-xs font-medium text-slate-400">({{ number_format($outPercentage, 0) }}%)</span></strong></a>
                         </div>
                     </div>
                     @if($lowStockCount + $outOfStockCount > 0)
-                        <a href="{{ route('stock.index', ['low_stock' => 1, 'active' => 1]) }}" class="gt-focus mt-6 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 hover:bg-amber-100">{{ $lowStockCount + $outOfStockCount }} {{ $lowStockCount + $outOfStockCount === 1 ? 'item needs' : 'items need' }} attention <span aria-hidden="true">→</span></a>
+                        <a href="{{ route('stock.index', ['low_stock' => 1, 'active' => 1]) }}" class="gt-focus mt-6 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 hover:bg-amber-100"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) ($lowStockCount + $outOfStockCount) }}" data-owner-count-up-decimals="0">{{ number_format($lowStockCount + $outOfStockCount) }}</span> {{ $lowStockCount + $outOfStockCount === 1 ? 'item needs' : 'items need' }} attention <span aria-hidden="true">→</span></a>
                     @endif
                 </section>
 
@@ -309,20 +309,20 @@
                     <!-- Unit Cost -->
                     <div>
                         <label for="unit_cost" class="gt-label">Unit cost <span class="text-rose-600">*</span></label>
-                        <input type="number" id="unit_cost" name="unit_cost" step="0.01" required class="gt-field" placeholder="0.00">
+                        <input type="number" id="unit_cost" name="unit_cost" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
                     </div>
 
                     <!-- Current Quantity -->
                     <div>
                         <label for="current_quantity" class="gt-label">Current quantity <span class="text-rose-600">*</span></label>
-                        <input type="number" id="current_quantity" name="current_quantity" step="0.01" required class="gt-field" placeholder="0.00">
+                        <input type="number" id="current_quantity" name="current_quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
                         <p id="quantity_help" class="mt-1 hidden text-xs text-slate-500">Use Adjust to change quantity after an item has been created.</p>
                     </div>
 
                     <!-- Minimum Quantity -->
                     <div>
                         <label for="minimum_quantity" class="gt-label">Minimum quantity <span class="text-rose-600">*</span></label>
-                        <input type="number" id="minimum_quantity" name="minimum_quantity" step="0.01" required class="gt-field" placeholder="0.00">
+                        <input type="number" id="minimum_quantity" name="minimum_quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
                     </div>
 
                     <!-- Active Status -->
@@ -388,7 +388,7 @@
                 <!-- Quantity -->
                 <div class="mb-4">
                     <label for="adjust_quantity" class="gt-label">Quantity <span class="text-rose-600">*</span></label>
-                    <input type="number" id="adjust_quantity" name="quantity" step="0.01" required class="gt-field" placeholder="0.00">
+                    <input type="number" id="adjust_quantity" name="quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
                 </div>
 
                 <!-- Reason -->

@@ -2,7 +2,6 @@ import React, {useContext, useEffect, useRef, useState} from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Animated,
   Keyboard,
   Image,
@@ -16,6 +15,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {AppAlert as Alert} from '../services/AppDialogService';
 import {AuthContext} from '../context/AuthContext';
 
 const WELCOME_HOLD_MS = 2000;

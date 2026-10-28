@@ -1,8 +1,9 @@
 import React from 'react';
-import {Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useAuth} from '../../context/AuthContext';
 import {COLORS} from '../../theme';

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Business;
 use App\Models\User;
 use App\Rules\PasswordStrength;
+use App\Services\AdminActivityRecorder;
+use App\Services\AdminPasswordResetService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -136,6 +138,7 @@ class SuperAdminController extends Controller
         });
 
         event(new Registered($owner));
+        $this->audit('business.created', $business);
 
         return redirect()->route('super-admin.businesses.show', $business)
             ->with('success', 'Business and owner account created. The owner must verify their email before approval.');
@@ -190,6 +193,7 @@ class SuperAdminController extends Controller
         if ($business->status !== 'active') {
             $this->revokeBusinessTokens($business);
         }
+        $this->audit('business.updated', $business);
 
         return redirect()->route('super-admin.businesses.show', $business)
             ->with('success', 'Business registration details updated.');
@@ -204,6 +208,7 @@ class SuperAdminController extends Controller
         ]);
         $this->revokeBusinessTokens($business);
         $business->delete();
+        $this->audit('business.archived', $business);
 
         return redirect()->route('super-admin.businesses')
             ->with('success', 'Business archived. Its private records were preserved.');
@@ -214,6 +219,7 @@ class SuperAdminController extends Controller
         $record = Business::onlyTrashed()->findOrFail($business);
         $record->restore();
         $record->update(['status' => 'inactive', 'active' => false]);
+        $this->audit('business.restored', $record);
 
         return redirect()->route('super-admin.businesses.show', $record)
             ->with('success', 'Business restored as inactive. Review it before reactivation.');
@@ -266,6 +272,7 @@ class SuperAdminController extends Controller
 
             DB::afterCommit(fn () => Storage::disk('local')->delete($bugScreenshotPaths->all()));
         });
+        $this->audit('business.permanently_deleted', $record);
 
         return redirect()->route('super-admin.businesses', ['archived' => 1])
             ->with('success', 'The archived business and its associated records were permanently deleted.');
@@ -308,6 +315,7 @@ class SuperAdminController extends Controller
             'active' => true,
             'suspension_reason' => null,
         ]);
+        $this->audit('business.approved', $business);
         
         return redirect()->back()->with('success', 'Business approved successfully!');
     }
@@ -328,6 +336,7 @@ class SuperAdminController extends Controller
         ]);
 
         $this->revokeBusinessTokens($business);
+        $this->audit('business.suspended', $business);
         
         return redirect()->back()->with('success', 'Business suspended successfully!');
     }
@@ -346,6 +355,7 @@ class SuperAdminController extends Controller
             'active' => true,
             'suspension_reason' => null,
         ]);
+        $this->audit('business.reactivated', $business);
         
         return redirect()->back()->with('success', 'Business reactivated successfully!');
     }
@@ -366,6 +376,7 @@ class SuperAdminController extends Controller
         ]);
 
         $this->revokeBusinessTokens($business);
+        $this->audit('business.deactivated', $business);
         
         return redirect()->back()->with('success', 'Business deactivated successfully!');
     }
@@ -376,6 +387,7 @@ class SuperAdminController extends Controller
         abort_unless($owner, 404, 'This business has no owner account.');
 
         $owner->update(['status' => 'active']);
+        $this->audit('user.unlocked', $owner);
 
         return back()->with('success', 'Business owner account activated.');
     }
@@ -387,16 +399,21 @@ class SuperAdminController extends Controller
 
         $owner->update(['status' => 'inactive']);
         $owner->tokens()->delete();
+        $this->audit('user.locked', $owner);
 
         return back()->with('success', 'Business owner account deactivated.');
     }
 
-    public function sendOwnerPasswordReset(Business $business)
+    public function sendOwnerPasswordReset(Business $business, AdminPasswordResetService $reset)
     {
         $owner = $business->owner_account;
         abort_unless($owner, 404, 'This business has no owner account.');
+        abort_unless($owner->hasVerifiedEmail(), 422, 'The owner must verify their email first.');
 
-        $status = Password::sendResetLink(['email' => $owner->email]);
+        $status = $reset->forceReset($owner);
+        if ($status === Password::RESET_LINK_SENT) {
+            $this->audit('user.password_reset_requested', $owner);
+        }
 
         return $status === Password::RESET_LINK_SENT
             ? back()->with('success', __($status))
@@ -406,6 +423,12 @@ class SuperAdminController extends Controller
     private function revokeBusinessTokens(Business $business): void
     {
         $business->users()->each(fn ($user) => $user->tokens()->delete());
+    }
+
+    private function audit(string $action, Business|User $target): void
+    {
+        app(AdminActivityRecorder::class)->record(request()->user(), $action,
+            $target instanceof Business ? 'business' : 'user', $target->id);
     }
 
     private function validateBusiness(Request $request): array

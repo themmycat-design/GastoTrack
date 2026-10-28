@@ -254,6 +254,20 @@ class TopSellingProductsTest extends TestCase
         ]);
     }
 
+    private function transaction(Business $business, User $staff, string $type, float $amount, string $date): Transaction
+    {
+        return Transaction::create([
+            'business_id' => $business->id,
+            'user_id' => $staff->id,
+            'type' => $type,
+            'source' => 'cash',
+            'category' => $type === 'expense' ? 'Supplies' : 'Sales',
+            'amount' => $amount,
+            'transaction_date' => $date,
+            'entry_method' => 'manual',
+        ]);
+    }
+
     private function order(
         Business $business,
         User $staff,

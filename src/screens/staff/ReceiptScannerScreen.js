@@ -9,10 +9,10 @@ import {
   ScrollView,
   Platform,
   PermissionsAndroid,
-  Alert,
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import { scanReceipt, parseReceiptData, buildReceiptCategoryDescription } from '../../services/OCRService';
 import { useTransactions } from '../../context/TransactionContext';
@@ -203,9 +203,20 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
       const parsed = parseReceiptData(ocrResponse.text, ocrResponse.blocks);
       setParsedData(parsed);
+      const detectedName = parsed.merchant && parsed.merchant !== 'Unknown Merchant' ? parsed.merchant : '';
+      setManualDraft({
+        name: detectedName,
+        date: parsed.date || '',
+        amount: parsed.amount == null ? '' : String(parsed.amount),
+        type: parsed.type === 'Income' ? 'Income' : 'Expense',
+        source: parsed.sourceDetected ? parsed.source : '',
+        category: '',
+        ocrProvider: ocrResponse.provider || ocrResponse.method || 'device_ocr',
+      });
       const numericAmount = Number(parsed.amount);
-      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        setScanError('The receipt was scanned, but its total amount could not be read. Make sure the printed total is clear and fully in frame, then retake the photo and try again. Nothing was saved.');
+      if (parsed.amount == null || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+        setAiFailed(true);
+        setScanError('The receipt was scanned, but its total amount could not be read reliably. Show the printed total clearly; cash tendered or an item price cannot replace it. Retake the photo or edit the details manually. Nothing was saved.');
         return;
       }
 
@@ -219,34 +230,47 @@ const ReceiptScannerScreen = ({ navigation }) => {
         && parsedDate.getMonth() === month - 1
         && parsedDate.getDate() === day;
       if (!datePattern.test(transactionDate || '') || Number.isNaN(parsedDate.getTime()) || !isRealDate || parsedDate > today) {
-        setScanError('The receipt date could not be read as a valid date. Make sure the date is clear and visible, then retake the photo and try again. Nothing was saved.');
+        setAiFailed(true);
+        setScanError('The receipt date is missing, ambiguous, invalid, or in the future. Retake the photo with the date visible or enter it manually. Nothing was saved.');
+        return;
+      }
+
+      if (!detectedName) {
+        setAiFailed(true);
+        setScanError('The receipt name could not be identified reliably. Retake the full receipt or enter the name manually. Nothing was saved.');
+        return;
+      }
+
+      if (!['Income', 'Expense'].includes(parsed.type)) {
+        setAiFailed(true);
+        setScanError('The scan does not clearly identify an income or expense receipt. Choose the type manually. Nothing was saved.');
         return;
       }
 
       const transactionType = parsed.type === 'Income' ? 'Income' : 'Expense';
       const categories = transactionType === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
       if (!categories.length) {
+        setAiFailed(true);
         setScanError('No categories are configured for this transaction type. Nothing was saved. Ask the owner to configure categories.');
         return;
       }
 
-      const source = TRANSACTION_SOURCES.includes(parsed.source)
-        ? parsed.source
-        : TRANSACTION_SOURCES.includes('Cash') ? 'Cash' : '';
+      const source = parsed.sourceDetected && TRANSACTION_SOURCES.includes(parsed.source)
+        ? parsed.source : '';
       if (!source) {
-        setScanError('No valid payment source is configured. Nothing was saved. Ask the owner to configure transaction sources.');
+        setAiFailed(true);
+        setScanError('The receipt payment source could not be read or is not configured. Select the correct source manually. Nothing was saved.');
         return;
       }
 
-      const extractedName = parsed.merchant && parsed.merchant !== 'Unknown Merchant'
-        ? parsed.merchant
-        : '';
+      const extractedName = detectedName;
       const description = buildReceiptCategoryDescription(parsed, extractedName);
       if (description.trim().length < 4) {
+        setAiFailed(true);
         setScanError('There is not enough readable item or merchant detail for Gasto AI to choose a category. Make sure those details are clear and in frame, then try again. Nothing was saved.');
         return;
       }
-      const transactionName = extractedName || 'Scanned receipt';
+      const transactionName = extractedName;
       setManualDraft({
         name: transactionName,
         date: transactionDate,
@@ -328,6 +352,11 @@ const ReceiptScannerScreen = ({ navigation }) => {
   const handleManualSave = async () => {
     if (savingRef.current || !parsedData) return;
 
+    if (!manualDraft.name.trim()) {
+      setManualFormError('Enter the receipt or merchant name before saving.');
+      return;
+    }
+
     const amount = Number(String(manualDraft.amount).replace(/,/g, '').trim());
     if (!Number.isFinite(amount) || amount <= 0) {
       setManualFormError('Enter a valid amount greater than zero.');
@@ -368,7 +397,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
         source: manualDraft.source,
         category: manualDraft.category,
         date: manualDraft.date,
-        notes: manualDraft.name.trim() || 'Scanned receipt',
+        notes: manualDraft.name.trim(),
         clientId: scanAttemptIdRef.current,
         entryMethod: 'ocr',
         metadata: {
@@ -387,7 +416,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
       scanAttemptIdRef.current = null;
       setParsedData(current => ({
         ...current,
-        merchant: manualDraft.name.trim() || 'Scanned receipt',
+        merchant: manualDraft.name.trim(),
         date: manualDraft.date,
         dateDetected: true,
         amount,
@@ -496,7 +525,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Date:</Text>
                 <Text style={styles.dataValue}>
-                  {parsedData.dateDetected ? parsedData.date : `${parsedData.date} (today default)`}
+                  {parsedData.dateDetected ? parsedData.date : 'Not detected'}
                 </Text>
               </View>
               <View style={styles.dataRow}>
@@ -507,7 +536,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
               </View>
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Type:</Text>
-                <Text style={styles.dataValue}>{parsedData.type}</Text>
+                <Text style={styles.dataValue}>{parsedData.type || 'Not detected'}</Text>
               </View>
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Category:</Text>
@@ -518,7 +547,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Source:</Text>
                 <Text style={styles.dataValue}>
-                  {parsedData.sourceDetected ? parsedData.source : `${parsedData.source} (default)`}
+                  {parsedData.sourceDetected ? parsedData.source : 'Not detected'}
                 </Text>
               </View>
               {aiFailed && !manualEditing && !scanSaved ? (
@@ -538,7 +567,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
               {aiFailed && manualEditing && !scanSaved ? (
                 <View style={styles.manualEditor}>
                   <Text style={styles.manualEditorTitle}>Edit receipt details</Text>
-                  <Text style={styles.manualEditorHint}>AI could not assign a category. Review the details, choose a category, then save.</Text>
+                  <Text style={styles.manualEditorHint}>Review the receipt details, choose a category, then save.</Text>
 
                   <Text style={styles.manualFieldLabel}>Receipt name</Text>
                   <TextInput

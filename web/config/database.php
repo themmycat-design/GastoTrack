@@ -32,7 +32,7 @@ return [
 
     'connections' => [
 
-        // SQLite for Staff users (offline-first)
+        // SQLite is available for local development and isolated tests.
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
@@ -45,7 +45,8 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
-        // Staff offline connection (same as sqlite, but explicit)
+        // Preserve the staff offline database connection for a future, explicit
+        // sync flow. This server-side file is not the Android device database.
         'staff_offline' => [
             'driver' => 'sqlite',
             'url' => env('STAFF_DB_URL'),

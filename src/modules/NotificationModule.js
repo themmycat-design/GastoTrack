@@ -72,3 +72,19 @@ export const markWalletCapturesSynced = async clientIds => {
   if (Platform.OS !== 'android' || !NotificationModule || !clientIds.length) return;
   await NotificationModule.markCapturesSynced(clientIds);
 };
+
+export const markWalletCaptureRejected = async (clientId, reason) => {
+  if (Platform.OS !== 'android' || !NotificationModule) return;
+  await NotificationModule.markCaptureRejected(clientId, reason);
+};
+
+export const getRejectedWalletCaptures = async () => {
+  if (Platform.OS !== 'android' || !NotificationModule) return [];
+  const serialized = await NotificationModule.getRejectedCaptures();
+  return JSON.parse(serialized || '[]');
+};
+
+export const retryRejectedWalletCapture = async clientId => {
+  if (Platform.OS !== 'android' || !NotificationModule) return;
+  await NotificationModule.retryRejectedCapture(clientId);
+};

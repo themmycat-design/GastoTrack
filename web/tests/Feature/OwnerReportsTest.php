@@ -95,7 +95,7 @@ class OwnerReportsTest extends TestCase
             'amount' => 125,
             'currency' => 'PHP',
             'merchant' => 'Coffee Shop',
-            'message' => 'Raw private alert detail',
+            'message' => 'You received PHP 125.00. Raw private alert detail',
             'captured_at' => '2026-10-09 10:01:00',
         ]);
 
@@ -121,7 +121,7 @@ class OwnerReportsTest extends TestCase
             ->assertSee('Inventory and waste')
             ->assertSee('Payment review')
             ->assertSee('Staff activity')
-            ->assertSee('<h1 class="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">Sales and orders</h1>', false)
+            ->assertSee('Sales and orders</h1>', false)
             ->assertDontSee('id="report-ledger"', false)
             ->assertDontSee('Raw GCash & Maya notifications')
             ->assertDontSee('ORD-PRIVATE-REF')

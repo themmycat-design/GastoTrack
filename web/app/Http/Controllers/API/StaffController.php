@@ -13,7 +13,7 @@ class StaffController extends Controller
     private function owner(Request $request): void { abort_unless($request->user()->isOwner(), 403); }
     public function index(Request $request) { $this->owner($request); return response()->json(['staff' => User::where('business_id', $request->user()->business_id)->where('role', 'staff')->get()]); }
     public function show(Request $request, $id) { $this->owner($request); return response()->json(['staff' => User::where('business_id', $request->user()->business_id)->where('role', 'staff')->findOrFail($id)]); }
-    public function store(Request $request)
+    public function store(Request $request, \App\Services\BusinessStaffLimit $staffLimit)
     {
         $this->owner($request); $data = $request->validate([
             'name' => 'required|string|max:255',
@@ -21,7 +21,9 @@ class StaffController extends Controller
             'phone' => 'nullable|string|max:30',
             'password' => ['required', 'confirmed', new PasswordStrength()],
         ]);
-        $staff = User::create([
+        $staff = \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request, $staffLimit) {
+            $staffLimit->assertCanAddStaff((int) $request->user()->business_id);
+            return User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
@@ -29,7 +31,8 @@ class StaffController extends Controller
             'role' => 'staff',
             'business_id' => $request->user()->business_id,
             'status' => 'active',
-        ]);
+            ]);
+        });
         return response()->json(['message' => 'Staff created', 'staff' => $staff], 201);
     }
     public function destroy(Request $request, $id)

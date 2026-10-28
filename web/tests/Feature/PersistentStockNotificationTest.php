@@ -100,6 +100,6 @@ class PersistentStockNotificationTest extends TestCase
         ]);
         app(NotificationService::class)->notifyLowStock($item);
 
-        return [$owner, $item];
+        return [$owner, $item, Notification::where('user_id', $owner->id)->latest()->firstOrFail()];
     }
 }

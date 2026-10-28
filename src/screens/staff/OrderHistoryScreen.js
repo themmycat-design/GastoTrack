@@ -1,10 +1,12 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, Modal, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, FlatList, Modal, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {useOrders} from '../../context/OrderContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import {canManuallyConfirmOrderPayment, getEffectiveOrderPaymentStatus, getOrderHistoryStatus} from '../../utils/orderHistoryStatus';
@@ -16,6 +18,24 @@ const formatOrderDate = value => {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? 'Date unavailable' : parsed.toLocaleString();
 };
+
+const OrderHistorySkeleton = () => (
+  <SkeletonPlaceholder style={styles.skeletonList} accessibilityLabel="Loading order history">
+    {[0, 1, 2, 3].map(item => (
+      <View key={item} style={styles.skeletonOrderCard}>
+        <View style={styles.skeletonOrderHeader}>
+          <SkeletonBlock width="48%" height={15} />
+          <SkeletonBlock width={76} height={23} radius={12} />
+        </View>
+        <SkeletonBlock width="66%" height={12} style={styles.skeletonOrderMetaSpacer} />
+        <View style={styles.skeletonOrderFooter}>
+          <SkeletonBlock width="36%" height={12} />
+          <SkeletonBlock width={72} height={17} />
+        </View>
+      </View>
+    ))}
+  </SkeletonPlaceholder>
+);
 
 const OrderHistoryScreen = ({navigation}) => {
   const day = useStaffDay();
@@ -146,7 +166,14 @@ const OrderHistoryScreen = ({navigation}) => {
   const renderOrder = ({item}) => {
     const items = item.items || [];
     const itemDescription = items.length
-      ? items.map(orderItem => `${orderItem.quantity}× ${orderItem.product_name || orderItem.product?.name || 'Product'}`).join(', ')
+      ? items.map(orderItem => {
+        const changes = (orderItem.ingredients_snapshot || [])
+          .filter(ingredient => ingredient.original_quantity !== undefined)
+          .map(ingredient => Number(ingredient.quantity) === 0
+            ? `No ${ingredient.stock_name || 'ingredient'}`
+            : `${ingredient.stock_name || 'Ingredient'} ${ingredient.quantity} ${ingredient.unit || ''}`);
+        return `${orderItem.quantity}× ${orderItem.product_name || orderItem.product?.name || 'Product'}${changes.length ? ` (${changes.join(', ')})` : ''}`;
+      }).join(', ')
       : 'Order items unavailable';
     const paymentMethod = item.paymentMethod || item.payment_method || 'Payment unavailable';
     const orderStatus = String(item.status || 'pending').trim().toLowerCase();
@@ -175,7 +202,7 @@ const OrderHistoryScreen = ({navigation}) => {
           </View>
           <Text style={styles.orderTotal}>₱{Number(item.total || 0).toFixed(2)}</Text>
         </View>
-        <Text style={styles.orderItems} numberOfLines={2}>{itemDescription}</Text>
+        <Text style={styles.orderItems} numberOfLines={4}>{itemDescription}</Text>
         <View style={styles.cardBottom}>
           <Text style={styles.paymentMethod}>{paymentMethod}</Text>
           <Text style={[styles.status, {color: statusColor}]}>{status}</Text>
@@ -244,10 +271,7 @@ const OrderHistoryScreen = ({navigation}) => {
       {!showHistory ? <Text style={styles.historyHint}>Cancelled and older orders remain in History for review.</Text> : null}
       <ApiErrorBanner message={loadError} onRetry={() => fetchOrders({page: 1})} />
       {isLoading && !orders.length ? (
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.stateText}>Loading order history…</Text>
-        </View>
+        <OrderHistorySkeleton />
       ) : (
         <FlatList
           data={visibleOrders}
@@ -329,12 +353,17 @@ const OrderHistoryScreen = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
   dayScopeRow: {flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 7, backgroundColor: COLORS.surface},
-  dayScopeButton: {flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border},
-  dayScopeActive: {backgroundColor: COLORS.accent, borderColor: COLORS.accent},
+  dayScopeButton: {flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border},
+  dayScopeActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark},
   dayScopeText: {fontSize: 12, fontWeight: '700', color: COLORS.textGray},
   dayScopeTextActive: {color: '#FFFFFF'},
   historyHint: {paddingHorizontal: 16, paddingVertical: 6, fontSize: 11, color: COLORS.textGray},
   list: {padding: 16, paddingBottom: 24},
+  skeletonList: {padding: 16, paddingBottom: 24},
+  skeletonOrderCard: {padding: 13, marginBottom: 10, borderRadius: 16, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonOrderHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  skeletonOrderFooter: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingTop: 11, borderTopWidth: 1, borderTopColor: COLORS.border},
+  skeletonOrderMetaSpacer: {marginTop: 12},
   emptyList: {flexGrow: 1},
   orderCard: {
     backgroundColor: COLORS.surface,
@@ -357,22 +386,22 @@ const styles = StyleSheet.create({
   paymentMethod: {fontSize: 11, fontWeight: '600', color: COLORS.textGray, textTransform: 'capitalize'},
   paymentStatus: {fontSize: 11, color: COLORS.textGray, marginTop: 8, textTransform: 'capitalize'},
   actionRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9},
-  primaryAction: {backgroundColor: COLORS.accent, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9},
+  primaryAction: {minHeight: 48, justifyContent: 'center', backgroundColor: COLORS.accentDark, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9},
   primaryActionText: {fontSize: 11, fontWeight: '700', color: '#FFFFFF'},
-  secondaryAction: {borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9},
+  secondaryAction: {minHeight: 48, justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9},
   secondaryActionText: {fontSize: 11, fontWeight: '700', color: COLORS.textDark},
   modalBackdrop: {flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)'},
   actionModal: {backgroundColor: COLORS.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 24},
   modalTitle: {fontSize: 19, fontWeight: '700', color: COLORS.textDark},
   modalDescription: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, marginTop: 8, marginBottom: 12},
   inputLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, marginTop: 9, marginBottom: 5},
-  actionInput: {minHeight: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: COLORS.textDark, backgroundColor: COLORS.background, marginTop: 7},
+  actionInput: {minHeight: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: COLORS.textDark, backgroundColor: COLORS.background, marginTop: 7},
   restockToggle: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 13},
   restockLabel: {flex: 1, fontSize: 12, color: COLORS.textDark},
   modalButtons: {flexDirection: 'row', gap: 10, marginTop: 14},
   modalCancel: {flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11},
   modalCancelText: {fontSize: 14, fontWeight: '700', color: COLORS.textDark},
-  modalSubmit: {flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 48, borderRadius: 11, backgroundColor: COLORS.accent},
+  modalSubmit: {flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 48, borderRadius: 11, backgroundColor: COLORS.accentDark},
   modalSubmitText: {fontSize: 14, fontWeight: '700', color: '#FFFFFF'},
   disabled: {opacity: 0.65},
   status: {fontSize: 11, fontWeight: '700', color: COLORS.success, textTransform: 'capitalize'},

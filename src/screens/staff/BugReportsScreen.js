@@ -18,6 +18,7 @@ import {launchImageLibrary} from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {useAuth} from '../../context/AuthContext';
 import api, {API_URL} from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
@@ -164,7 +165,7 @@ const BugReportsScreen = ({navigation}) => {
         subtitle="Submit and follow up on app issues"
         icon="bug-outline"
         leftIcon="arrow-left"
-        leftLabel="Back to profile"
+        leftLabel="Go back"
         onLeftPress={() => navigation.goBack()}
       />
       <ScrollView
@@ -222,7 +223,7 @@ const BugReportsScreen = ({navigation}) => {
           {reports.length > 0 ? <Text style={styles.reportCount}>{reports.length} shown</Text> : null}
         </View>
 
-        {isLoading ? <ActivityIndicator style={styles.loader} size="large" color={COLORS.accentDark} /> : null}
+        {isLoading && reports.length === 0 ? <BugReportListSkeleton /> : null}
         {!isLoading && loadError ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{loadError}</Text>
@@ -257,6 +258,24 @@ const BugReportsScreen = ({navigation}) => {
   );
 };
 
+const BugReportListSkeleton = () => (
+  <SkeletonPlaceholder style={styles.skeletonReports} accessibilityLabel="Loading your bug reports">
+    {[0, 1].map(item => (
+      <View key={item} style={styles.skeletonReportCard}>
+        <View style={styles.skeletonReportHeader}>
+          <View style={styles.skeletonReportHeading}>
+            <SkeletonBlock width="76%" height={14} />
+            <SkeletonBlock width="54%" height={10} style={styles.skeletonReportMetaSpacer} />
+          </View>
+          <SkeletonBlock width={64} height={22} radius={12} />
+        </View>
+        <SkeletonBlock width="100%" height={11} style={styles.skeletonReportDescriptionSpacer} />
+        <SkeletonBlock width="87%" height={11} style={styles.skeletonReportSecondLineSpacer} />
+      </View>
+    ))}
+  </SkeletonPlaceholder>
+);
+
 const styles = StyleSheet.create({
   removeButton: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center'},
   submittingRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
@@ -271,11 +290,11 @@ const styles = StyleSheet.create({
   input: {minHeight: 46, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.textDark, backgroundColor: '#FFFFFF', fontSize: 14},
   multiline: {minHeight: 92, paddingTop: 11},
   areaList: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
-  areaChip: {minHeight: 44, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFFFFF', paddingHorizontal: 11, paddingVertical: 8},
+  areaChip: {minHeight: 48, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFFFFF', paddingHorizontal: 11, paddingVertical: 8},
   areaChipSelected: {borderColor: COLORS.accentDark, backgroundColor: COLORS.surfaceMuted},
   areaText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray},
   areaTextSelected: {color: COLORS.accentDark},
-  attachButton: {marginTop: 11, minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 12},
+  attachButton: {marginTop: 11, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 11, paddingHorizontal: 12},
   attachText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
   helperText: {marginTop: 6, color: COLORS.textGray, fontSize: 11},
   previewRow: {marginTop: 9, flexDirection: 'row', alignItems: 'center', gap: 10},
@@ -287,7 +306,13 @@ const styles = StyleSheet.create({
   submitText: {color: COLORS.textWhite, fontWeight: '700', fontSize: 14},
   listHeader: {marginTop: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   reportCount: {fontSize: 12, color: COLORS.textGray},
-  loader: {paddingVertical: 22},
+  skeletonReports: {marginBottom: 12},
+  skeletonReportCard: {padding: 14, marginBottom: 10, borderRadius: 15, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonReportHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10},
+  skeletonReportHeading: {flex: 1},
+  skeletonReportMetaSpacer: {marginTop: 8},
+  skeletonReportDescriptionSpacer: {marginTop: 16},
+  skeletonReportSecondLineSpacer: {marginTop: 7},
   errorCard: {borderRadius: 12, borderWidth: 1, borderColor: '#F2C7A0', backgroundColor: '#FFF8EE', padding: 14},
   retryButton: {alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, marginTop: 7},
   retryText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
@@ -307,7 +332,7 @@ const styles = StyleSheet.create({
   publicUpdateLabel: {fontSize: 11, fontWeight: '700', color: COLORS.accentDark},
   publicUpdateText: {marginTop: 4, color: COLORS.textDark, fontSize: 12, lineHeight: 18},
   reportScreenshot: {width: '100%', height: 180, borderRadius: 10, marginTop: 12, backgroundColor: COLORS.surfaceMuted},
-  loadMoreButton: {minHeight: 45, marginTop: 14, borderRadius: 11, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center'},
+  loadMoreButton: {minHeight: 48, marginTop: 14, borderRadius: 11, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center'},
   loadMoreText: {color: COLORS.accentDark, fontWeight: '700', fontSize: 13},
 });
 

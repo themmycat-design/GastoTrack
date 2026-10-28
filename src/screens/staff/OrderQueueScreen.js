@@ -2,7 +2,6 @@ import React, {useMemo, useRef, useState, useEffect} from 'react';
 import {
   View,
   Text,
-  Alert,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -13,11 +12,14 @@ import {
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import { useProducts } from '../../context/ProductContext';
 import { useTransactions } from '../../context/TransactionContext';
 import { useOrders } from '../../context/OrderContext';
 import {isNotificationAccessGranted, openNotificationSettings, subscribeToNotifications} from '../../modules/NotificationModule';
 import {getApiErrorMessage} from '../../services/apiErrors';
+import api from '../../services/api';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
@@ -31,6 +33,7 @@ const OrderQueueScreen = ({navigation, route}) => {
   const cashlessCartSnapshotRef = useRef(null);
 
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [editingCartIndex, setEditingCartIndex] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [walletPickerVisible, setWalletPickerVisible] = useState(false);
@@ -52,6 +55,8 @@ const OrderQueueScreen = ({navigation, route}) => {
   
   // Order form state
   const [quantity, setQuantity] = useState('1');
+  const [ingredientAmounts, setIngredientAmounts] = useState({});
+  const [ingredientError, setIngredientError] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -109,13 +114,25 @@ const OrderQueueScreen = ({navigation, route}) => {
         return;
       }
 
+      let capture;
+      try {
+        capture = JSON.parse(transaction.capturePayload || 'null');
+      } catch {
+        capture = null;
+      }
+      if (!capture?.client_id || capture.reference !== reference || capture.source !== selectedEwallet.toLowerCase()) {
+        setPaymentSignalWarning('The wallet alert could not be saved on this device. Still waiting for a captured payment.');
+        return;
+      }
+
       const signal = {
         amount,
         source: selectedEwallet.toLowerCase(),
         reference,
         merchant: transaction.merchant || '',
         capturedAt: new Date().toISOString(),
-        notificationId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
+        notificationId: capture.client_id,
+        capture,
       };
       setDetectedWalletSignal(signal);
       setPaymentSignalDetected(true);
@@ -136,13 +153,13 @@ const OrderQueueScreen = ({navigation, route}) => {
     let isCurrent = true;
     setIsCheckingWalletPayment(true);
 
-    confirmPaymentFromNotification(paymentOrder.id, {
+    api.post('/wallet-notifications/batch', {captures: [detectedWalletSignal.capture]}).then(() => confirmPaymentFromNotification(paymentOrder.id, {
       amount: detectedWalletSignal.amount,
       currency: paymentOrder.paymentCurrency || 'PHP',
       source: detectedWalletSignal.source,
       reference: detectedWalletSignal.reference,
       notification_id: detectedWalletSignal.notificationId,
-    }).then(result => {
+    })).then(result => {
       if (!isCurrent) return;
       setPaymentOrder(result.order);
       setQrPaymentModalVisible(false);
@@ -171,16 +188,51 @@ const OrderQueueScreen = ({navigation, route}) => {
   // Every product opens its details first; payment is chosen later in checkout.
   const handleOpenProduct = (product) => {
     if (!cartHydrated) return;
+    setEditingCartIndex(null);
     setSelectedProduct(product);
     setQuantity('1');
+    setIngredientAmounts(Object.fromEntries((product.ingredients || []).map(ingredient => [
+      String(ingredient.stockId), String(ingredient.quantity),
+    ])));
+    setIngredientError('');
     setDetailModalVisible(true);
   };
 
-  const addProductToCart = qty => {
+  const handleEditCartItem = index => {
+    const item = cart[index];
+    if (!item || isPlacingOrder) return;
+    setEditingCartIndex(index);
+    setSelectedProduct(item.product);
+    setQuantity(String(item.quantity));
+    const amounts = Object.fromEntries((item.product.ingredients || []).map(ingredient => [
+      String(ingredient.stockId), String(ingredient.quantity),
+    ]));
+    (item.ingredientOverrides || []).forEach(override => {
+      amounts[String(override.stock_item_id)] = String(override.quantity);
+    });
+    setIngredientAmounts(amounts);
+    setIngredientError('');
+    setCheckoutModalVisible(false);
+    setTimeout(() => setDetailModalVisible(true), 350);
+  };
+
+  const closeProductDetails = () => {
+    setDetailModalVisible(false);
+    if (editingCartIndex !== null) {
+      setTimeout(() => setCheckoutModalVisible(true), 350);
+      setEditingCartIndex(null);
+    }
+  };
+
+  const addProductToCart = (qty, overrides) => {
     if (!cartHydrated || !selectedProduct) return;
     setCart(previousCart => {
-      const existingIndex = previousCart.findIndex(item => item.product?.id === selectedProduct.id);
-      if (existingIndex < 0) return [...previousCart, {product: selectedProduct, quantity: qty}];
+      const variantKey = JSON.stringify(overrides);
+      const existingIndex = previousCart.findIndex(item => item.product?.id === selectedProduct.id
+        && JSON.stringify(item.ingredientOverrides || []) === variantKey);
+      if (existingIndex < 0) return [...previousCart, {
+        product: selectedProduct, quantity: qty, ...(overrides.length ? {ingredientOverrides: overrides} : {}),
+      }];
       return previousCart.map((item, index) => index === existingIndex
         ? {...item, quantity: Number(item.quantity) + qty}
         : item);
@@ -190,20 +242,45 @@ const OrderQueueScreen = ({navigation, route}) => {
   // Add to cart from product detail, then return to the product list.
   const handleAddToCart = () => {
     const qty = Number.parseInt(quantity, 10);
-    if (!Number.isInteger(qty) || qty < 1) {
-      Alert.alert('Invalid quantity', 'Please enter a quantity greater than zero.');
+    if (!Number.isInteger(qty) || qty < 1 || qty > 1000) {
+      Alert.alert('Invalid quantity', 'Enter 1 to 1000 products.');
       return;
     }
 
-    addProductToCart(qty);
+    const overrides = [];
+    for (const ingredient of selectedProduct.ingredients || []) {
+      const stockId = Number(ingredient.stockId);
+      const amountText = String(ingredientAmounts[String(stockId)] ?? ingredient.quantity).trim();
+      const amount = Number(amountText);
+      const regular = Number(ingredient.quantity);
+      if (!Number.isInteger(stockId) || stockId < 1 || !/^\d+(?:\.\d{1,4})?$/.test(amountText)
+        || !Number.isFinite(amount) || amount < 0 || amount > regular + 0.000001) {
+        setIngredientError(`Enter a valid amount for ${ingredient.name} between 0 and ${regular} ${ingredient.unit || ''}.`);
+        return;
+      }
+      if (Math.abs(amount - regular) > 0.000001) {
+        overrides.push({stock_item_id: stockId, quantity: amount});
+      }
+    }
+
+    if (editingCartIndex !== null) {
+      setCart(previousCart => previousCart.map((item, index) => index === editingCartIndex
+        ? {product: selectedProduct, quantity: qty, ...(overrides.length ? {ingredientOverrides: overrides} : {})}
+        : item));
+      setEditingCartIndex(null);
+      setTimeout(() => setCheckoutModalVisible(true), 350);
+    } else {
+      addProductToCart(qty, overrides);
+    }
 
     setDetailModalVisible(false);
     setQuantity('1');
+    setIngredientError('');
   };
 
   // Remove item from cart
-  const handleRemoveFromCart = (productId) => {
-    setCart(prev => prev.filter(item => item.product.id !== productId));
+  const handleRemoveFromCart = (cartIndex) => {
+    setCart(prev => prev.filter((_, index) => index !== cartIndex));
   };
 
   // Calculate cart totals
@@ -287,6 +364,7 @@ const OrderQueueScreen = ({navigation, route}) => {
       items: cart.map(item => ({
         product: item.product,
         quantity: item.quantity,
+        ingredientOverrides: item.ingredientOverrides || [],
       })),
       customerName: 'Walk-in Customer',
       customerPhone: null,
@@ -296,11 +374,17 @@ const OrderQueueScreen = ({navigation, route}) => {
 
     try {
       const order = await createOrder(orderData);
-      setPaymentOrder(order);
+      setPaymentOrder(order.offlinePending ? null : order);
       setCheckoutModalVisible(false);
       setWalletPickerVisible(false);
 
-      if (orderPaymentType === 'cashless' && order.paymentStatus !== 'confirmed') {
+      if (order.offlinePending) {
+        setQrPaymentModalVisible(false);
+        setPaymentType(null);
+        setSelectedEwallet(null);
+        setNotes('');
+        Alert.alert('Saved on this device', 'This cash order is waiting to sync. It is not yet a completed sale and stock has not been deducted. Check Offline records for its status.');
+      } else if (orderPaymentType === 'cashless' && order.paymentStatus !== 'confirmed') {
         setQrPaymentModalVisible(true);
         setPaymentSignalDetected(false);
         setDetectedWalletSignal(null);
@@ -452,10 +536,9 @@ const OrderQueueScreen = ({navigation, route}) => {
       />
 
       {!cartHydrated ? (
-        <View style={styles.cartLoadingNotice} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="small" color={COLORS.accent} />
-          <Text style={styles.cartLoadingText}>Restoring your saved cart…</Text>
-        </View>
+        <SkeletonPlaceholder style={styles.cartLoadingNotice} accessibilityLabel="Restoring saved cart">
+          <SkeletonBlock width="66%" height={12} />
+        </SkeletonPlaceholder>
       ) : null}
 
       <TouchableOpacity
@@ -518,12 +601,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         numColumns={2}
         contentContainerStyle={styles.productsList}
         columnWrapperStyle={styles.productRow}
-        ListEmptyComponent={productsLoading ? (
-          <View style={styles.emptyProductsState}>
-            <ActivityIndicator size="large" color={COLORS.accent} />
-            <Text style={styles.emptyProductsText}>Loading products…</Text>
-          </View>
-        ) : (
+        ListEmptyComponent={productsLoading ? <ProductGridSkeleton /> : (
           <View style={styles.emptyProductsState}>
             <Icon name="store-alert-outline" size={48} color={COLORS.textMuted} />
             <Text style={styles.emptyProductsTitle}>
@@ -548,7 +626,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         visible={detailModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setDetailModalVisible(false)}>
+        onRequestClose={closeProductDetails}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             
@@ -556,7 +634,7 @@ const OrderQueueScreen = ({navigation, route}) => {
               <>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{selectedProduct.name}</Text>
-                  <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
+                  <TouchableOpacity onPress={closeProductDetails} accessibilityRole="button" accessibilityLabel="Close product details">
                     <Text style={styles.modalClose}>✕</Text>
                   </TouchableOpacity>
                 </View>
@@ -584,15 +662,50 @@ const OrderQueueScreen = ({navigation, route}) => {
 
                   {/* Ingredients */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Ingredients</Text>
-                    {selectedProduct.ingredients.map((ing, idx) => (
-                      <View key={idx} style={styles.ingredientRow}>
-                        <Text style={styles.ingredientDot}>•</Text>
-                        <Text style={styles.ingredientText}>
-                          {ing.name} ({ing.quantity} {ing.unit})
-                        </Text>
-                      </View>
-                    ))}
+                    <Text style={styles.detailSectionTitle}>Ingredients per product</Text>
+                    <Text style={styles.ingredientHint}>Choose regular, half, none, or enter a smaller amount. Changes apply to every item in this cart line.</Text>
+                    {(selectedProduct.ingredients || []).map(ing => {
+                      const stockId = String(ing.stockId);
+                      const regular = Number(ing.quantity);
+                      const current = ingredientAmounts[stockId] ?? String(ing.quantity);
+                      return (
+                        <View key={stockId} style={styles.ingredientEditor}>
+                          <View style={styles.ingredientEditorHeading}>
+                            <Text style={styles.ingredientName}>{ing.name}</Text>
+                            <Text style={styles.ingredientRegular}>Regular: {ing.quantity} {ing.unit || ''}</Text>
+                          </View>
+                          <View style={styles.ingredientControls}>
+                            {[['Regular', regular], ['Half', Number((regular / 2).toFixed(4))], ['None', 0]].map(([label, amount]) => (
+                              <TouchableOpacity
+                                key={label}
+                                style={[styles.ingredientChoice, current !== '' && Number(current) === amount && styles.ingredientChoiceActive]}
+                                onPress={() => {
+                                  setIngredientAmounts(previous => ({...previous, [stockId]: String(amount)}));
+                                  setIngredientError('');
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${label} ${ing.name}`}>
+                                <Text style={[styles.ingredientChoiceText, current !== '' && Number(current) === amount && styles.ingredientChoiceTextActive]}>{label}</Text>
+                              </TouchableOpacity>
+                            ))}
+                            <TextInput
+                              style={styles.ingredientAmountInput}
+                              keyboardType="decimal-pad"
+                              value={current}
+                              onChangeText={value => {
+                                setIngredientAmounts(previous => ({...previous, [stockId]: value}));
+                                setIngredientError('');
+                              }}
+                              accessibilityLabel={`${ing.name} amount per product`}
+                              selectTextOnFocus
+                            />
+                            <Text style={styles.ingredientUnit}>{ing.unit || ''}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                    {!(selectedProduct.ingredients || []).length ? <Text style={styles.ingredientHint}>No recipe ingredients are configured for this product.</Text> : null}
+                    {ingredientError ? <Text style={styles.ingredientError} accessibilityLiveRegion="polite">{ingredientError}</Text> : null}
                   </View>
 
                   {/* Quantity Input */}
@@ -629,9 +742,9 @@ const OrderQueueScreen = ({navigation, route}) => {
                     style={styles.addToCartButton}
                     onPress={handleAddToCart}
                     accessibilityRole="button"
-                    accessibilityLabel={`Add ${selectedProduct.name} to cart`}>
+                    accessibilityLabel={editingCartIndex !== null ? `Save ${selectedProduct.name} cart changes` : `Add ${selectedProduct.name} to cart`}>
                     <Text style={styles.addToCartButtonText}>
-                      Add to Cart • ₱{(selectedProduct.price * (Number.parseInt(quantity, 10) || 1)).toFixed(2)}
+                      {editingCartIndex !== null ? 'Save changes' : 'Add to Cart'} • ₱{(selectedProduct.price * (Number.parseInt(quantity, 10) || 1)).toFixed(2)}
                     </Text>
                   </TouchableOpacity>
 
@@ -716,12 +829,23 @@ const OrderQueueScreen = ({navigation, route}) => {
                     <View style={styles.cartItemInfo}>
                       <Text style={styles.cartItemName}>{item.product.name}</Text>
                       <Text style={styles.cartItemQty}>Qty: {item.quantity}</Text>
+                      {(item.ingredientOverrides || []).map(override => {
+                        const ingredient = (item.product.ingredients || []).find(value => Number(value.stockId) === Number(override.stock_item_id));
+                        return ingredient ? (
+                          <Text key={override.stock_item_id} style={styles.cartItemIngredient}>
+                            {Number(override.quantity) === 0 ? `No ${ingredient.name}` : `${ingredient.name}: ${override.quantity} ${ingredient.unit || ''} (regular ${ingredient.quantity})`}
+                          </Text>
+                        ) : null;
+                      })}
+                      <TouchableOpacity onPress={() => handleEditCartItem(idx)} disabled={isPlacingOrder} accessibilityRole="button" accessibilityLabel={`Edit ${item.product.name} cart item`}>
+                        <Text style={styles.cartItemEdit}>Edit ingredients</Text>
+                      </TouchableOpacity>
                     </View>
                     <View style={styles.cartItemRight}>
                       <Text style={styles.cartItemPrice}>
                         ₱{(item.product.price * item.quantity).toFixed(2)}
                       </Text>
-                      <TouchableOpacity onPress={() => handleRemoveFromCart(item.product.id)} disabled={isPlacingOrder}>
+                      <TouchableOpacity onPress={() => handleRemoveFromCart(idx)} disabled={isPlacingOrder} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.name} from cart`}>
                         <Text style={styles.removeItemText}>✕</Text>
                       </TouchableOpacity>
                     </View>
@@ -838,7 +962,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         transparent
         onRequestClose={() => {}}>
         <View style={styles.modalOverlay}>
-          <View style={styles.qrModalCard}>
+          <ScrollView style={styles.qrModalCard} contentContainerStyle={styles.qrModalContent} keyboardShouldPersistTaps="handled">
             
             {paymentSignalDetected ? (
               <>
@@ -888,10 +1012,8 @@ const OrderQueueScreen = ({navigation, route}) => {
                 </View>
 
                 <ActivityIndicator size="large" color={COLORS.accentDark} />
-                <Text style={styles.qrWaitingText}>Keep this screen open. GastoTrack is waiting for a received {selectedEwallet} notification with the exact order total.</Text>
+                <Text style={styles.qrWaitingText}>Checking for a payment notification...</Text>
                 {paymentSignalWarning ? <Text style={styles.paymentSignalWarning}>{paymentSignalWarning}</Text> : null}
-                <Text style={styles.walletVerificationNote}>If no notification arrives, check that GastoTrack notification access is enabled in Android Settings.</Text>
-                <Text style={styles.walletVerificationNote}>Automatic matching uses the phone notification; it is not provider verification.</Text>
 
                 <View style={styles.waitingActions}>
                   <TouchableOpacity
@@ -912,7 +1034,7 @@ const OrderQueueScreen = ({navigation, route}) => {
               </>
             )}
 
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -920,13 +1042,26 @@ const OrderQueueScreen = ({navigation, route}) => {
   );
 };
 
+const ProductGridSkeleton = () => (
+  <SkeletonPlaceholder style={styles.productGridSkeleton} accessibilityLabel="Loading order products">
+    {[0, 1, 2, 3].map(item => (
+      <View key={item} style={styles.skeletonMenuCard}>
+        <SkeletonBlock height={96} radius={13} />
+        <SkeletonBlock width="62%" height={10} style={styles.skeletonProductCategorySpacer} />
+        <SkeletonBlock width="84%" height={13} style={styles.skeletonProductNameSpacer} />
+        <SkeletonBlock width="48%" height={12} style={styles.skeletonProductPriceSpacer} />
+      </View>
+    ))}
+  </SkeletonPlaceholder>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
   cartBadge: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
@@ -986,6 +1121,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
+    minHeight: 48,
+    justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -994,8 +1131,8 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   categoryChipActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
+    borderColor: COLORS.accentDark,
   },
   categoryChipText: {
     fontSize: 13,
@@ -1011,6 +1148,11 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 22,
   },
+  productGridSkeleton: {flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingTop: 6, paddingBottom: 22},
+  skeletonMenuCard: {width: '48%', minHeight: 170, padding: 10, borderRadius: 16, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonProductCategorySpacer: {marginTop: 10},
+  skeletonProductNameSpacer: {marginTop: 8},
+  skeletonProductPriceSpacer: {marginTop: 9},
   emptyProductsState: {
     minHeight: 230,
     alignItems: 'center',
@@ -1032,11 +1174,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   inventoryButton: {
+    minHeight: 48,
+    justifyContent: 'center',
     marginTop: 11,
     paddingVertical: 10,
     paddingHorizontal: 17,
     borderRadius: 11,
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
   },
   inventoryButtonText: {
     color: COLORS.textWhite,
@@ -1145,7 +1289,8 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   walletChoiceButton: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
+    minHeight: 48,
     borderRadius: 14,
     padding: 16,
     alignItems: 'center',
@@ -1209,6 +1354,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666666',
   },
+  ingredientHint: {fontSize: 12, lineHeight: 18, color: COLORS.textMuted, marginBottom: 8},
+  ingredientEditor: {paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border},
+  ingredientEditorHeading: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8},
+  ingredientName: {fontSize: 14, fontWeight: '700', color: COLORS.textDark, flex: 1},
+  ingredientRegular: {fontSize: 12, color: COLORS.textMuted},
+  ingredientControls: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 8},
+  ingredientChoice: {borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: COLORS.surface},
+  ingredientChoiceActive: {borderColor: COLORS.accent, backgroundColor: COLORS.miniCardBg},
+  ingredientChoiceText: {fontSize: 12, color: COLORS.textDark, fontWeight: '600'},
+  ingredientChoiceTextActive: {color: COLORS.accentDark},
+  ingredientAmountInput: {minWidth: 56, maxWidth: 82, borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, color: COLORS.textDark, fontSize: 14, textAlign: 'center', backgroundColor: COLORS.surface},
+  ingredientUnit: {fontSize: 12, color: COLORS.textMuted},
+  ingredientError: {fontSize: 12, color: COLORS.danger, marginTop: 8},
   quantityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1240,7 +1398,8 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   addToCartButton: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
+    minHeight: 48,
     borderRadius: 14,
     padding: 14,
     alignItems: 'center',
@@ -1276,6 +1435,8 @@ const styles = StyleSheet.create({
     color: '#888888',
     marginTop: 2,
   },
+  cartItemIngredient: {fontSize: 11, color: COLORS.accentDark, marginTop: 2},
+  cartItemEdit: {fontSize: 12, color: COLORS.accentDark, fontWeight: '700', marginTop: 6},
   cartItemRight: {
     alignItems: 'flex-end',
   },
@@ -1309,6 +1470,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   paymentChip: {
+    minHeight: 48,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -1317,8 +1480,8 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   paymentChipActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
+    borderColor: COLORS.accentDark,
   },
   paymentChipText: {
     fontSize: 13,
@@ -1381,9 +1544,14 @@ const styles = StyleSheet.create({
   qrModalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 18,
     width: '100%',
     maxWidth: 400,
+    maxHeight: '90%',
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  qrModalContent: {
+    padding: 18,
     alignItems: 'center',
   },
   qrTitle: {
@@ -1418,8 +1586,10 @@ const styles = StyleSheet.create({
   },
   qrWaitingText: {
     fontSize: 13,
-    color: '#888888',
+    color: COLORS.textGray,
     marginTop: 12,
+    textAlign: 'center',
+    lineHeight: 19,
   },
   qrSuccessTitle: {
     fontSize: 22,

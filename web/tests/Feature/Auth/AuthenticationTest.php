@@ -45,7 +45,8 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticatedAs($user);
-        $challenge->assertRedirect(route('dashboard', absolute: false));
+        $challenge->assertRedirect(route('dashboard', absolute: false))
+            ->assertSessionHas('owner.dashboard_loading', true);
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

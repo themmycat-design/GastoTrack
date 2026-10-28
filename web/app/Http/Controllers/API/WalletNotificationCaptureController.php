@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\WalletNotificationCapture;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class WalletNotificationCaptureController extends Controller
 {
+    public function __construct(private readonly NotificationService $notifications)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -91,7 +96,7 @@ class WalletNotificationCaptureController extends Controller
         DB::transaction(function () use ($validated, $user): void {
             foreach ($validated['captures'] as $capture) {
                 $id = $capture['client_id'];
-                DB::table('wallet_notification_captures')->insertOrIgnore([
+                $wasInserted = DB::table('wallet_notification_captures')->insertOrIgnore([
                     'client_id' => $id,
                     'business_id' => $user->business_id,
                     'user_id' => $user->id,
@@ -114,6 +119,21 @@ class WalletNotificationCaptureController extends Controller
                     409,
                     'This notification identifier belongs to another account.'
                 );
+                abort_unless(
+                    $saved->source === $capture['source']
+                        && $saved->direction === $capture['direction']
+                        && (int) round((float) $saved->amount * 100) === (int) round((float) $capture['amount'] * 100)
+                        && $saved->currency === $capture['currency']
+                        && $saved->reference === ($capture['reference'] ?? null)
+                        && $saved->message === $capture['message']
+                        && $saved->captured_at->equalTo(Carbon::parse($capture['captured_at'])->utc()),
+                    409,
+                    'This wallet notification identifier was already used with different details.'
+                );
+
+                if ($wasInserted > 0) {
+                    $this->notifications->notifyWalletCapture($saved);
+                }
             }
         });
 

@@ -23,7 +23,7 @@
     ];
 @endphp
 
-<div class="gt-enter space-y-6 pb-10">
+<div class="gt-enter gt-bug-reports-page space-y-6 pb-10">
     <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <span class="inline-flex items-center gap-2 rounded-full bg-[#E6F7F0] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[.14em] text-[#08745D]">
@@ -35,7 +35,7 @@
         </div>
         <div class="inline-flex items-center gap-2 self-start rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm font-semibold text-[#0A2E2A] shadow-sm sm:self-auto">
             <svg class="h-5 w-5 text-[#00A87E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 9h8v8a4 4 0 0 1-8 0V9Z"/><path d="M10 9a2 2 0 1 1 4 0M4 12h4m8 0h4M5 7l3 2m11-2-3 2M6 18h3m6 0h3"/></svg>
-            {{ $counts['total'] }} {{ $counts['total'] === 1 ? 'report' : 'reports' }}
+            <span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $counts['total'] }}" data-owner-count-up-decimals="0">{{ number_format((int) $counts['total']) }}</span> {{ $counts['total'] === 1 ? 'report' : 'reports' }}
         </div>
     </header>
 
@@ -63,7 +63,7 @@
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-xs font-semibold text-slate-500 sm:text-sm">{{ $label }}</p>
-                        <p class="mt-2 text-2xl font-extrabold {{ $color }}">{{ $value }}</p>
+                        <p class="mt-2 text-2xl font-extrabold {{ $color }}"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $value }}" data-owner-count-up-decimals="0">{{ number_format((int) $value) }}</span></p>
                     </div>
                     <span class="flex h-10 w-10 items-center justify-center rounded-xl {{ $iconBg }}">
                         @if($icon === 'file-document-multiple-outline')
@@ -83,7 +83,7 @@
 
     <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,.75fr)]">
         <section class="overflow-hidden rounded-2xl border border-[#DDE9E5] bg-white shadow-sm">
-            <div class="border-b border-[#EAF2EF] bg-gradient-to-r from-[#F0FBF6] to-white px-5 py-5 sm:px-7">
+            <div class="gt-bug-report-form-header border-b border-[#EAF2EF] bg-gradient-to-r from-[#F0FBF6] to-white px-5 py-5 sm:px-7">
                 <div class="flex items-start gap-3">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#00A87E] text-white shadow-sm">
                         <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 9h8v8a4 4 0 0 1-8 0V9Z"/><path d="M10 9a2 2 0 1 1 4 0M4 12h4m8 0h4M5 7l3 2m11-2-3 2M6 18h3m6 0h3"/></svg>
@@ -95,7 +95,7 @@
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('owner.bug-reports.store') }}" enctype="multipart/form-data" class="space-y-5 p-5 sm:p-7">
+            <form data-submit-feedback method="POST" action="{{ route('owner.bug-reports.store') }}" enctype="multipart/form-data" class="space-y-5 p-5 sm:p-7">
                 @csrf
                 <div class="grid gap-5 sm:grid-cols-2">
                     <label class="block text-sm font-bold text-[#173F39]">
@@ -142,7 +142,7 @@
                 <div class="flex flex-col gap-3 border-t border-[#EAF2EF] pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-xs leading-5 text-slate-500">Your report is shared with the Super Admin support team. You can follow its status below.</p>
                     <button type="submit" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#00A87E] px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#08745D] focus:outline-none focus:ring-4 focus:ring-[#00C897]/25">
-                        Submit report
+                        <span data-submit-label>Submit report</span>
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
                     </button>
                 </div>

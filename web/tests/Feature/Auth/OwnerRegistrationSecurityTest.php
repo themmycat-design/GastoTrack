@@ -71,7 +71,7 @@ class OwnerRegistrationSecurityTest extends TestCase
         $totp = new Google2FA;
 
         $this->post(route('owner.two-factor.confirm'), ['code' => '000000'])
-            ->assertSessionHasErrors('code');
+            ->assertSessionHasErrors('code', null, 'confirmTwoFactorAuthentication');
         $this->assertNull($owner->fresh()->two_factor_confirmed_at);
 
         $this->post(route('owner.two-factor.confirm'), ['code' => $totp->getCurrentOtp($secret)])
@@ -137,7 +137,8 @@ class OwnerRegistrationSecurityTest extends TestCase
         ]);
 
         $challenge->assertRedirect(route('dashboard', absolute: false))
-            ->assertCookie(OwnerTrustedDeviceService::COOKIE_NAME);
+            ->assertCookie(OwnerTrustedDeviceService::COOKIE_NAME)
+            ->assertSessionHas('owner.dashboard_loading', true);
 
         $trustedCookie = $challenge->getCookie(OwnerTrustedDeviceService::COOKIE_NAME);
         $this->assertNotNull($trustedCookie);
@@ -148,7 +149,8 @@ class OwnerRegistrationSecurityTest extends TestCase
         $this->post('/logout');
         $this->withCookie(OwnerTrustedDeviceService::COOKIE_NAME, $trustedCookie->getValue())
             ->post('/login', ['email' => $owner->email, 'password' => 'password'])
-            ->assertRedirect(route('dashboard', absolute: false));
+            ->assertRedirect(route('dashboard', absolute: false))
+            ->assertSessionHas('owner.dashboard_loading', true);
 
         $this->assertAuthenticatedAs($owner);
         $this->assertSame($owner->id, (int) session('owner.two_factor_user_id'));
@@ -235,11 +237,35 @@ class OwnerRegistrationSecurityTest extends TestCase
         ]);
 
         $this->actingAs($owner)
+            ->withSession(['owner.two_factor_user_id' => null, 'owner.two_factor_verified_at' => null])
             ->withCookie(OwnerTrustedDeviceService::COOKIE_NAME, $token)
             ->get(route('dashboard'))
             ->assertOk();
 
         $this->assertSame($owner->id, (int) session('owner.two_factor_user_id'));
+    }
+
+    public function test_restoring_an_old_trusted_cookie_keeps_the_original_mfa_deadline(): void
+    {
+        [, $owner] = $this->makeOwner('active', true);
+        $token = str_repeat('c', 64);
+        $verifiedAt = now()->subDays(29);
+        $device = $owner->trustedDevices()->create([
+            'token_hash' => hash('sha256', $token),
+            'expires_at' => $verifiedAt->copy()->addDays(30),
+        ]);
+        $device->forceFill(['created_at' => $verifiedAt])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['owner.two_factor_user_id' => null, 'owner.two_factor_verified_at' => null])
+            ->withCookie(OwnerTrustedDeviceService::COOKIE_NAME, $token)
+            ->get(route('dashboard'))
+            ->assertOk();
+
+        $this->assertSame($verifiedAt->timestamp, (int) session('owner.two_factor_verified_at'));
+        $this->travel(2)->days();
+        $this->get(route('dashboard'))->assertRedirect(route('two-factor.login'));
+        $this->travelBack();
     }
 
     public function test_owner_mfa_session_expires_after_30_days_even_while_still_signed_in(): void

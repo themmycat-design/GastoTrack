@@ -4,7 +4,10 @@ namespace Tests\Feature\Auth;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
+use Symfony\Component\Mailer\Exception\UnexpectedResponseException;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -65,5 +68,27 @@ class RegistrationTest extends TestCase
             ->assertSessionHasErrors('password');
 
         $this->assertDatabaseMissing('users', ['email' => 'carlo@harborcoffee.example']);
+    }
+
+    public function test_mail_transport_failure_keeps_registration_pending_and_shows_retry_guidance(): void
+    {
+        Notification::fake();
+        Event::listen(Registered::class, function (): void {
+            throw new UnexpectedResponseException('SMTP authentication required');
+        });
+
+        $this->post('/register', [
+            'name' => 'Pending Owner',
+            'business_name' => 'Pending Cafe',
+            'business_type' => 'cafe',
+            'email' => 'pending@example.test',
+            'password' => 'GastoTrack9!',
+            'password_confirmation' => 'GastoTrack9!',
+        ])->assertRedirect(route('verification.notice', absolute: false))
+            ->assertSessionHas('verification_delivery_failed', true);
+
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('businesses', ['name' => 'Pending Cafe', 'status' => 'pending', 'active' => false]);
+        $this->get('/verify-email')->assertOk()->assertSee('Your account was created, but we could not send');
     }
 }

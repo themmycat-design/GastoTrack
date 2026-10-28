@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {AppAlert as Alert} from '../../services/AppDialogService';
 import {useFocusEffect} from '@react-navigation/native';
 import { useTransactions } from '../../context/TransactionContext';
 import { useProducts } from '../../context/ProductContext';
@@ -18,15 +18,21 @@ import { useAuth } from '../../context/AuthContext';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
+import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
 import {useStaffDay} from '../../utils/useStaffDay';
 import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 import {getProfilePhotoSource} from '../../utils/profilePhoto';
+import {getStaffOfflineActions, retryStaffOfflineAction, subscribeStaffOffline, syncStaffOfflineActions} from '../../services/staffOffline';
 
 const DashboardScreen = ({ navigation }) => {
-  const { user, userToken, sessionStorageWarning } = useAuth();
+  const {user, userToken, business, sessionStorageWarning} = useAuth();
+  const offlineAccount = useMemo(() => user?.id && (user?.business_id || business?.id)
+    ? {userId: user.id, businessId: user.business_id || business.id} : null,
+  [user?.id, user?.business_id, business?.id]);
+  const [offlineActions, setOfflineActions] = useState([]);
   const { transactions, isLoading: transactionsLoading, loadError: transactionError, fetchTransactions, PRODUCT_CATEGORIES } = useTransactions();
   const { products, isLoading: productsLoading, loadError: productError, fetchProducts } = useProducts();
   const [refreshing, setRefreshing] = useState(false);
@@ -37,6 +43,20 @@ const DashboardScreen = ({ navigation }) => {
   const [incomeError, setIncomeError] = useState(null);
   const incomeRequestId = React.useRef(0);
   const day = useStaffDay();
+
+  useEffect(() => {
+    if (!offlineAccount) {
+      setOfflineActions([]);
+      return undefined;
+    }
+    let active = true;
+    const refreshOffline = () => getStaffOfflineActions(offlineAccount)
+      .then(actions => { if (active) setOfflineActions(actions); })
+      .catch(() => {});
+    refreshOffline();
+    const unsubscribe = subscribeStaffOffline(refreshOffline);
+    return () => { active = false; unsubscribe(); };
+  }, [offlineAccount]);
 
   const fetchDailyIncome = React.useCallback(async () => {
     const requestId = ++incomeRequestId.current;
@@ -68,7 +88,8 @@ const DashboardScreen = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchTransactions(), fetchProducts(), fetchDailyIncome()]);
+      await Promise.all([fetchTransactions(), fetchProducts(), fetchDailyIncome(),
+        offlineAccount ? syncStaffOfflineActions(offlineAccount).catch(() => {}) : Promise.resolve()]);
     } finally {
       setRefreshing(false);
     }
@@ -96,6 +117,8 @@ const DashboardScreen = ({ navigation }) => {
   const recentTransactions = (transactions || []).filter(t => isToday(t.date || t.created_at)).slice(0, 5);
   const dashboardError = incomeError || transactionError || productError;
   const dataUnavailable = Boolean(dashboardError);
+  const isLoadingDashboard = transactionsLoading || productsLoading || incomeLoading;
+  const hasDashboardData = availableProducts.length > 0 || transactions.length > 0 || todayIncome !== null;
   const showGettingStarted = !dataUnavailable && !incomeLoading && !transactionsLoading && !productsLoading
     && (transactions.length === 0 || availableProducts.length === 0);
 
@@ -121,12 +144,25 @@ const DashboardScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />
         }>
         <ApiErrorBanner message={sessionStorageWarning} />
-        {(transactionsLoading || productsLoading) ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.accent} />
-            <Text style={styles.loadingText}>Loading dashboard data...</Text>
+        {offlineActions.length ? (
+          <View style={styles.offlineCard}>
+            <Text style={styles.offlineTitle}>Offline records · {offlineActions.length}</Text>
+            <Text style={styles.offlineHint}>Saved on this device. Shared totals and stock update after the server accepts each record.</Text>
+            {offlineActions.slice(0, 8).map(action => (
+              <View key={action.client_id} style={styles.offlineRow}>
+                <View style={styles.offlineText}>
+                  <Text style={styles.offlineItem}>{({cash_order: 'Cash order', transaction: 'Transaction', stock_adjustment: 'Stock adjustment'})[action.kind] || 'Record'} · {action.status === 'rejected' ? 'Needs attention' : 'Waiting to sync'}</Text>
+                  {action.error ? <Text style={styles.offlineError}>{action.error}</Text> : null}
+                </View>
+                {action.status === 'rejected' ? <TouchableOpacity style={styles.offlineRetryButton} accessibilityRole="button" accessibilityLabel="Retry offline record" onPress={() => retryStaffOfflineAction(offlineAccount, action.client_id).catch(error => Alert.alert('Retry failed', error.message))}>
+                  <Text style={styles.offlineRetry}>Retry</Text>
+                </TouchableOpacity> : null}
+              </View>
+            ))}
+            {offlineActions.length > 8 ? <Text style={styles.offlineHint}>Showing 8 of {offlineActions.length} records.</Text> : null}
           </View>
         ) : null}
+        {isLoadingDashboard && !hasDashboardData ? <DashboardSkeleton /> : <>
         {/* Daily Income Card */}
         <View style={styles.incomeCard}>
           <View style={styles.incomeHeader}>
@@ -336,27 +372,93 @@ const DashboardScreen = ({ navigation }) => {
 
         {/* Bottom spacing */}
         <View style={styles.bottomSpacing} />
+        </>}
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+const DashboardSkeleton = () => (
+  <SkeletonPlaceholder style={styles.dashboardSkeleton} accessibilityLabel="Loading home screen">
+    <View style={styles.skeletonIncomeCard}>
+      <SkeletonBlock width={112} height={14} />
+      <SkeletonBlock width={174} height={38} radius={12} style={styles.skeletonIncomeAmountSpacer} />
+      <SkeletonBlock width="72%" height={12} style={styles.skeletonIncomeCaptionSpacer} />
+    </View>
+    <View style={styles.skeletonQuickActions}>
+      {[0, 1, 2, 3].map(item => (
+        <View key={item} style={styles.skeletonQuickAction}>
+          <SkeletonBlock width={38} height={38} radius={14} />
+          <SkeletonBlock width="68%" height={12} style={styles.skeletonQuickActionLabelSpacer} />
+        </View>
+      ))}
+    </View>
+    <View style={styles.skeletonSection}>
+      <View style={styles.skeletonSectionHeader}>
+        <SkeletonBlock width={116} height={17} />
+        <SkeletonBlock width={55} height={12} />
+      </View>
+      <View style={styles.skeletonProductRow}>
+        {[0, 1, 2].map(item => (
+          <View key={item} style={styles.skeletonProductCard}>
+            <SkeletonBlock height={86} radius={13} />
+            <SkeletonBlock width="58%" height={10} style={styles.skeletonProductCategorySpacer} />
+            <SkeletonBlock width="78%" height={13} style={styles.skeletonProductNameSpacer} />
+            <SkeletonBlock width="42%" height={12} style={styles.skeletonProductPriceSpacer} />
+          </View>
+        ))}
+      </View>
+    </View>
+    <View style={styles.skeletonSection}>
+      <View style={styles.skeletonSectionHeader}>
+        <SkeletonBlock width={150} height={17} />
+        <SkeletonBlock width={55} height={12} />
+      </View>
+      {[0, 1, 2].map(item => (
+        <View key={item} style={styles.skeletonTransactionRow}>
+          <SkeletonBlock width={40} height={40} radius={14} />
+          <View style={styles.skeletonTransactionCopy}>
+            <SkeletonBlock width="76%" height={13} />
+            <SkeletonBlock width="48%" height={11} style={styles.skeletonTransactionSubtitleSpacer} />
+          </View>
+          <SkeletonBlock width={62} height={14} />
+        </View>
+      ))}
+    </View>
+  </SkeletonPlaceholder>
+);
+
 const styles = StyleSheet.create({
+  offlineCard: {marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: '#FFF8E8', borderWidth: 1, borderColor: '#E8C98B'},
+  offlineTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark},
+  offlineHint: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
+  offlineRow: {flexDirection: 'row', alignItems: 'center', paddingTop: 9, marginTop: 8, borderTopWidth: 1, borderTopColor: '#EADBB9'},
+  offlineText: {flex: 1},
+  offlineItem: {fontSize: 13, color: COLORS.textDark, fontWeight: '600'},
+  offlineError: {fontSize: 12, color: COLORS.danger, marginTop: 3},
+  offlineRetryButton: {minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center'},
+  offlineRetry: {fontSize: 13, color: COLORS.accentDark, fontWeight: '700', padding: 8},
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.miniCardBg,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.textGray,
-  },
+  dashboardSkeleton: {paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28},
+  skeletonIncomeCard: {padding: 18, minHeight: 140, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonQuickActions: {flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16},
+  skeletonQuickAction: {width: '48%', minHeight: 86, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonSection: {marginTop: 22},
+  skeletonSectionHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12},
+  skeletonProductRow: {flexDirection: 'row', gap: 10},
+  skeletonProductCard: {width: 142, padding: 10, borderRadius: 15, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonTransactionRow: {flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, paddingHorizontal: 11, marginBottom: 8, borderRadius: 14, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
+  skeletonTransactionCopy: {flex: 1},
+  skeletonIncomeAmountSpacer: {marginTop: 15},
+  skeletonIncomeCaptionSpacer: {marginTop: 12},
+  skeletonQuickActionLabelSpacer: {marginTop: 9},
+  skeletonProductCategorySpacer: {marginTop: 10},
+  skeletonProductNameSpacer: {marginTop: 7},
+  skeletonProductPriceSpacer: {marginTop: 8},
+  skeletonTransactionSubtitleSpacer: {marginTop: 8},
   scrollView: {
     flex: 1,
   },
@@ -495,6 +597,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryTab: {
+    minHeight: 48,
+    justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -503,7 +607,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   categoryTabActive: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.accentDark,
   },
   categoryTabText: {
     fontSize: 14,

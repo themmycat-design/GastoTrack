@@ -1,4 +1,4 @@
-import React, {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 import {AuthContext} from './AuthContext';
@@ -9,6 +9,7 @@ import {createOrderIdempotencyKey, orderRequestSignature} from '../config/orderI
 import {getApiErrorMessage} from '../services/apiErrors';
 import {getEffectiveOrderPaymentStatus} from '../utils/orderHistoryStatus';
 import {staffDayKey, useStaffDay} from '../utils/useStaffDay';
+import {recordStaffAction, subscribeStaffOffline} from '../services/staffOffline';
 
 const OrderContext = createContext();
 const CART_STORAGE_PREFIX = 'gastotrack.cart.';
@@ -49,12 +50,25 @@ const buildOrderPayload = orderData => {
     throw new Error('Add at least one product before placing the order.');
   }
 
-  const items = orderData.items.map(item => ({
-    product_id: Number(item?.product?.id ?? item?.product_id),
-    quantity: Number(item?.quantity),
-  }));
+  const items = orderData.items.map(item => {
+    const overrides = item?.ingredientOverrides || item?.ingredient_overrides || [];
+    const row = {
+      product_id: Number(item?.product?.id ?? item?.product_id),
+      quantity: Number(item?.quantity),
+    };
+    if (overrides.length) {
+      row.ingredient_overrides = overrides.map(ingredient => ({
+        stock_item_id: Number(ingredient.stock_item_id ?? ingredient.stockId),
+        quantity: Number(ingredient.quantity),
+      }));
+    }
+    return row;
+  });
   if (items.some(item => !Number.isInteger(item.product_id) || item.product_id < 1
-    || !Number.isInteger(item.quantity) || item.quantity < 1)) {
+    || !Number.isInteger(item.quantity) || item.quantity < 1
+    || item.ingredient_overrides?.some(ingredient => !Number.isInteger(ingredient.stock_item_id)
+      || ingredient.stock_item_id < 1 || !Number.isFinite(ingredient.quantity)
+      || ingredient.quantity < 0 || !/^\d+(?:\.\d{1,4})?$/.test(String(ingredient.quantity))))) {
     throw new Error('One or more cart items are invalid. Remove them and add the products again.');
   }
 
@@ -75,7 +89,10 @@ export const OrderProvider = ({children}) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
-  const {userToken, user} = useContext(AuthContext);
+  const {userToken, user, business} = useContext(AuthContext);
+  const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
+    ? {userId: user.id, businessId: user.business_id || business.id} : null,
+  [user?.role, user?.id, user?.business_id, business?.id]);
   const {fetchTransactions} = useTransactions();
   const {fetchStock} = useStock();
   const {fetchProducts} = useProducts();
@@ -220,6 +237,10 @@ export const OrderProvider = ({children}) => {
     }
   }, [fetchOrders, userToken]);
 
+  useEffect(() => subscribeStaffOffline(event => {
+    if (event === 'synced' && userToken) fetchOrders();
+  }), [fetchOrders, userToken]);
+
   const mergeOrder = useCallback(orderValue => {
     const order = normalize(orderValue);
     const existed = orders.some(item => item.id === order.id);
@@ -296,16 +317,42 @@ export const OrderProvider = ({children}) => {
       const clientId = previousAttempt?.signature === signature
         ? previousAttempt.client_id
         : createOrderIdempotencyKey();
-      const attempt = {client_id: clientId, signature, completed: false, order: null};
+      const attempt = {
+        client_id: clientId, signature, completed: false, order: null,
+        offlineRecordedAt: previousAttempt?.signature === signature && previousAttempt.offlineRecordedAt
+          ? previousAttempt.offlineRecordedAt : new Date().toISOString(),
+      };
       try {
         await AsyncStorage.setItem(attemptStorageKey, JSON.stringify(attempt));
       } catch {
         throw orderRetryStorageError();
       }
 
+      if (offlineAccount && payload.payment_method === 'cash' && orderData.items.some(item =>
+        !Number.isFinite(Number(item.product?.price)) || Number(item.product.price) < 0)) {
+        throw new Error('A product price is missing. Refresh products before recording this cash order.');
+      }
       // If a timeout/lost response occurs, this attempt stays persisted. Retrying
       // the same cart reuses this client_id and the server returns the same order.
-      const response = await api.post('/orders', {...payload, client_id: clientId});
+      const submitted = offlineAccount && payload.payment_method === 'cash'
+        ? await recordStaffAction(offlineAccount, 'cash_order', {
+          ...payload,
+          offline_recorded_at: attempt.offlineRecordedAt,
+          items: payload.items.map((item, index) => ({
+            ...item,
+            expected_unit_price: Number(orderData.items[index].product.price).toFixed(2),
+          })),
+        }, clientId)
+        : {synced: true, data: (await api.post('/orders', {...payload, client_id: clientId})).data};
+      if (!submitted.synced) {
+        // The durable SQLite outbox now owns the retry. Clear this cart so the
+        // cashier can record the next sale without presenting this one as paid.
+        setCartState([]);
+        await AsyncStorage.setItem(cartStorageKey, JSON.stringify({day: staffDayKey(), items: []}));
+        await AsyncStorage.removeItem(attemptStorageKey);
+        return {offlinePending: true, clientId, paymentStatus: 'offline_pending', status: 'queued'};
+      }
+      const response = {data: submitted.data};
       if (!response?.data?.order?.id) {
         throw new Error('The server response did not include the saved order. Your cart is still available; retry the same order.');
       }
@@ -340,7 +387,7 @@ export const OrderProvider = ({children}) => {
     } finally {
       if (activeSubmission.current?.promise === promise) activeSubmission.current = null;
     }
-  }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData]);
+  }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData, offlineAccount]);
 
   const postOrderAction = useCallback(async (orderId, path, body = {}, options = {}) => {
     const response = await api.post(`/orders/${orderId}/${path}`, body);

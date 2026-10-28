@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Rules\PasswordStrength;
+use App\Services\BusinessStaffLimit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class StaffController extends Controller
 {
@@ -51,7 +53,7 @@ class StaffController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, BusinessStaffLimit $staffLimit)
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -63,15 +65,20 @@ class StaffController extends Controller
         
         $user = auth()->user();
         
-        User::create([
+        DB::transaction(function () use ($validated, $user, $staffLimit): void {
+            if ($validated['role'] === 'staff') {
+                $staffLimit->assertCanAddStaff((int) $user->business_id);
+            }
+            User::create([
             'business_id' => $user->business_id,
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'phone' => $validated['phone'],
+            'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
             'status' => 'active',
-        ]);
+            ]);
+        });
         
         return redirect()->route('staff.index')
             ->with('success', 'User created successfully!');
@@ -80,7 +87,7 @@ class StaffController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, User $staff)
+    public function update(Request $request, User $staff, BusinessStaffLimit $staffLimit)
     {
         // Ensure the user belongs to the same business
         if ($staff->business_id !== auth()->user()->business_id) {
@@ -107,7 +114,12 @@ class StaffController extends Controller
             $updateData['password'] = Hash::make($validated['password']);
         }
         
-        $staff->update($updateData);
+        DB::transaction(function () use ($staff, $updateData, $staffLimit): void {
+            if ($staff->role !== 'staff' && $updateData['role'] === 'staff') {
+                $staffLimit->assertCanAddStaff((int) $staff->business_id);
+            }
+            $staff->update($updateData);
+        });
         
         return redirect()->route('staff.index')
             ->with('success', 'User updated successfully!');

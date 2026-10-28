@@ -17,7 +17,7 @@ export const COLORS = {
 
   // Transaction
   income: '#08745D',
-  expense: '#E53935',
+  expense: '#C62828',
 
   // Tags
   tagIncBg: '#E8F5E9',
@@ -39,9 +39,16 @@ export const COLORS = {
   surface: '#FFFFFF',
   surfaceMuted: '#ECF7F3',
   border: '#DDE9E5',
-  warning: '#F59E0B',
-  danger: '#DC4C4C',
+  warning: '#915C00',
+  danger: '#C62828',
   success: '#138A68',
+  // Shared interface roles. Keep legacy names above for existing screens.
+  textPrimary: '#0A2E2A',
+  textSecondary: '#60756F',
+  actionPrimary: '#08745D',
+  actionText: '#FFFFFF',
+  borderStrong: '#A9C6BA',
+  dangerSurface: '#FFF0F0',
 };
 
 export const SPACING = {
@@ -51,6 +58,7 @@ export const SPACING = {
   lg: 16,
   xl: 20,
   xxl: 24,
+  xxxl: 32,
 };
 
 export const RADIUS = {

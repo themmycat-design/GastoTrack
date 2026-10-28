@@ -33,7 +33,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Total users</p>
-                        <p class="mt-2 text-2xl font-extrabold text-[#0A2E2A]">{{ $totalUsers }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#0A2E2A]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $totalUsers }}" data-owner-count-up-decimals="0">{{ number_format((int) $totalUsers) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.5 5.5 0 0 1 3.5 5"/></svg>
@@ -45,7 +45,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Staff members</p>
-                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $totalStaff }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $totalStaff }}" data-owner-count-up-decimals="0">{{ number_format((int) $totalStaff) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
@@ -57,7 +57,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-semibold text-slate-500">Owners</p>
-                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]">{{ $totalOwners }}</p>
+                        <p class="mt-2 text-2xl font-extrabold text-[#08745D]"><span data-owner-motion-child data-owner-count-up data-owner-count-up-value="{{ (int) $totalOwners }}" data-owner-count-up-decimals="0">{{ number_format((int) $totalOwners) }}</span></p>
                     </div>
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF8F2] text-[#08745D]">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 8 4.5 4 4.5-7 4.5 7L21 8l-2 11H5L3 8Z"/><path d="M6 16h12"/></svg>
@@ -71,14 +71,14 @@
             <form id="staff-filter-form" method="GET" action="{{ route('staff.index') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Search -->
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-slate-700">Search</label>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, email, phone..." class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
+                    <label for="staff-search" class="mb-2 block text-sm font-semibold text-slate-700">Search</label>
+                    <input id="staff-search" type="text" name="search" value="{{ request('search') }}" placeholder="Name, email, phone..." class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                 </div>
 
                 <!-- Role Filter -->
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-slate-700">Role</label>
-                    <select name="role" class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
+                    <label for="staff-role-filter" class="mb-2 block text-sm font-semibold text-slate-700">Role</label>
+                    <select id="staff-role-filter" name="role" class="gt-focus w-full rounded-xl border border-[#DDE9E5] bg-white px-4 py-3 text-sm text-[#0A2E2A] focus:border-[#00A87E] focus:ring-2 focus:ring-[#00C897]/20">
                         <option value="">All Roles</option>
                         <option value="owner" {{ request('role') == 'owner' ? 'selected' : '' }}>Owner</option>
                         <option value="staff" {{ request('role') == 'staff' ? 'selected' : '' }}>Staff</option>

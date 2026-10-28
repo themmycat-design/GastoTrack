@@ -55,7 +55,18 @@
                 <div class="divide-y divide-[#EAF2EF]">
                     @forelse($order->items as $item)
                         <div class="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
-                            <div class="min-w-0"><p class="truncate text-sm font-bold">{{ $item->product_name }}</p><p class="mt-1 text-xs text-slate-500">{{ $item->quantity }} × {{ $currencyPrefix }}{{ number_format((float) $item->price, 2) }}</p></div>
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-bold">{{ $item->product_name }}</p>
+                                <p class="mt-1 text-xs text-slate-500">{{ $item->quantity }} × {{ $currencyPrefix }}{{ number_format((float) $item->price, 2) }}</p>
+                                @foreach($item->ingredients_snapshot ?? [] as $ingredient)
+                                    @if(array_key_exists('original_quantity', $ingredient))
+                                        <p class="mt-1 text-xs font-semibold text-[#08745D]">
+                                            {{ (float) $ingredient['quantity'] === 0.0 ? 'No '.($ingredient['stock_name'] ?? 'ingredient') : ($ingredient['stock_name'] ?? 'Ingredient').': '.rtrim(rtrim(number_format((float) $ingredient['quantity'], 4, '.', ''), '0'), '.').' '.($ingredient['unit'] ?? '') }}
+                                            <span class="font-normal text-slate-500">(regular {{ rtrim(rtrim(number_format((float) $ingredient['original_quantity'], 4, '.', ''), '0'), '.') }} {{ $ingredient['unit'] ?? '' }})</span>
+                                        </p>
+                                    @endif
+                                @endforeach
+                            </div>
                             <p class="shrink-0 text-sm font-bold">{{ $currencyPrefix }}{{ number_format((float) $item->subtotal, 2) }}</p>
                         </div>
                     @empty

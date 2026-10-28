@@ -32,19 +32,22 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
     }
 
     private WalletCaptureStore(Context context) {
-        super(context, "wallet_captures.db", null, 1);
+        super(context, "wallet_captures.db", null, 2);
         account = context.getSharedPreferences("wallet_capture_account", Context.MODE_PRIVATE);
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE wallet_captures (client_id TEXT PRIMARY KEY, notification_key TEXT NOT NULL UNIQUE, user_id INTEGER NOT NULL, business_id INTEGER NOT NULL, payload TEXT NOT NULL)");
+        db.execSQL("CREATE TABLE wallet_captures (client_id TEXT PRIMARY KEY, notification_key TEXT NOT NULL UNIQUE, user_id INTEGER NOT NULL, business_id INTEGER NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', failure_reason TEXT)");
         db.execSQL("CREATE INDEX wallet_captures_account ON wallet_captures (user_id, business_id)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // Version 1 has no schema upgrades.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE wallet_captures ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
+            db.execSQL("ALTER TABLE wallet_captures ADD COLUMN failure_reason TEXT");
+        }
     }
 
     public void setActiveAccount(int userId, int businessId) {
@@ -109,7 +112,7 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
         if (userId <= 0 || businessId <= 0) return result;
         java.util.ArrayList<String> invalidIds = new java.util.ArrayList<>();
         try (Cursor cursor = getReadableDatabase().rawQuery(
-            "SELECT client_id, payload FROM wallet_captures WHERE user_id = ? AND business_id = ? ORDER BY rowid ASC",
+            "SELECT client_id, payload FROM wallet_captures WHERE user_id = ? AND business_id = ? AND status = 'pending' ORDER BY rowid ASC LIMIT 50",
             new String[]{String.valueOf(userId), String.valueOf(businessId)})) {
             while (cursor.moveToNext()) {
                 String clientId = cursor.getString(0);
@@ -132,20 +135,53 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
                 }
             }
         }
-        if (!invalidIds.isEmpty()) {
-            SQLiteDatabase db = getWritableDatabase();
-            db.beginTransaction();
-            try {
-                for (String clientId : invalidIds) {
-                    db.delete("wallet_captures", "client_id = ? AND user_id = ? AND business_id = ?",
-                        new String[]{clientId, String.valueOf(userId), String.valueOf(businessId)});
-                }
-                db.setTransactionSuccessful();
-            } finally {
-                db.endTransaction();
+        for (String clientId : invalidIds) markRejected(clientId, "Capture format could not be read or is no longer supported.");
+        return result;
+    }
+
+    public void markRejected(String clientId, String reason) {
+        int userId = account.getInt("user_id", 0);
+        int businessId = account.getInt("business_id", 0);
+        if (userId <= 0 || businessId <= 0) return;
+        ContentValues values = new ContentValues();
+        values.put("status", "rejected");
+        values.put("failure_reason", limit(reason == null ? "Capture rejected by server." : reason, 160));
+        getWritableDatabase().update("wallet_captures", values,
+            "client_id = ? AND user_id = ? AND business_id = ? AND status = 'pending'",
+            new String[]{clientId, String.valueOf(userId), String.valueOf(businessId)});
+    }
+
+    public JSONArray rejected() throws JSONException {
+        JSONArray result = new JSONArray();
+        int userId = account.getInt("user_id", 0);
+        int businessId = account.getInt("business_id", 0);
+        if (userId <= 0 || businessId <= 0) return result;
+        try (Cursor cursor = getReadableDatabase().rawQuery(
+            "SELECT client_id, payload, failure_reason FROM wallet_captures WHERE user_id = ? AND business_id = ? AND status = 'rejected' ORDER BY rowid DESC LIMIT 50",
+            new String[]{String.valueOf(userId), String.valueOf(businessId)})) {
+            while (cursor.moveToNext()) {
+                JSONObject payload = new JSONObject(cursor.getString(1));
+                JSONObject summary = new JSONObject();
+                summary.put("client_id", cursor.getString(0));
+                summary.put("source", payload.optString("source", "Wallet"));
+                summary.put("captured_at", payload.optString("captured_at", ""));
+                summary.put("reason", cursor.getString(2));
+                result.put(summary);
             }
         }
         return result;
+    }
+
+    public void retryRejected(String clientId) {
+        int userId = account.getInt("user_id", 0);
+        int businessId = account.getInt("business_id", 0);
+        if (userId <= 0 || businessId <= 0) return;
+        ContentValues values = new ContentValues();
+        values.put("status", "pending");
+        values.putNull("failure_reason");
+        getWritableDatabase().update("wallet_captures", values,
+            "client_id = ? AND user_id = ? AND business_id = ? AND status = 'rejected'",
+            new String[]{clientId, String.valueOf(userId), String.valueOf(businessId)});
     }
 
     public void markSynced(String[] clientIds) {

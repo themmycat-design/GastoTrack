@@ -64,33 +64,78 @@ class OrderController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.product_id' => ['required', 'integer', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:1000'],
+            'items.*.expected_unit_price' => ['sometimes', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'items.*.ingredient_overrides' => ['sometimes', 'array', 'max:100'],
+            'items.*.ingredient_overrides.*.stock_item_id' => ['required', 'integer', 'min:1'],
+            'items.*.ingredient_overrides.*.quantity' => ['required', 'numeric', 'decimal:0,4', 'min:0'],
             'payment_method' => ['required', Rule::in(['cash', 'gcash', 'maya', 'bank'])],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:30'],
             'notes' => ['nullable', 'string', 'max:500'],
             'client_id' => ['nullable', 'uuid'],
+            'offline_recorded_at' => ['nullable', 'date'],
         ]);
 
         $businessId = (int) $request->user()->business_id;
         $clientId = $validated['client_id'] ?? (string) Str::uuid();
-        $items = collect($validated['items'])
-            ->groupBy('product_id')
-            ->map(fn ($rows, $productId): array => [
-                'product_id' => (int) $productId,
-                'quantity' => (int) $rows->sum('quantity'),
-            ])
-            ->sortBy('product_id')
+        $items = collect($validated['items'])->map(function (array $row): array {
+            $overrides = collect($row['ingredient_overrides'] ?? [])
+                ->map(fn (array $override): array => [
+                    'stock_item_id' => (int) $override['stock_item_id'],
+                    'quantity' => number_format((float) $override['quantity'], 4, '.', ''),
+                ])->sortBy('stock_item_id')->values()->all();
+            abort_if(count($overrides) !== count(array_unique(array_column($overrides, 'stock_item_id'))),
+                422, 'An ingredient is listed more than once for this order item.');
+
+            return [
+                'product_id' => (int) $row['product_id'],
+                'quantity' => (int) $row['quantity'],
+                'ingredient_overrides' => $overrides,
+            ];
+        })->groupBy(fn (array $row): string => $row['product_id'].'|'.json_encode($row['ingredient_overrides']))
+            ->map(function ($rows): array {
+                $item = $rows->first();
+                $result = ['product_id' => $item['product_id'], 'quantity' => (int) $rows->sum('quantity')];
+                if ($item['ingredient_overrides']) $result['ingredient_overrides'] = $item['ingredient_overrides'];
+                return $result;
+            })
+            ->sortBy(fn (array $item): string => sprintf('%010d|%s', $item['product_id'], json_encode($item['ingredient_overrides'] ?? [])))
             ->values();
+        $expectedPrices = collect($validated['items'])
+            ->filter(fn ($item) => array_key_exists('expected_unit_price', $item))
+            ->groupBy('product_id')
+            ->map(function ($rows) {
+                $prices = $rows->pluck('expected_unit_price')
+                    ->map(fn ($price) => (int) round((float) $price * 100))
+                    ->unique();
+                abort_if($prices->count() !== 1, 422, 'An offline order has conflicting product prices.');
+                return $prices->first();
+            });
         $customerName = $validated['customer_name'] ?? 'Walk-in Customer';
         $paymentMethod = strtolower($validated['payment_method']);
+        abort_if(isset($validated['offline_recorded_at']) && $paymentMethod !== 'cash', 422,
+            'Only cash orders may be recorded offline.');
+        $offlineRecordedAt = isset($validated['offline_recorded_at'])
+            ? \Carbon\CarbonImmutable::parse($validated['offline_recorded_at'])->utc()
+            : null;
+        abort_if($offlineRecordedAt && ($offlineRecordedAt->greaterThan(now()->addMinutes(2))
+            || $offlineRecordedAt->lessThan(now()->subDays(30))), 422,
+            'The offline sale time is outside the allowed 30-day range. Check the device clock.');
+        abort_if($offlineRecordedAt && (!$request->filled('client_id') || $expectedPrices->count() !== $items->pluck('product_id')->unique()->count()), 422,
+            'Offline cash orders require an order identifier and a price for every product.');
         $notes = $validated['notes'] ?? null;
-        $idempotencyHash = hash('sha256', json_encode([
+        $idempotencyValues = [
             'items' => $items->all(),
             'payment_method' => $paymentMethod,
             'customer_name' => $customerName,
             'customer_phone' => $validated['customer_phone'] ?? null,
             'notes' => $notes,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        ];
+        // Preserve hashes of historical orders that did not carry an offline
+        // price snapshot, so their original client IDs remain safely retryable.
+        if ($expectedPrices->isNotEmpty()) $idempotencyValues['expected_prices'] = $expectedPrices->all();
+        if ($offlineRecordedAt) $idempotencyValues['offline_recorded_at'] = $offlineRecordedAt->toIso8601String();
+        $idempotencyHash = hash('sha256', json_encode($idempotencyValues, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $created = false;
 
@@ -100,6 +145,8 @@ class OrderController extends Controller
                 $businessId,
                 $clientId,
                 $items,
+                $expectedPrices,
+                $offlineRecordedAt,
                 $customerName,
                 $paymentMethod,
                 $notes,
@@ -115,12 +162,12 @@ class OrderController extends Controller
                 $products = Product::where('business_id', $businessId)
                     ->where('active', true)
                     ->where('is_available', true)
-                    ->whereIn('id', $items->pluck('product_id'))
+                    ->whereIn('id', $items->pluck('product_id')->unique())
                     ->with('productIngredients.stockItem')
                     ->get()
                     ->keyBy('id');
                 abort_if(
-                    $products->count() !== $items->count(),
+                    $products->count() !== $items->pluck('product_id')->unique()->count(),
                     422,
                     'One or more products are unavailable or do not belong to this business.'
                 );
@@ -128,6 +175,20 @@ class OrderController extends Controller
                 $subtotalCents = 0;
                 foreach ($items as $item) {
                     $product = $products[$item['product_id']];
+                    $recipeByStockId = $product->productIngredients->keyBy('stock_item_id');
+                    foreach ($item['ingredient_overrides'] ?? [] as $override) {
+                        $ingredient = $recipeByStockId->get($override['stock_item_id']);
+                        abort_unless($ingredient, 422, 'An edited ingredient is not in this product recipe.');
+                        abort_if((float) $override['quantity'] > (float) $ingredient->quantity + 0.000001,
+                            422, 'Edited ingredient amounts cannot exceed the product recipe.');
+                    }
+                    if ($expectedPrices->has($item['product_id'])) {
+                        abort_unless(
+                            (int) round((float) $product->price * 100) === $expectedPrices->get($item['product_id']),
+                            422,
+                            'A product price changed while this cash order was offline. Review the order before recording it.'
+                        );
+                    }
                     $subtotalCents += (int) round((float) $product->price * 100) * $item['quantity'];
                 }
                 $subtotal = number_format($subtotalCents / 100, 2, '.', '');
@@ -149,9 +210,11 @@ class OrderController extends Controller
                     'payment_currency' => $currency,
                     'payment_status' => $paymentMethod === 'cash' ? 'confirmed' : 'pending',
                     'payment_confirmed_by' => $paymentMethod === 'cash' ? $request->user()->id : null,
-                    'payment_confirmed_at' => $paymentMethod === 'cash' ? now() : null,
+                    'payment_confirmed_at' => $paymentMethod === 'cash' ? ($offlineRecordedAt ?: now()) : null,
                     'status' => $paymentMethod === 'cash' ? 'completed' : 'pending',
-                    'completed_at' => $paymentMethod === 'cash' ? now() : null,
+                    'completed_at' => $paymentMethod === 'cash' ? ($offlineRecordedAt ?: now()) : null,
+                    'offline_recorded_at' => $offlineRecordedAt,
+                    'created_at' => $offlineRecordedAt ?: now(),
                     'notes' => $notes,
                     'client_id' => $clientId,
                     'idempotency_hash' => $idempotencyHash,
@@ -160,16 +223,22 @@ class OrderController extends Controller
 
                 foreach ($items as $item) {
                     $product = $products[$item['product_id']];
+                    $overrides = collect($item['ingredient_overrides'] ?? [])->keyBy('stock_item_id');
                     $ingredientSnapshot = $product->productIngredients
-                        ->map(fn ($ingredient): array => [
-                            'stock_item_id' => (int) $ingredient->stock_item_id,
-                            'quantity' => (float) $ingredient->quantity,
-                            'stock_name' => $ingredient->stockItem?->name,
-                            'unit' => $ingredient->stockItem?->unit,
-                            'unit_cost' => $ingredient->stockItem?->unit_cost === null
-                                ? null
-                                : (float) $ingredient->stockItem->unit_cost,
-                        ])
+                        ->map(function ($ingredient) use ($overrides): array {
+                            $override = $overrides->get($ingredient->stock_item_id);
+                            $snapshot = [
+                                'stock_item_id' => (int) $ingredient->stock_item_id,
+                                'quantity' => $override ? (float) $override['quantity'] : (float) $ingredient->quantity,
+                                'stock_name' => $ingredient->stockItem?->name,
+                                'unit' => $ingredient->stockItem?->unit,
+                                'unit_cost' => $ingredient->stockItem?->unit_cost === null
+                                    ? null
+                                    : (float) $ingredient->stockItem->unit_cost,
+                            ];
+                            if ($override) $snapshot['original_quantity'] = (float) $ingredient->quantity;
+                            return $snapshot;
+                        })
                         ->values()
                         ->all();
 
@@ -282,6 +351,9 @@ class OrderController extends Controller
                     'authoritative' => false,
                 ]
             );
+            if (!$matchesExpectedAmount) {
+                app(NotificationService::class)->notifyPaymentNeedsReview($order);
+            }
 
             return $order->load('items');
         });
@@ -308,7 +380,7 @@ class OrderController extends Controller
                     ->where('payment_method', $orderForValidation->payment_method)
                     ->ignore($orderForValidation->id),
             ],
-            'notification_id' => ['required', 'string', 'min:8', 'max:120', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'notification_id' => ['required', 'uuid'],
         ]);
 
         try {
@@ -319,8 +391,33 @@ class OrderController extends Controller
                 abort_unless($validated['currency'] === $order->payment_currency, 422, 'The notification currency does not match the order currency.');
                 abort_unless($this->amountsMatch($validated['amount'], $order->total), 422, 'The detected payment amount does not match the order total.');
 
+                $capture = \App\Models\WalletNotificationCapture::where('client_id', $validated['notification_id'])
+                    ->lockForUpdate()->first();
+                abort_unless($capture, 422, 'The wallet notification has not been saved by this device yet. Retry when connected.');
+                abort_unless(
+                    (int) $capture->business_id === (int) $order->business_id
+                    && (int) $capture->user_id === (int) $request->user()->id
+                    && $capture->direction === 'received'
+                    && $capture->source === $validated['source']
+                    && $capture->currency === $validated['currency']
+                    && $this->amountsMatch($capture->amount, $validated['amount'])
+                    && $capture->reference === $validated['reference'],
+                    422,
+                    'The saved wallet notification does not match this order, account, amount, or reference.'
+                );
+                abort_unless(
+                    $capture->captured_at->greaterThanOrEqualTo($order->created_at->copy()->subMinutes(2)),
+                    422,
+                    'This wallet notification predates the pending order.'
+                );
+                abort_unless(
+                    $capture->used_order_id === null || (int) $capture->used_order_id === (int) $order->id,
+                    409,
+                    'This wallet notification was already used for another order.'
+                );
+
                 if ($order->payment_status === 'confirmed') {
-                    abort_unless($order->payment_reference === $validated['reference'], 409, 'This order was already saved with a different wallet reference.');
+                    abort_unless($order->payment_reference === $validated['reference'] && (int) $capture->used_order_id === (int) $order->id, 409, 'This order was already saved with a different wallet notification.');
                     return $order->load('items');
                 }
 
@@ -329,6 +426,7 @@ class OrderController extends Controller
 
                 $previousPaymentStatus = $order->payment_status;
                 $now = now();
+                $capture->update(['used_order_id' => $order->id]);
                 $order->update([
                     'payment_status' => 'confirmed',
                     'payment_reference' => $validated['reference'],
@@ -340,6 +438,8 @@ class OrderController extends Controller
                     'status' => 'completed',
                     'completed_at' => $order->completed_at ?: $now,
                 ]);
+                app(NotificationService::class)->resolveWalletCaptureNotification($capture, $order);
+                app(NotificationService::class)->resolveOrderIssueNotifications($order, 'confirmed');
 
                 $this->recordEvent(
                     $order,
@@ -426,6 +526,7 @@ class OrderController extends Controller
                     'status' => 'completed',
                     'completed_at' => $order->completed_at ?: $now,
                 ]);
+                app(NotificationService::class)->resolveOrderIssueNotifications($order, 'confirmed');
 
                 $this->recordEvent(
                     $order,
@@ -494,6 +595,7 @@ class OrderController extends Controller
                     'confirmation_method' => 'staff_wallet_account_check',
                 ]
             );
+            app(NotificationService::class)->notifyPaymentFailed($order);
 
             return $order->load('items');
         });
@@ -587,6 +689,8 @@ class OrderController extends Controller
                     'restocked' => (bool) ($validated['restock'] ?? false),
                 ]
             );
+            app(NotificationService::class)->resolveOrderIssueNotifications($order, 'cancelled');
+            app(NotificationService::class)->notifyOrderCancelled($order);
 
             return $order->load('items');
         });
@@ -633,6 +737,7 @@ class OrderController extends Controller
                 reason: $validated['reason'],
                 details: ['provider_refund_available' => false]
             );
+            app(NotificationService::class)->notifyRefundRequested($order);
 
             return $order->load('items');
         });
@@ -711,6 +816,7 @@ class OrderController extends Controller
                     'refund_confirmed_at' => now(),
                     'refund_restocked' => (bool) $validated['restock'],
                 ]);
+                app(NotificationService::class)->resolveOrderIssueNotifications($order, 'refunded');
                 $this->recordEvent(
                     $order,
                     $request->user(),
@@ -926,7 +1032,7 @@ class OrderController extends Controller
                 'type' => 'income',
                 'source' => $order->payment_method,
                 'category' => 'Sales',
-                'transaction_date' => now(config('business.timezone'))->toDateString(),
+                'transaction_date' => ($order->offline_recorded_at ?: now())->setTimezone(config('business.timezone'))->toDateString(),
                 'description' => $productDescription,
                 'entry_method' => 'order_system',
                 'metadata' => [

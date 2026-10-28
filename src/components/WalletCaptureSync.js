@@ -5,10 +5,12 @@ import api from '../services/api';
 import {
   getPendingWalletCaptures,
   markWalletCapturesSynced,
+  markWalletCaptureRejected,
   setWalletCaptureAccount,
   subscribeToNotifications,
 } from '../modules/NotificationModule';
-import {emitWalletCaptureSync} from '../services/walletCaptureSyncEvents';
+import {emitWalletCaptureSync, subscribeWalletCaptureSync} from '../services/walletCaptureSyncEvents';
+import {uploadWalletCaptureBatch} from '../services/walletCaptureUpload';
 
 // The Android listener writes captures before emitting a JS event. Uploads can
 // safely retry because Laravel has a unique client_id for each capture.
@@ -27,10 +29,16 @@ const WalletCaptureSync = () => {
       while (activeAccount.current === accountKey) {
         const captures = await getPendingWalletCaptures();
         if (!captures.length || activeAccount.current !== accountKey) break;
-        const response = await api.post('/wallet-notifications/batch', {captures});
-        const savedIds = response.data?.saved_ids || [];
-        if (savedIds.length !== captures.length || activeAccount.current !== accountKey) break;
-        await markWalletCapturesSynced(savedIds);
+        const result = await uploadWalletCaptureBatch(
+          captures,
+          batch => api.post('/wallet-notifications/batch', {captures: batch}, {
+            headers: {Authorization: `Bearer ${userToken}`},
+          }),
+          ids => activeAccount.current === accountKey ? markWalletCapturesSynced(ids) : Promise.resolve(),
+          (id, reason) => activeAccount.current === accountKey
+            ? markWalletCaptureRejected(id, reason) : Promise.resolve(),
+        );
+        if (activeAccount.current !== accountKey || (!result.uploaded && !result.rejected)) break;
         emitWalletCaptureSync();
       }
     } catch (error) {
@@ -38,7 +46,7 @@ const WalletCaptureSync = () => {
     } finally {
       syncing.current = false;
     }
-  }, [businessId, staffId]);
+  }, [businessId, staffId, userToken]);
 
   useEffect(() => {
     const accountKey = `${staffId}:${businessId}`;
@@ -60,6 +68,7 @@ const WalletCaptureSync = () => {
       emitWalletCaptureSync();
       sync();
     });
+    const unsubscribeRetry = subscribeWalletCaptureSync(sync);
     const appState = AppState.addEventListener('change', state => {
       if (state === 'active') sync();
     });
@@ -68,6 +77,7 @@ const WalletCaptureSync = () => {
       cancelled = true;
       activeAccount.current = '';
       unsubscribe();
+      unsubscribeRetry();
       appState.remove();
       clearInterval(timer);
     };

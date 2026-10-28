@@ -31,6 +31,9 @@ class WalletNotificationCaptureTest extends TestCase
         $this->postJson('/api/v1/wallet-notifications/batch', ['captures' => [$capture]])
             ->assertOk()->assertJsonPath('saved_ids.0', $capture['client_id']);
         $this->postJson('/api/v1/wallet-notifications/batch', ['captures' => [$capture]])->assertOk();
+        $changed = $capture;
+        $changed['amount'] = 126;
+        $this->postJson('/api/v1/wallet-notifications/batch', ['captures' => [$changed]])->assertStatus(409);
         $this->assertDatabaseCount('wallet_notification_captures', 1);
         $this->assertDatabaseHas('wallet_notification_captures', [
             'client_id' => $capture['client_id'],

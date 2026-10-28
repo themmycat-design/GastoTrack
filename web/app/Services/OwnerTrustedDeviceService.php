@@ -42,7 +42,9 @@ class OwnerTrustedDeviceService
         $device->forceFill(['last_used_at' => now()])->save();
         $request->session()->put([
             'owner.two_factor_user_id' => $owner->getKey(),
-            'owner.two_factor_verified_at' => now()->timestamp,
+            // The original verification date is the trust deadline. A later
+            // password login must not start another 30-day MFA period.
+            'owner.two_factor_verified_at' => $device->created_at->timestamp,
         ]);
 
         return true;

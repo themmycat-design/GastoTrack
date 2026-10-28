@@ -18,7 +18,7 @@
 @endphp
 <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
     <div class="min-w-0">
-        <a href="{{ route('super-admin.bug-reports.index') }}" class="text-sm font-bold text-emerald-700 hover:text-emerald-900">&larr; Bug reports</a>
+        <a href="{{ route('super-admin.bug-reports.index') }}" class="inline-flex min-h-11 items-center rounded-lg text-sm font-bold text-emerald-700 hover:text-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">&larr; Bug reports</a>
         <p class="mb-1 mt-3 text-xs font-bold uppercase tracking-[.12em] text-emerald-700">Report details</p>
         <h1 class="break-words">{{ $report->subject }}</h1>
         <p class="mt-2 text-sm text-slate-600">{{ $report->business?->name ?? 'Archived business' }}</p>
@@ -39,7 +39,7 @@
                 <p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{{ $report->steps_to_reproduce ?: 'No steps provided.' }}</p>
             </div>
             @if($report->has_screenshot)
-                <a target="_blank" rel="noopener noreferrer" href="{{ route('super-admin.bug-reports.screenshot', $report) }}" class="mt-5 inline-flex min-h-10 items-center rounded-xl border border-emerald-200 px-4 py-2 text-sm font-bold text-emerald-800 transition hover:bg-emerald-50"><i class="fas fa-image mr-2" aria-hidden="true"></i>View attached screenshot</a>
+                <a target="_blank" rel="noopener noreferrer" href="{{ route('super-admin.bug-reports.screenshot', $report) }}" class="mt-5 inline-flex min-h-11 items-center rounded-xl border border-emerald-200 px-4 py-2 text-sm font-bold text-emerald-800 transition hover:bg-emerald-50"><i class="fas fa-image mr-2" aria-hidden="true"></i>View attached screenshot</a>
             @endif
         </section>
 
@@ -66,9 +66,9 @@
                 <div class="py-3"><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Created</dt><dd class="mt-1 font-semibold text-slate-800">{{ $report->created_at->format('M d, Y g:i A') }}</dd></div>
             </dl>
         </section>
-        <form method="POST" action="{{ route('super-admin.bug-reports.destroy', $report) }}" onsubmit="return confirm('Delete this bug report?')">
+        <form method="POST" action="{{ route('super-admin.bug-reports.destroy', $report) }}" data-report-title="{{ $report->subject }}" onsubmit="return confirm('Delete bug report: ' + this.dataset.reportTitle + '? This cannot be undone.')">
             @csrf @method('DELETE')
-            <button class="w-full rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50"><i class="fas fa-trash-can mr-2" aria-hidden="true"></i>Delete report</button>
+            <button class="min-h-11 w-full rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50"><i class="fas fa-trash-can mr-2" aria-hidden="true"></i>Delete report</button>
         </form>
     </aside>
 </div>

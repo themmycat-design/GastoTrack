@@ -33,11 +33,6 @@ const CATEGORY_RULES = [
   {type: 'Income', category: 'Sales', pattern: /\b(?:sales?|customer payment|payment received)\b/i},
 ];
 
-const localDate = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
-
 const matchingCategory = (categories, name) => categories.find(category => category.toLowerCase() === name.toLowerCase());
 
 export const suggestReceiptCategory = (parsed, categories, type = parsed.type) => {
@@ -101,7 +96,7 @@ export const parseReceiptData = (ocrText, blocks = []) => {
     merchant: null,
     source: 'Cash',
     category: null,
-    type: 'Expense', // Default to expense
+    type: null,
     confidence: 0,
     rawText: text,
   };
@@ -111,7 +106,7 @@ export const parseReceiptData = (ocrText, blocks = []) => {
   
   // Extract date
   const detectedDate = extractDate(lines);
-  parsed.date = detectedDate || localDate();
+  parsed.date = detectedDate;
   parsed.dateDetected = Boolean(detectedDate);
   
   // Extract merchant name
@@ -135,61 +130,55 @@ export const parseReceiptData = (ocrText, blocks = []) => {
 
 /**
  * Extract amount from receipt text
- * Looks for numbers with currency symbols or after "total" keywords
+ * An automatic transaction requires an explicit total. A larger tendered
+ * amount or an item price is never a safe substitute for a missing total.
  */
 const extractAmount = (lines) => {
-  const amounts = [];
   const totals = [];
-  
-  for (const line of lines) {
-    if (/\bsub\s*total\b/i.test(line)) continue;
-    const totalPattern = new RegExp(
-      `(?:${AMOUNT_KEYWORDS.join('|')})\\s*:?\\s*(?:PHP|₱|P)?\\s*([\\d,]+(?:\\.\\d{2})?)`,
-      'i'
-    );
-    const totalMatch = line.match(totalPattern);
-    if (totalMatch) {
-      totals.push(parseFloat(totalMatch[1].replace(/,/g, '')));
-      continue;
-    }
-    if (/\b(?:change|tendered|cash received|balance)\b/i.test(line)) continue;
-    const phpPattern = /(?:\bPHP\s*|₱\s*|\bP\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
-    const phpMatch = line.match(phpPattern);
-    if (phpMatch) {
-      amounts.push(parseFloat(phpMatch[1].replace(/,/g, '')));
-      continue;
-    }
-    const numberPattern = /(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/;
-    const numberMatch = line.match(numberPattern);
-    if (numberMatch) {
-      const num = parseFloat(numberMatch[1].replace(/,/g, ''));
-      if (num > 10 && num < 1000000) { // Reasonable amount range
-        amounts.push(num);
-      }
-    }
+  const totalPattern = new RegExp(`\\b(?:${AMOUNT_KEYWORDS.join('|')})\\b`, 'i');
+  const moneyPattern = /^(?:PHP|₱|P\s*)?\s*([\d,]+(?:\.\d{1,2})?)\s*$/i;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/\b(?:sub\s*total|total\s+(?:items?|savings?|discount)|cash\s+tendered|change|balance)\b/i.test(line)) continue;
+    const label = totalPattern.exec(line);
+    if (!label) continue;
+    const sameLine = line.slice(label.index + label[0].length).replace(/^\s*[:-]?\s*/, '');
+    const candidate = moneyPattern.exec(sameLine)
+      || (sameLine === '' ? moneyPattern.exec(lines[index + 1] || '') : null);
+    if (!candidate) continue;
+    const amount = Number(candidate[1].replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0 && amount <= 99999999.99) totals.push(amount);
   }
-  
-  // Prefer an explicit total over cash tendered or a larger line-item price.
-  return totals.length ? totals[totals.length - 1] : amounts.length ? Math.max(...amounts) : null;
+  const uniqueCents = [...new Set(totals.map(amount => Math.round(amount * 100)))];
+  return uniqueCents.length === 1 ? uniqueCents[0] / 100 : null;
 };
 
 /**
  * Extract date from receipt text
  */
 const extractDate = (lines) => {
+  const validDate = (year, month, day) => {
+    const date = new Date(year, month - 1, day);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    return date.getFullYear() === year && date.getMonth() === month - 1
+      && date.getDate() === day && date <= endOfToday
+      ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+  };
   for (const line of lines) {
     const isoMatch = line.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
-    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-    // Pattern: MM/DD/YYYY or DD/MM/YYYY
+    if (isoMatch) return validDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+    // A date such as 03/04 is ambiguous without a printed format cue.
     const datePattern1 = /(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/;
     const match1 = line.match(datePattern1);
     if (match1) {
-      const part1 = match1[1];
-      const part2 = match1[2];
-      const year = match1[3];
-      const fullYear = year.length === 2 ? `20${year}` : year;
-      // Assume MM/DD/YYYY format
-      return `${fullYear}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
+      const first = Number(match1[1]);
+      const second = Number(match1[2]);
+      const year = Number(match1[3].length === 2 ? `20${match1[3]}` : match1[3]);
+      if (first > 12 && second <= 12) return validDate(year, second, first);
+      if (second > 12 && first <= 12) return validDate(year, first, second);
+      if (first === second) return validDate(year, first, second);
+      return null;
     }
     
     // Pattern: Month DD, YYYY
@@ -205,11 +194,10 @@ const extractDate = (lines) => {
         sep: '09', oct: '10', nov: '11', dec: '12',
       };
       const monthNum = monthMap[month.toLowerCase().substring(0, 3)];
-      return `${year}-${monthNum}-${day.padStart(2, '0')}`;
+      return validDate(Number(year), Number(monthNum), Number(day));
     }
   }
   
-  // Default to today
   return null;
 };
 
@@ -350,7 +338,8 @@ const detectCategory = (text) => {
   // A shop buying ingredients can have "received by" on its receipt; that
   // alone must never turn an expense into income.
   const type = /\b(?:sales report|daily sales|sales income|revenue report|income receipt|tips received|catering payout)\b/i.test(text)
-    ? 'Income' : 'Expense';
+    ? 'Income' : /\b(?:receipt|invoice|bill|total|amount due)\b/i.test(text)
+      ? 'Expense' : null;
   const itemText = text.split('\n').slice(1)
     .filter(line => !/\b(?:total|amount due|cash|gcash|maya|receipt|invoice)\b/i.test(line))
     .join('\n');
@@ -390,7 +379,7 @@ export const formatForTransaction = (parsed, availableCategories) => {
     type: parsed.type,
     source: parsed.source,
     category: availableCategories ? suggestReceiptCategory(parsed, availableCategories, parsed.type) : parsed.category || '',
-    date: parsed.date || localDate(),
+    date: parsed.date || '',
     notes: parsed.merchant && parsed.merchant !== 'Unknown Merchant' ? parsed.merchant : '',
     entryMethod: 'OCR',
     confidence: parsed.confidence,

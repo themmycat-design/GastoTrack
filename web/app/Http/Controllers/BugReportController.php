@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BugReport;
 use App\Models\Business;
+use App\Services\NotificationService;
+use App\Services\AdminActivityRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -83,6 +85,9 @@ class BugReportController extends Controller
             : null;
 
         $oldPath = $bugReport->screenshot_path;
+        $statusChanged = $bugReport->status !== $data['status'];
+        $publicUpdateChanged = filled($data['public_update'] ?? null)
+            && $bugReport->public_update !== $data['public_update'];
         $newPath = $request->file('screenshot')?->store('bug-reports/'.$data['business_id'], 'local');
         if ($newPath) {
             $data['screenshot_path'] = $newPath;
@@ -101,6 +106,11 @@ class BugReportController extends Controller
             Storage::disk('local')->delete($oldPath);
         }
 
+        if ($statusChanged || $publicUpdateChanged) {
+            app(NotificationService::class)->notifyBugReportUpdate($bugReport, $statusChanged);
+        }
+        app(AdminActivityRecorder::class)->record($request->user(), 'bug_report.updated', 'bug_report', $bugReport->id);
+
         return redirect()->route('super-admin.bug-reports.show', $bugReport)
             ->with('success', 'Bug report updated.');
     }
@@ -109,6 +119,7 @@ class BugReportController extends Controller
     {
         $screenshotPath = $bugReport->screenshot_path;
         $bugReport->delete();
+        app(AdminActivityRecorder::class)->record(request()->user(), 'bug_report.deleted', 'bug_report', $bugReport->id);
 
         if ($screenshotPath) {
             Storage::disk('local')->delete($screenshotPath);

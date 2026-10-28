@@ -78,10 +78,10 @@
                     <svg data-reports-chevron class="h-3.5 w-3.5 transition-transform duration-300" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
             @else
-                <a href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" aria-label="{{ $inventoryAlert ? 'Inventory, '.$ownerStockAlerts['outOfStock'].' out of stock and '.$ownerStockAlerts['lowStock'].' low stock' : $item['label'] }}" class="gt-focus inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition {{ $inventoryAlert ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200' : ($active ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-600 hover:bg-[#EAF8F2] hover:text-[#08745D]') }}">
+                <a @if($item['icon'] === 'inventory') data-owner-inventory-link @endif @if($item['icon'] === 'analytics') data-owner-analytics-nav @endif href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" aria-label="{{ $inventoryAlert ? 'Inventory, '.$ownerStockAlerts['outOfStock'].' out of stock and '.$ownerStockAlerts['lowStock'].' low stock' : $item['label'] }}" class="gt-focus inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition {{ $inventoryAlert ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200' : ($active ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-600 hover:bg-[#EAF8F2] hover:text-[#08745D]') }}">
                     {{ $item['label'] }}
                     @if($inventoryAlert)
-                        <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-extrabold text-white">{{ $ownerStockAlerts['total'] > 99 ? '99+' : $ownerStockAlerts['total'] }}</span>
+                        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold leading-none tabular-nums text-white shadow-sm">{{ $ownerStockAlerts['total'] > 99 ? '99+' : $ownerStockAlerts['total'] }}</span>
                     @endif
                 </a>
             @endif
@@ -126,7 +126,7 @@
                     <svg data-reports-chevron class="h-3.5 w-3.5 transition-transform duration-300" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
             @else
-            <a href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" aria-label="{{ $inventoryAlert ? 'Inventory, '.$ownerStockAlerts['outOfStock'].' out of stock and '.$ownerStockAlerts['lowStock'].' low stock' : $item['label'] }}" class="gt-focus group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition {{ $inventoryAlert ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200' : ($active ? 'bg-[#EAF8F2] text-[#08745D] ring-1 ring-inset ring-[#C8DED7]' : 'text-slate-600 hover:bg-[#F4F8F7] hover:text-[#08745D]') }}">
+            <a @if($item['icon'] === 'inventory') data-owner-inventory-link @endif @if($item['icon'] === 'analytics') data-owner-analytics-nav @endif href="{{ route($item['route']) }}" aria-current="{{ $active ? 'page' : 'false' }}" aria-label="{{ $inventoryAlert ? 'Inventory, '.$ownerStockAlerts['outOfStock'].' out of stock and '.$ownerStockAlerts['lowStock'].' low stock' : $item['label'] }}" class="gt-focus group flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-[13px] font-semibold transition {{ $inventoryAlert ? 'border-rose-200 bg-rose-50 text-rose-800 shadow-sm' : ($active ? 'border-[#C8DED7] bg-[#EAF8F2] text-[#08745D]' : 'border-transparent text-slate-600 hover:border-[#EAF2EF] hover:bg-[#F4F8F7] hover:text-[#08745D]') }}">
                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition {{ $inventoryAlert ? 'bg-rose-100 text-rose-700' : ($active ? 'bg-[#00A87E] text-white shadow-sm' : 'bg-[#F4F8F7] text-slate-500 group-hover:bg-[#EAF8F2] group-hover:text-[#08745D]') }}">
                     @if($item['icon'] === 'overview')
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.5"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
@@ -150,7 +150,7 @@
                 </span>
                 <span class="flex-1">{{ $item['label'] }}</span>
                 @if($inventoryAlert)
-                    <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-extrabold text-white">{{ $ownerStockAlerts['total'] > 99 ? '99+' : $ownerStockAlerts['total'] }}</span>
+                    <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold leading-none tabular-nums text-white shadow-sm">{{ $ownerStockAlerts['total'] > 99 ? '99+' : $ownerStockAlerts['total'] }}</span>
                 @elseif($active)
                     <span class="h-1.5 w-1.5 rounded-full bg-[#00A87E]"></span>
                 @endif

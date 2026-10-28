@@ -32,6 +32,14 @@ class AuthenticatedSessionController extends Controller
         // Redirect based on user role
         $user = auth()->user();
 
+        if ($user->must_reset_password) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors(['email' => 'A password reset is required before signing in. Check your email or request a new reset link.'])->onlyInput('email');
+        }
+
         if ($user->isStaff()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
@@ -43,6 +51,13 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user->isSuperAdmin()) {
+            if ($user->status !== 'active') {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors(['email' => 'This platform account is locked.'])->onlyInput('email');
+            }
             return redirect()->intended(route('super-admin.dashboard', absolute: false));
         }
 
@@ -66,7 +81,8 @@ class AuthenticatedSessionController extends Controller
 
         if ($user->hasEnabledTwoFactorAuthentication()) {
             if ($user->isOwner() && $trustedDevices->restoreMfaSessionForAuthenticatedOwner($request, $user)) {
-                return redirect()->intended(route('dashboard', absolute: false));
+                return redirect()->intended(route('dashboard', absolute: false))
+                    ->with('owner.dashboard_loading', true);
             }
 
             Auth::guard('web')->logout();
@@ -84,7 +100,8 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('two-factor.login');
         }
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended(route('dashboard', absolute: false))
+            ->with('owner.dashboard_loading', true);
     }
 
     /**

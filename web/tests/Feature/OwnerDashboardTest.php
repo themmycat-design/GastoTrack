@@ -151,7 +151,6 @@ class OwnerDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Getting started')
             ->assertSee('Set up products')
-            ->assertSee('No unread notifications. Active stock alerts remain on the Inventory tab until resolved.')
             ->assertDontSee('Recent transactions')
             ->assertDontSee('Stock needing attention');
     }
@@ -223,8 +222,8 @@ class OwnerDashboardTest extends TestCase
             )
             ->assertViewHas('comparisonStartDate', fn ($date): bool => $date->toDateString() === '2026-09-01')
             ->assertViewHas('comparisonEndDate', fn ($date): bool => $date->toDateString() === '2026-09-09')
-            ->assertSee('Business Insights')
-            ->assertSee('Recorded income rose 200.0%')
+            ->assertSee('Business insights')
+            ->assertSee('200.0% vs comparison period')
             ->assertDontSee('What these numbers mean')
             ->assertDontSee('Customer activity is increasing');
     }
@@ -253,7 +252,7 @@ class OwnerDashboardTest extends TestCase
             ->assertViewHas('chart', fn (array $chart): bool => count($chart['labels']) === 5
                 && $chart['income'][0] === 100.0
                 && $chart['expenses'][4] === 25.0)
-            ->assertSee('Recorded expenses rose 150.0%')
+            ->assertSee('150.0% vs comparison period')
             ->assertSee('Daily income and expenses');
     }
 
@@ -346,7 +345,7 @@ class OwnerDashboardTest extends TestCase
                 && (float) $used->first()->quantity_used === 100.0)
             ->assertSee('Daily latte sale')
             ->assertSee('Daily supplies')
-            ->assertSee('DAILY-LATTE-ORDER')
+            ->assertDontSee('DAILY-LATTE-ORDER')
             ->assertSee('100.00 ml')
             ->assertDontSee('Private sale')
             ->assertDontSee('PRIVATE-DAILY-ORDER')

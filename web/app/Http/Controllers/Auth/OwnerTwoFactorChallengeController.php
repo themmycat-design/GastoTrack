@@ -20,6 +20,7 @@ class OwnerTwoFactorChallengeController extends FortifyTwoFactorSessionControlle
                 'owner.two_factor_user_id' => $user->getKey(),
                 'owner.two_factor_verified_at' => now()->timestamp,
             ]);
+            $request->session()->flash('owner.dashboard_loading', true);
 
             // Fortify returns a Responsable object on success, not an HTTP response.
             // Convert it before attaching the trusted-device cookie.

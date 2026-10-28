@@ -1,7 +1,8 @@
-import React, {createContext, useCallback, useContext, useEffect, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import api from '../services/api';
 import {AuthContext} from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
+import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
 
 const StockContext = createContext();
 
@@ -23,7 +24,10 @@ export const StockProvider = ({children}) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
-  const {userToken} = useContext(AuthContext);
+  const {userToken, user, business} = useContext(AuthContext);
+  const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
+    ? {userId: user.id, businessId: user.business_id || business.id} : null,
+  [user?.role, user?.id, user?.business_id, business?.id]);
 
   const fetchStock = useCallback(async ({page = 1, append = false} = {}) => {
     if (!userToken) return;
@@ -31,6 +35,7 @@ export const StockProvider = ({children}) => {
     try {
       const response = await api.get('/stock', {params: {page}});
       const normalized = (response.data.stock || []).map(normalize);
+      if (offlineAccount && page === 1) saveStaffSnapshot(offlineAccount, 'stock', normalized).catch(() => {});
       setStockItems(current => append
         ? [...current, ...normalized.filter(record => !current.some(item => item.id === record.id))]
         : normalized,
@@ -39,14 +44,23 @@ export const StockProvider = ({children}) => {
       setLoadError(null);
       return {success: true};
     } catch (error) {
+      if (offlineAccount && page === 1) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'stock');
+          if (cached) setStockItems(cached);
+        } catch {}
+      }
       setLoadError(getApiErrorMessage(error));
       return {success: false, error};
     } finally {
       append ? setIsLoadingMore(false) : setIsLoading(false);
     }
-  }, [userToken]);
+  }, [userToken, offlineAccount]);
 
   const hasMoreStock = pagination.currentPage < pagination.lastPage;
+  useEffect(() => subscribeStaffOffline(event => {
+    if (event === 'synced' && userToken) fetchStock();
+  }), [fetchStock, userToken]);
   const loadMoreStock = useCallback(() => {
     if (!isLoading && !isLoadingMore && pagination.currentPage < pagination.lastPage) {
       return fetchStock({page: pagination.currentPage + 1, append: true});
@@ -66,13 +80,14 @@ export const StockProvider = ({children}) => {
 
   const getStatus = (quantity, threshold) => quantity <= 0 ? 'Out' : quantity <= threshold ? 'Low' : 'OK';
 
-  const adjustStock = async (id, type, quantity, reason, movementCategory = 'adjustment') => {
-    const response = await api.post(`/stock/${id}/adjust`, {
-      type,
-      quantity,
-      reason,
-      movement_category: movementCategory,
-    });
+  const adjustStock = async (id, type, quantity, reason, movementCategory = 'adjustment', clientId = null, offlineRecordedAt = null) => {
+    const payload = {type, quantity, reason, movement_category: movementCategory};
+    const response = offlineAccount
+      ? await recordStaffAction(offlineAccount, 'stock_adjustment', {
+        ...payload, stock_id: id, offline_recorded_at: offlineRecordedAt || new Date().toISOString(),
+      }, clientId || undefined)
+      : {synced: true, data: (await api.post(`/stock/${id}/adjust`, {...payload, ...(clientId ? {client_id: clientId} : {})})).data};
+    if (!response.synced) return {...stockItems.find(item => item.id === id), offlinePending: true};
     const updated = normalize(response.data.item);
     setStockItems(current => current.map(item => item.id === updated.id ? updated : item));
     return updated;
