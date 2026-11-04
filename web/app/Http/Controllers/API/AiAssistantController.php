@@ -65,6 +65,7 @@ class AiAssistantController extends Controller
                         'unit' => $candidate->unit,
                     ])->values()->all(),
                 'alternatives' => [],
+                'purchase_suggestions' => [],
             ];
         })->filter(fn ($item) => count($item['products']) > 0)->values()->all();
 
@@ -93,7 +94,7 @@ class AiAssistantController extends Controller
                 ->connectTimeout(5)
                 ->timeout(10)
                 ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
-                    'systemInstruction' => ['parts' => [['text' => 'You are a cautious food-service ingredient adviser. For each out-of-stock ingredient, select up to three plausible substitutes ONLY from its candidates, considering the affected product names. Use matching IDs. If unsure, return no alternatives. Do not invent ingredients, quantities, recipe changes, or claim allergen safety. Return JSON only: {"items":[{"stock_id":1,"alternative_ids":[2]}]}.']]],
+                    'systemInstruction' => ['parts' => [['text' => 'You advise food-service shops. For each out-of-stock ingredient, suggest up to three plausible stocked substitutes using ONLY candidate IDs, plus up to three short ingredient names the shop could purchase even if they are not in its stock list. Consider the affected products. Names must be ingredients, not sentences. If unsure, return empty arrays. Never claim a substitute is safe for allergens or already available unless it is a candidate. Return JSON only: {"items":[{"stock_id":1,"alternative_ids":[2],"purchase_suggestions":["Oat milk"]}]}.' ]]],
                     'contents' => [[
                         'role' => 'user',
                         'parts' => [['text' => json_encode(['items' => $items], JSON_UNESCAPED_UNICODE)]],
@@ -123,6 +124,15 @@ class AiAssistantController extends Controller
                 ->take(3)
                 ->map(fn ($id) => $candidateById->get((int) $id))
                 ->filter()->unique('id')->values()->all();
+            $names = data_get($suggested->get($item['stock_id']), 'purchase_suggestions', []);
+            $item['purchase_suggestions'] = collect(is_array($names) ? $names : [])
+                ->filter(fn ($name) => is_string($name)
+                    && mb_strlen(trim($name)) >= 2
+                    && mb_strlen(trim($name)) <= 60
+                    && !preg_match('/[<>\r\n]/u', $name))
+                ->map(fn ($name) => trim($name))
+                ->unique(fn ($name) => mb_strtolower($name))
+                ->take(3)->values()->all();
             unset($item['candidates']);
             return $item;
         })->all();

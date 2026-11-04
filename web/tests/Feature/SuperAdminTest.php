@@ -140,6 +140,51 @@ class SuperAdminTest extends TestCase
         ]);
     }
 
+    public function test_super_admin_can_delete_an_unused_registration_awaiting_email_verification(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+        $business = Business::create(['name' => 'Unverified Cafe', 'status' => 'pending', 'active' => false]);
+        $owner = User::factory()->owner()->unverified()->create(['business_id' => $business->id]);
+        $business->update(['owner_id' => $owner->id]);
+
+        $this->actingAs($admin)->get(route('super-admin.businesses'))
+            ->assertOk()->assertSee('Delete registration');
+
+        $this->actingAs($admin)
+            ->delete(route('super-admin.businesses.pending-registration.delete', $business))
+            ->assertRedirect(route('super-admin.businesses'));
+
+        $this->assertDatabaseMissing('businesses', ['id' => $business->id]);
+        $this->assertDatabaseMissing('users', ['id' => $owner->id]);
+        $this->assertDatabaseHas('admin_activity_logs', [
+            'action' => 'business.permanently_deleted',
+            'target_type' => 'business',
+            'target_id' => $business->id,
+        ]);
+    }
+
+    public function test_pending_registration_delete_rejects_verified_or_used_businesses(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+        $business = Business::create(['name' => 'Pending Cafe', 'status' => 'pending', 'active' => false]);
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $business->update(['owner_id' => $owner->id]);
+
+        $this->actingAs($admin)
+            ->delete(route('super-admin.businesses.pending-registration.delete', $business))
+            ->assertStatus(409);
+
+        $owner->forceFill(['email_verified_at' => null])->save();
+        User::factory()->staff()->create(['business_id' => $business->id]);
+
+        $this->actingAs($admin)
+            ->delete(route('super-admin.businesses.pending-registration.delete', $business))
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('businesses', ['id' => $business->id]);
+        $this->assertDatabaseHas('users', ['id' => $owner->id]);
+    }
+
     public function test_approving_a_pending_business_enables_it(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);

@@ -1,7 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import GastoModalMascot from '../../components/staff/GastoModalMascot';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -24,6 +26,7 @@ import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
+import {transactionCategoryIcon, transactionTypeIcon} from '../../utils/transactionIcons';
 import {useStaffDay} from '../../utils/useStaffDay';
 import WalletCaptureIssues from '../../components/staff/WalletCaptureIssues';
 
@@ -71,14 +74,15 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
     return () => clearTimeout(timer);
   }, [search, source, category, onApply]);
 
-  const renderChips = (values, selected, onSelect) => (
+  const renderChips = (values, selected, onSelect, iconForValue) => (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.chips}
       keyboardShouldPersistTaps="handled">
       {values.map(value => (
-        <TouchableOpacity key={value} style={[styles.chip, selected === value && styles.chipActive]} onPress={() => onSelect(value)}>
+        <TouchableOpacity key={value} style={[styles.chip, selected === value && styles.chipActive]} onPress={() => onSelect(value)} accessibilityRole="button" accessibilityState={{selected: selected === value}}>
+          {iconForValue ? <Icon name={iconForValue(value)} size={16} color={selected === value ? COLORS.textWhite : COLORS.accentDark} /> : null}
           <Text style={[styles.chipText, selected === value && styles.chipTextActive]}>{value}</Text>
         </TouchableOpacity>
       ))}
@@ -138,7 +142,7 @@ const TransactionFilters = React.memo(({sources, fetchCategories, onApply}) => {
         <Text style={styles.filterLabel}>Category</Text>
         {categoriesLoading
           ? <SkeletonPlaceholder style={styles.categoryLoaderSkeleton} accessibilityLabel="Loading transaction categories"><SkeletonBlock width={118} height={12} /></SkeletonPlaceholder>
-          : renderChips(['All', ...categories], category, setCategory)}
+          : renderChips(['All', ...categories], category, setCategory, value => value === 'All' ? 'view-grid-outline' : transactionCategoryIcon(value))}
       </> : <Text style={styles.categoryHint}>Choose a source to view category filters.</Text>}
       <View style={styles.filterActions}>
         {showClear ? (
@@ -168,11 +172,14 @@ const TransactionActivityList = React.memo(({
     return (
       <TouchableOpacity style={styles.card} onPress={() => onOpenDetail(item)} activeOpacity={0.75}>
         <View style={[styles.iconBox, income ? styles.incomeIcon : styles.expenseIcon]}>
-          <Icon name={income ? 'arrow-down-left' : 'arrow-up-right'} size={22} color={income ? COLORS.success : COLORS.danger} />
+          <Icon name={transactionCategoryIcon(item.category)} size={22} color={income ? COLORS.success : COLORS.danger} />
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>{transactionDisplayName(item)}</Text>
-          <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
+          <View style={styles.cardNoteRow}>
+            <Icon name={transactionTypeIcon(item.type)} size={13} color={income ? COLORS.success : COLORS.danger} />
+            <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
+          </View>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
@@ -199,7 +206,7 @@ const TransactionActivityList = React.memo(({
       contentContainerStyle={transactions.length ? styles.list : styles.emptyList}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />}
       ListEmptyComponent={loading ? <TransactionActivitySkeleton /> : <View style={styles.centerState}>
-            <Icon name="receipt-text-outline" size={58} color={COLORS.textMuted} />
+            <Image source={require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel="Gasto beside an empty tray" />
             <Text style={styles.emptyTitle}>{hasFilters ? 'No matching transactions' : 'No transactions today'}</Text>
             <Text style={styles.stateText}>{hasFilters ? 'Try changing your search or filters.' : 'Transactions recorded today will appear here. Tap + to add one.'}</Text>
             {!transactions.length && hasMore && !loadingMore ? (
@@ -257,12 +264,11 @@ const TransactionsScreen = ({route}) => {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [categorySuggestion, setCategorySuggestion] = useState(null);
-  const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionError, setSuggestionError] = useState(null);
-  const suggestionRequestId = useRef(0);
-  const categoryChoiceRef = useRef(null);
+  const [manualCategoryFallback, setManualCategoryFallback] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [categorizing, setCategorizing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -292,51 +298,19 @@ const TransactionsScreen = ({route}) => {
   );
   const sources = form.type === 'Income' ? incomeSources : TRANSACTION_SOURCES;
 
-  useEffect(() => {
-    const requestId = ++suggestionRequestId.current;
-    setCategorySuggestion(null);
-    setSuggestionError(null);
-    setSuggestionLoading(false);
-    if (!editorVisible || form.type !== 'Expense' || !form.source || form.notes.trim().length < 4) return;
-
-    const timer = setTimeout(async () => {
-      setSuggestionLoading(true);
-      try {
-        const response = await api.post('/ai/transaction-category', {
-          type: form.type.toLowerCase(),
-          source: form.source,
-          description: form.notes.trim(),
-        });
-        if (requestId !== suggestionRequestId.current) return;
-        const suggested = categories.find(item => item.toLowerCase() === String(response.data?.category || '').toLowerCase());
-        setCategorySuggestion(suggested || null);
-        if (suggested && categoryChoiceRef.current !== 'manual') {
-          categoryChoiceRef.current = 'auto';
-          setForm(current => ({...current, category: suggested}));
-        }
-      } catch (error) {
-        if (requestId === suggestionRequestId.current) {
-          setSuggestionError(getApiErrorMessage(error, 'AI suggestion unavailable. Choose a category manually.'));
-        }
-      } finally {
-        if (requestId === suggestionRequestId.current) setSuggestionLoading(false);
-      }
-    }, 700);
-    return () => clearTimeout(timer);
-  }, [editorVisible, form.type, form.source, form.notes, categories]);
+  const useAutomaticCategory = !editingTransaction && form.type === 'Expense'
+    && Boolean(form.notes.trim()) && !manualCategoryFallback;
   const hasAppliedFilters = Boolean(activityFilter.search || activityFilter.source !== 'All' || activityFilter.category !== 'All');
   const hasMoreActivity = Boolean(activityPagination)
     && Number(activityPagination.currentPage || 0) < Number(activityPagination.lastPage || 1);
 
   const setField = (field, value) => setForm(current => ({...current, [field]: value}));
   const setExpenseName = value => {
-    categoryChoiceRef.current = null;
+    setManualCategoryFallback(false);
+    setSuggestionError(null);
     setForm(current => ({...current, notes: value, category: ''}));
   };
-  const selectCategory = value => {
-    categoryChoiceRef.current = 'manual';
-    setField('category', value);
-  };
+  const selectCategory = value => setField('category', value);
 
   const openDatePicker = () => {
     const selectedDate = parseLocalDate(form.date);
@@ -354,7 +328,8 @@ const TransactionsScreen = ({route}) => {
   };
 
   const openAdd = useCallback(() => {
-    categoryChoiceRef.current = null;
+    setManualCategoryFallback(false);
+    setSuggestionError(null);
     setEditingTransaction(null);
     setForm(emptyForm(route?.params?.initialType === 'Expense' ? 'Expense' : 'Income'));
     setEditorVisible(true);
@@ -371,7 +346,8 @@ const TransactionsScreen = ({route}) => {
 
   const openEdit = transaction => {
     if (!canEdit(transaction)) return;
-    categoryChoiceRef.current = 'manual';
+    setManualCategoryFallback(false);
+    setSuggestionError(null);
     setEditingTransaction(transaction);
     setForm({
       amount: String(transaction.amount ?? ''),
@@ -413,7 +389,8 @@ const TransactionsScreen = ({route}) => {
   };
 
   const save = async () => {
-    if (!form.notes.trim()) {
+    if (savingRef.current) return;
+    if (!form.notes.trim() && (form.type !== 'Expense' || editingTransaction)) {
       Alert.alert('Name required', `Enter a name for this ${form.type.toLowerCase()} transaction.`);
       return;
     }
@@ -423,10 +400,10 @@ const TransactionsScreen = ({route}) => {
       return;
     }
     if (!form.source) {
-      Alert.alert('Source required', 'Choose a payment source before selecting a category.');
+      Alert.alert('Source required', 'Choose a payment source before saving.');
       return;
     }
-    if (!form.category) {
+    if (!useAutomaticCategory && !form.category) {
       Alert.alert('Category required', 'Choose a transaction category.');
       return;
     }
@@ -435,22 +412,57 @@ const TransactionsScreen = ({route}) => {
       return;
     }
 
+    savingRef.current = true;
     setSaving(true);
-    const payload = {...form, notes: form.notes.trim(), amount, entryMethod: editingTransaction?.entryMethod || 'manual'};
-    const result = editingTransaction
-      ? await updateTransaction({...editingTransaction, ...payload})
-      : await addTransaction(payload);
-    setSaving(false);
+    try {
+      let category = form.category;
+      if (useAutomaticCategory && !categories.includes(category)) {
+        setCategorizing(true);
+        setSuggestionError(null);
+        try {
+          const response = await api.post('/ai/transaction-category', {
+            type: 'expense', source: form.source,
+            description: form.notes.trim().length < 4 ? `Expense item: ${form.notes.trim()}` : form.notes.trim(),
+          });
+          category = categories.find(item => item.toLowerCase() === String(response.data?.category || '').toLowerCase());
+          if (!category) {
+            setManualCategoryFallback(true);
+            setSuggestionError('Gasto AI could not match this name to a business category. Choose a category below, then save again.');
+            return;
+          }
+          setForm(current => ({...current, category}));
+        } catch (error) {
+          setManualCategoryFallback(true);
+          setSuggestionError(getApiErrorMessage(error, 'Gasto AI is unavailable. Choose a category below, then save again.'));
+          return;
+        } finally {
+          setCategorizing(false);
+        }
+      }
 
-    if (!result.success) {
-      Alert.alert('Could not save transaction', getErrorMessage(result));
-      return;
+      const payload = {
+        ...form,
+        category,
+        notes: form.notes.trim() || category,
+        amount,
+        entryMethod: editingTransaction?.entryMethod || 'manual',
+      };
+      const result = editingTransaction
+        ? await updateTransaction({...editingTransaction, ...payload})
+        : await addTransaction(payload);
+      if (!result.success) {
+        Alert.alert('Could not save transaction', getErrorMessage(result));
+        return;
+      }
+      if (result.queued) Alert.alert('Saved on this device', 'This transaction is waiting to sync. It will appear in Transactions after the server accepts it.');
+      setEditorVisible(false);
+      setEditingTransaction(null);
+      setForm(emptyForm(form.type));
+      await refreshFilteredActivity();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    if (result.queued) Alert.alert('Saved on this device', 'This transaction is waiting to sync. It will appear in Transactions after the server accepts it.');
-    setEditorVisible(false);
-    setEditingTransaction(null);
-    setForm(emptyForm(form.type));
-    await refreshFilteredActivity();
   };
 
   const refreshFilteredActivity = useCallback(async () => {
@@ -543,11 +555,14 @@ const TransactionsScreen = ({route}) => {
     return (
       <TouchableOpacity style={styles.card} onPress={() => openDetail(item)} activeOpacity={0.75}>
         <View style={[styles.iconBox, income ? styles.incomeIcon : styles.expenseIcon]}>
-          <Icon name={income ? 'arrow-down-left' : 'arrow-up-right'} size={22} color={income ? COLORS.success : COLORS.danger} />
+          <Icon name={transactionCategoryIcon(item.category)} size={22} color={income ? COLORS.success : COLORS.danger} />
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>{transactionDisplayName(item)}</Text>
-          <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
+          <View style={styles.cardNoteRow}>
+            <Icon name={transactionTypeIcon(item.type)} size={13} color={income ? COLORS.success : COLORS.danger} />
+            <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
+          </View>
           <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
@@ -557,14 +572,15 @@ const TransactionsScreen = ({route}) => {
     );
   }, [openDetail]);
 
-  const renderChips = (values, selected, onSelect) => (
+  const renderChips = (values, selected, onSelect, iconForValue) => (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.chips}
       keyboardShouldPersistTaps="handled">
       {values.map(value => (
-        <TouchableOpacity key={value} style={[styles.chip, selected === value && styles.chipActive]} onPress={() => onSelect(value)}>
+        <TouchableOpacity key={value} style={[styles.chip, selected === value && styles.chipActive]} onPress={() => onSelect(value)} accessibilityRole="button" accessibilityState={{selected: selected === value}}>
+          {iconForValue ? <Icon name={iconForValue(value)} size={16} color={selected === value ? COLORS.textWhite : COLORS.accentDark} /> : null}
           <Text style={[styles.chipText, selected === value && styles.chipTextActive]}>{value}</Text>
         </TouchableOpacity>
       ))}
@@ -601,49 +617,49 @@ const TransactionsScreen = ({route}) => {
         hasFilters={hasAppliedFilters}
       />
 
-      <Modal visible={editorVisible} transparent animationType="slide" onRequestClose={() => setEditorVisible(false)}>
+      <Modal visible={editorVisible} transparent animationType="slide" onRequestClose={() => { if (!savingRef.current) setEditorVisible(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
+              <GastoModalMascot variant="receipt" />
               <View style={styles.formHeaderCopy}>
                 <Text style={styles.modalTitle}>{editingTransaction ? 'Edit transaction' : form.type === 'Income' ? 'Add income' : 'Add expense'}</Text>
                 <Text style={styles.modalSubtitle}>{form.type === 'Income' ? 'Income' : 'Expense'} transaction</Text>
               </View>
-              <TouchableOpacity style={styles.formCloseButton} accessibilityRole="button" onPress={() => setEditorVisible(false)} accessibilityLabel="Close transaction form">
+              <TouchableOpacity style={styles.formCloseButton} accessibilityRole="button" onPress={() => setEditorVisible(false)} disabled={saving} accessibilityLabel="Close transaction form">
                 <Icon name="close" size={24} color={COLORS.textGray} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View pointerEvents={saving ? 'none' : 'auto'}>
               <Text style={styles.label}>Transaction type</Text>
               {renderChips(['Income', 'Expense'], form.type, value => {
-                categoryChoiceRef.current = null;
+                setManualCategoryFallback(false);
+                setSuggestionError(null);
                 setForm(current => ({...current, type: value, source: '', category: ''}));
-              })}
+              }, transactionTypeIcon)}
 
               <Text style={styles.label}>Source</Text>
               {renderChips(sources, form.source, value => {
-                categoryChoiceRef.current = null;
-                setForm(current => ({...current, source: value, category: ''}));
+                setSuggestionError(null);
+                setForm(current => ({...current, source: value, category: useAutomaticCategory ? '' : current.category}));
               })}
 
-              <Text style={styles.label}>{form.type === 'Expense' ? 'Expense name' : 'Income name'}</Text>
-              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={form.type === 'Expense' ? setExpenseName : value => setField('notes', value)} placeholder={form.type === 'Expense' ? 'e.g. milk and sugar' : 'e.g. catering payment'} placeholderTextColor={COLORS.placeholder} multiline />
+              <Text style={styles.label}>{form.type === 'Expense' ? 'Expense or product name (optional)' : 'Income name'}</Text>
+              <TextInput style={[styles.input, styles.notesInput]} value={form.notes} onChangeText={form.type === 'Expense' ? setExpenseName : value => setField('notes', value)} placeholder={form.type === 'Expense' ? 'Enter a name for AI, or leave blank to choose a category' : 'e.g. catering payment'} placeholderTextColor={COLORS.placeholder} maxLength={500} multiline />
 
-              {form.source ? <>
-                <Text style={styles.label}>Category</Text>
-                {form.type === 'Expense' && suggestionLoading ? <Text style={styles.suggestionText}>Categorizing expense...</Text> : null}
-                {form.type === 'Expense' && categorySuggestion ? (
-                  <View style={styles.suggestionButton}>
-                    <Icon name="creation" size={17} color={COLORS.accentDark} />
-                    <Text style={styles.suggestionText}>AI category: {categorySuggestion}{categoryChoiceRef.current === 'manual' ? ' (manual choice kept)' : ' (selected automatically)'}</Text>
-                  </View>
-                ) : null}
-                {form.type === 'Expense' && suggestionError ? <Text style={styles.suggestionText}>{suggestionError}</Text> : null}
-                {renderChips(categories, form.category, selectCategory)}
-              </> : <View style={styles.sourceHint}>
+              <Text style={styles.label}>Category</Text>
+              {useAutomaticCategory ? (
+                <View style={styles.suggestionButton}>
+                  <Icon name="creation" size={17} color={COLORS.accentDark} />
+                  <Text style={styles.suggestionText}>{categorizing ? 'Choosing a category...' : form.category ? `Category: ${form.category}` : 'Gasto AI will choose a category when you save.'}</Text>
+                </View>
+              ) : renderChips(categories, form.category, selectCategory, transactionCategoryIcon)}
+              {!form.source ? <View style={styles.sourceHint}>
                 <Icon name="information-outline" size={17} color={COLORS.accentDark} />
-                <Text style={styles.sourceHintText}>Select a source to show the available categories.</Text>
-              </View>}
+                <Text style={styles.sourceHintText}>Choose a payment source before saving.</Text>
+              </View> : null}
+              {suggestionError ? <Text accessibilityRole="alert" style={styles.suggestionError}>{suggestionError}</Text> : null}
 
               <Text style={styles.label}>Amount</Text>
               <View style={styles.amountInputWrap}>
@@ -656,6 +672,7 @@ const TransactionsScreen = ({route}) => {
                 <Text style={styles.dateValue}>{form.date}</Text>
                 <Icon name="calendar-month-outline" size={20} color={COLORS.accentDark} />
               </TouchableOpacity>
+              </View>
 
               <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={save} disabled={saving}>
                 {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{editingTransaction ? 'Save changes' : 'Save transaction'}</Text>}
@@ -665,45 +682,59 @@ const TransactionsScreen = ({route}) => {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={detailVisible} transparent animationType="fade" onRequestClose={() => setDetailVisible(false)}>
+      <Modal visible={detailVisible} transparent animationType="slide" onRequestClose={() => setDetailVisible(false)}>
         <View style={styles.centerOverlay}>
           <View style={styles.detailCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <GastoModalMascot variant="receipt" />
+              <View style={styles.formHeaderCopy}>
                 <Text style={styles.modalTitle}>Transaction details</Text>
-                <Text style={styles.modalSubtitle}>{selectedTransaction?.date}</Text>
               </View>
-              <TouchableOpacity onPress={() => setDetailVisible(false)} accessibilityLabel="Close transaction details">
+              <TouchableOpacity style={styles.formCloseButton} onPress={() => setDetailVisible(false)} accessibilityRole="button" accessibilityLabel="Close transaction details">
                 <Icon name="close" size={24} color={COLORS.textGray} />
               </TouchableOpacity>
             </View>
-            {selectedTransaction ? <>
-              <View style={[styles.detailHero, selectedTransaction.type?.toLowerCase() === 'income' ? styles.detailHeroIncome : styles.detailHeroExpense]}>
-                <View style={styles.detailHeroIcon}><Icon name={selectedTransaction.type?.toLowerCase() === 'income' ? 'arrow-down-left' : 'arrow-up-right'} size={23} color="#FFFFFF" /></View>
-                <View style={styles.detailHeroText}>
-                  <Text style={styles.detailCategory}>{transactionDisplayName(selectedTransaction)}</Text>
-                  <Text style={styles.detailType}>{selectedTransaction.source || 'Unknown source'} · {selectedTransaction.date}</Text>
+            {selectedTransaction ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScrollContent}>
+              <View style={[styles.detailTypeBadge, selectedTransaction.type?.toLowerCase() === 'income' ? styles.detailBadgeIncome : styles.detailBadgeExpense]}>
+                <Icon name={transactionTypeIcon(selectedTransaction.type)} size={18} color={selectedTransaction.type?.toLowerCase() === 'income' ? COLORS.success : COLORS.danger} />
+                <Text style={[styles.detailBadgeText, selectedTransaction.type?.toLowerCase() === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
+                  {selectedTransaction.type?.toLowerCase() === 'income' ? 'Income' : 'Expense'} transaction
+                </Text>
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Transaction</Text>
+                <View style={styles.detailNameRow}>
+                  <Icon name={transactionCategoryIcon(selectedTransaction.category)} size={22} color={selectedTransaction.type?.toLowerCase() === 'income' ? COLORS.success : COLORS.danger} />
+                  <Text style={styles.detailName}>{transactionDisplayName(selectedTransaction)}</Text>
                 </View>
               </View>
-              <Text style={[
-                styles.detailAmount,
-                selectedTransaction.type?.toLowerCase() === 'income' ? styles.incomeAmount : styles.expenseAmount,
-              ]}>
-                {selectedTransaction.type?.toLowerCase() === 'income' ? '+' : '-'}₱{Number(selectedTransaction.amount || 0).toFixed(2)}
-              </Text>
-              {[
-                ['Category', selectedTransaction.category],
-                ['Source', selectedTransaction.source],
-                ['Date', selectedTransaction.date],
-              ].map(([label, value]) => <View key={label} style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{label}</Text>
-                <Text style={styles.detailValue}>{value}</Text>
-              </View>)}
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Details</Text>
+                {[
+                  ['Category', selectedTransaction.category],
+                  ['Source', selectedTransaction.source],
+                  ['Date', selectedTransaction.date],
+                ].map(([label, value]) => <View key={label} style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{label}</Text>
+                  <Text style={styles.detailValue}>{value || '—'}</Text>
+                </View>)}
+              </View>
+
+              <View style={styles.detailTotalBox}>
+                <Text style={styles.detailTotalLabel}>Amount</Text>
+                <Text style={[styles.detailAmount, selectedTransaction.type?.toLowerCase() === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
+                  {selectedTransaction.type?.toLowerCase() === 'income' ? '+' : '-'}₱{Number(selectedTransaction.amount || 0).toFixed(2)}
+                </Text>
+              </View>
 
               {canEdit(selectedTransaction) ? (
                 <View style={styles.transactionActions}>
                   <TouchableOpacity
                     style={[styles.editButton, styles.transactionActionButton]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit transaction"
                     onPress={() => openEdit(selectedTransaction)}>
                     <Icon name="pencil-outline" size={18} color={COLORS.accentDark} />
                     <Text style={styles.editButtonText}>Edit</Text>
@@ -711,6 +742,8 @@ const TransactionsScreen = ({route}) => {
                   <TouchableOpacity
                     style={[styles.deleteButton, styles.transactionActionButton, deleting && styles.disabled]}
                     onPress={() => confirmDelete(selectedTransaction)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete transaction"
                     disabled={deleting}>
                     {deleting
                       ? <ActivityIndicator size="small" color={COLORS.danger} />
@@ -724,7 +757,7 @@ const TransactionsScreen = ({route}) => {
                   <Text style={styles.protectedText}>You can only edit or delete transactions that you recorded.</Text>
                 </View>
               ) : null}
-            </> : null}
+            </ScrollView> : null}
           </View>
         </View>
       </Modal>
@@ -822,15 +855,17 @@ const styles = StyleSheet.create({
   card: {flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 12, marginBottom: 8, ...SHADOWS.card},
   iconBox: {width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
   incomeIcon: {backgroundColor: '#E8F5E9'}, expenseIcon: {backgroundColor: '#FFEBEE'},
-  cardBody: {flex: 1, marginHorizontal: 10}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, cardNote: {fontSize: 11, color: COLORS.textMuted, marginTop: 2},
+  cardBody: {flex: 1, marginHorizontal: 10}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, cardNoteRow: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2}, cardNote: {fontSize: 11, color: COLORS.textMuted},
   amount: {fontSize: 15, fontWeight: '700'}, incomeAmount: {color: COLORS.success}, expenseAmount: {color: COLORS.danger},
   centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24}, emptyTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark, marginTop: 10}, stateText: {fontSize: 13, color: COLORS.textGray, textAlign: 'center', marginTop: 5}, footerLoader: {paddingVertical: 14},
+  emptyMascot: {width: 120, height: 120},
   loadMoreButton: {marginTop: 12, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.accent, backgroundColor: COLORS.surface},
   loadMoreText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
   overlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'flex-end'},
   centerOverlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.48)', justifyContent: 'center', padding: 20},
   modalCard: {maxHeight: '92%', backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16},
-  detailCard: {backgroundColor: COLORS.surface, borderRadius: 20, padding: 16},
+  detailCard: {width: '100%', maxHeight: '92%', flexShrink: 1, backgroundColor: COLORS.surface, borderRadius: 24, padding: 16},
+  detailScrollContent: {paddingBottom: 4},
   modalHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12}, modalTitle: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, modalSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2},
   label: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 12, marginBottom: 5},
   amountInputWrap: {flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 12}, peso: {fontSize: 22, fontWeight: '700', color: COLORS.textDark, marginRight: 6}, amountInput: {flex: 1, fontSize: 22, color: COLORS.textDark, paddingVertical: 10},
@@ -850,12 +885,26 @@ const styles = StyleSheet.create({
   calendarDayTextDisabled: {color: COLORS.textMuted},
   calendarCancel: {alignSelf: 'flex-end', paddingVertical: 10, paddingHorizontal: 14, marginTop: 8},
   calendarCancelText: {color: COLORS.accentDark, fontSize: 14, fontWeight: '700'},
-  chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {minHeight: 48, justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
+  chips: {flexDirection: 'row', gap: 8, paddingRight: 20}, chip: {minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, chipActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, chipText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, chipTextActive: {color: '#FFFFFF'},
   sourceHint: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: COLORS.surfaceMuted, borderRadius: 10, padding: 10, marginTop: 8}, sourceHintText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textGray},
   suggestionButton: {flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#E8F7F1', borderRadius: 10, padding: 10, marginBottom: 9},
-  suggestionText: {fontSize: 12, color: COLORS.accentDark, marginBottom: 7},
+  suggestionText: {flex: 1, fontSize: 12, lineHeight: 18, color: COLORS.accentDark},
+  suggestionError: {fontSize: 12, lineHeight: 18, color: COLORS.danger, marginBottom: 9},
   saveButton: {minHeight: 50, backgroundColor: COLORS.accentDark, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 14, marginBottom: 6}, saveButtonText: {fontSize: 15, fontWeight: '700', color: '#FFFFFF'}, disabled: {opacity: 0.6},
-  detailHero: {flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 12, marginBottom: 10}, detailHeroIncome: {backgroundColor: '#E8F5E9'}, detailHeroExpense: {backgroundColor: '#FFEBEE'}, detailHeroIcon: {width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent}, detailHeroText: {flex: 1, marginLeft: 10}, detailCategory: {fontSize: 16, fontWeight: '700', color: COLORS.textDark}, detailType: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, detailAmount: {fontSize: 30, fontWeight: '700', marginBottom: 10}, detailRow: {flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8}, detailLabel: {fontSize: 13, color: COLORS.textGray}, detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
+  detailTypeBadge: {minHeight: 42, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16},
+  detailBadgeIncome: {backgroundColor: COLORS.tagIncBg},
+  detailBadgeExpense: {backgroundColor: COLORS.dangerSurface},
+  detailBadgeText: {fontSize: 14, fontWeight: '700'},
+  detailSection: {marginBottom: 16},
+  detailSectionTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark, marginBottom: 9},
+  detailNameRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  detailName: {fontSize: 16, fontWeight: '600', color: COLORS.textDark, paddingVertical: 4},
+  detailTotalBox: {backgroundColor: COLORS.miniCardBg, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, padding: 16, marginTop: 2},
+  detailTotalLabel: {fontSize: 13, color: COLORS.textGray, marginBottom: 4},
+  detailAmount: {fontSize: 28, fontWeight: '700'},
+  detailRow: {flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 11},
+  detailLabel: {fontSize: 13, color: COLORS.textGray},
+  detailValue: {maxWidth: '65%', fontSize: 13, fontWeight: '600', color: COLORS.textDark, textAlign: 'right'},
   editButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14}, editButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
   transactionActions: {flexDirection: 'row', gap: 10, marginTop: 14},
   transactionActionButton: {flex: 1, marginTop: 0},

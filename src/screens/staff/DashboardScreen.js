@@ -2,6 +2,7 @@
 import {
   View,
   Text,
+  Animated,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -10,8 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import {AppAlert as Alert} from '../../services/AppDialogService';
-import {useFocusEffect} from '@react-navigation/native';
+import {useFocusEffect, useIsFocused} from '@react-navigation/native';
 import { useTransactions } from '../../context/TransactionContext';
 import { useProducts } from '../../context/ProductContext';
 import { useAuth } from '../../context/AuthContext';
@@ -20,19 +20,50 @@ import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
 import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
+import {transactionCategoryIcon} from '../../utils/transactionIcons';
 import {useStaffDay} from '../../utils/useStaffDay';
 import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 import {getProfilePhotoSource} from '../../utils/profilePhoto';
-import {getStaffOfflineActions, retryStaffOfflineAction, subscribeStaffOffline, syncStaffOfflineActions} from '../../services/staffOffline';
+import {syncStaffOfflineActions} from '../../services/staffOffline';
+import useReduceMotion from '../../hooks/useReduceMotion';
+
+const IncomePeekCat = () => {
+  const isFocused = useIsFocused();
+  const reduceMotion = useReduceMotion();
+  const blink = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isFocused || reduceMotion) {
+      blink.stopAnimation();
+      blink.setValue(0);
+      return undefined;
+    }
+
+    const animation = Animated.loop(Animated.sequence([
+      Animated.delay(4700),
+      Animated.timing(blink, {toValue: 1, duration: 80, useNativeDriver: true}),
+      Animated.delay(140),
+      Animated.timing(blink, {toValue: 0, duration: 80, useNativeDriver: true}),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [blink, isFocused, reduceMotion]);
+
+  return (
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.incomeMascotPeek}>
+      <Image source={require('../../../assets/mascot/gasto-header-body.png')} style={styles.incomeMascotImage} resizeMode="contain" />
+      <Animated.Image source={require('../../../assets/mascot/gasto-header-blink.png')} style={[styles.incomeMascotImage, styles.incomeMascotBlink, {opacity: blink}]} resizeMode="contain" />
+    </View>
+  );
+};
 
 const DashboardScreen = ({ navigation }) => {
   const {user, userToken, business, sessionStorageWarning} = useAuth();
   const offlineAccount = useMemo(() => user?.id && (user?.business_id || business?.id)
     ? {userId: user.id, businessId: user.business_id || business.id} : null,
   [user?.id, user?.business_id, business?.id]);
-  const [offlineActions, setOfflineActions] = useState([]);
   const { transactions, isLoading: transactionsLoading, loadError: transactionError, fetchTransactions, PRODUCT_CATEGORIES } = useTransactions();
   const { products, isLoading: productsLoading, loadError: productError, fetchProducts } = useProducts();
   const [refreshing, setRefreshing] = useState(false);
@@ -43,20 +74,6 @@ const DashboardScreen = ({ navigation }) => {
   const [incomeError, setIncomeError] = useState(null);
   const incomeRequestId = React.useRef(0);
   const day = useStaffDay();
-
-  useEffect(() => {
-    if (!offlineAccount) {
-      setOfflineActions([]);
-      return undefined;
-    }
-    let active = true;
-    const refreshOffline = () => getStaffOfflineActions(offlineAccount)
-      .then(actions => { if (active) setOfflineActions(actions); })
-      .catch(() => {});
-    refreshOffline();
-    const unsubscribe = subscribeStaffOffline(refreshOffline);
-    return () => { active = false; unsubscribe(); };
-  }, [offlineAccount]);
 
   const fetchDailyIncome = React.useCallback(async () => {
     const requestId = ++incomeRequestId.current;
@@ -144,27 +161,10 @@ const DashboardScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.accent]} />
         }>
         <ApiErrorBanner message={sessionStorageWarning} />
-        {offlineActions.length ? (
-          <View style={styles.offlineCard}>
-            <Text style={styles.offlineTitle}>Offline records · {offlineActions.length}</Text>
-            <Text style={styles.offlineHint}>Saved on this device. Shared totals and stock update after the server accepts each record.</Text>
-            {offlineActions.slice(0, 8).map(action => (
-              <View key={action.client_id} style={styles.offlineRow}>
-                <View style={styles.offlineText}>
-                  <Text style={styles.offlineItem}>{({cash_order: 'Cash order', transaction: 'Transaction', stock_adjustment: 'Stock adjustment'})[action.kind] || 'Record'} · {action.status === 'rejected' ? 'Needs attention' : 'Waiting to sync'}</Text>
-                  {action.error ? <Text style={styles.offlineError}>{action.error}</Text> : null}
-                </View>
-                {action.status === 'rejected' ? <TouchableOpacity style={styles.offlineRetryButton} accessibilityRole="button" accessibilityLabel="Retry offline record" onPress={() => retryStaffOfflineAction(offlineAccount, action.client_id).catch(error => Alert.alert('Retry failed', error.message))}>
-                  <Text style={styles.offlineRetry}>Retry</Text>
-                </TouchableOpacity> : null}
-              </View>
-            ))}
-            {offlineActions.length > 8 ? <Text style={styles.offlineHint}>Showing 8 of {offlineActions.length} records.</Text> : null}
-          </View>
-        ) : null}
         {isLoadingDashboard && !hasDashboardData ? <DashboardSkeleton /> : <>
         {/* Daily Income Card */}
         <View style={styles.incomeCard}>
+          <IncomePeekCat />
           <View style={styles.incomeHeader}>
             <Text style={styles.incomeLabel}>Daily income</Text>
             <TouchableOpacity
@@ -273,9 +273,12 @@ const DashboardScreen = ({ navigation }) => {
             ]}>
             {filteredProducts.length === 0 ? (
               <View style={styles.emptyProducts}>
-                <View style={styles.emptyProductsIcon}>
-                  <Icon name="food-off" size={34} color={COLORS.textMuted} />
-                </View>
+                <Image
+                  source={productError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')}
+                  style={styles.emptyProductsMascot}
+                  resizeMode="contain"
+                  accessibilityLabel={productError ? 'Gasto could not load products' : 'Gasto beside an empty tray'}
+                />
                 <Text style={styles.emptyProductsTitle}>{productError ? 'Products unavailable' : 'No products available'}</Text>
                 <Text style={styles.emptyProductsText}>
                   {productError ? 'Check the server connection, then retry.' : selectedCategory === 'All'
@@ -323,7 +326,7 @@ const DashboardScreen = ({ navigation }) => {
 
           {recentTransactions.length === 0 ? (
             <View style={styles.emptyTransactions}>
-              <Icon name="receipt-text-outline" size={64} color="#DDD" />
+              <Image source={transactionError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={transactionError ? 'Gasto could not load transactions' : 'Gasto beside an empty tray'} />
               <Text style={styles.emptyText}>{transactionError ? 'Transactions unavailable' : 'No transactions today'}</Text>
             </View>
           ) : (
@@ -332,17 +335,11 @@ const DashboardScreen = ({ navigation }) => {
                 key={transaction.id}
                 style={styles.transactionItem}
                 onPress={() => navigation.navigate('Transactions')}>
-                <View style={styles.transactionIconContainer}>
+                <View style={[styles.transactionIconContainer, transaction.type?.toLowerCase() === 'income' ? styles.incomeTransactionIcon : styles.expenseTransactionIcon]}>
                   <Icon
-                    name={
-                      transaction.type?.toLowerCase() === 'income'
-                        ? 'flash'
-                        : transaction.type?.toLowerCase() === 'expense'
-                        ? 'cart'
-                        : 'refresh'
-                    }
-                    size={24}
-                    color="#333"
+                    name={transactionCategoryIcon(transaction.category)}
+                    size={22}
+                    color={transaction.type?.toLowerCase() === 'income' ? COLORS.success : COLORS.danger}
                   />
                 </View>
                 <View style={styles.transactionInfo}>
@@ -429,15 +426,6 @@ const DashboardSkeleton = () => (
 );
 
 const styles = StyleSheet.create({
-  offlineCard: {marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: '#FFF8E8', borderWidth: 1, borderColor: '#E8C98B'},
-  offlineTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark},
-  offlineHint: {fontSize: 12, color: COLORS.textGray, marginTop: 4},
-  offlineRow: {flexDirection: 'row', alignItems: 'center', paddingTop: 9, marginTop: 8, borderTopWidth: 1, borderTopColor: '#EADBB9'},
-  offlineText: {flex: 1},
-  offlineItem: {fontSize: 13, color: COLORS.textDark, fontWeight: '600'},
-  offlineError: {fontSize: 12, color: COLORS.danger, marginTop: 3},
-  offlineRetryButton: {minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center'},
-  offlineRetry: {fontSize: 13, color: COLORS.accentDark, fontWeight: '700', padding: 8},
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -471,6 +459,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     elevation: 4,
   },
+  incomeMascotPeek: {
+    position: 'absolute',
+    right: 16,
+    bottom: 0,
+    width: 108,
+    height: 76,
+    overflow: 'hidden',
+  },
+  incomeMascotImage: {width: 108, height: 108},
+  incomeMascotBlink: {position: 'absolute', top: 0, left: 0},
   incomeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -689,14 +687,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  emptyProductsIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: COLORS.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  emptyProductsMascot: {width: 96, height: 96},
   emptyProductsTitle: {
     marginTop: 12,
     fontSize: 15,
@@ -719,14 +710,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   transactionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: COLORS.bgCard,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
+  incomeTransactionIcon: {backgroundColor: '#E8F5E9'},
+  expenseTransactionIcon: {backgroundColor: '#FFEBEE'},
   transactionInfo: {
     flex: 1,
   },
@@ -750,6 +742,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+  emptyMascot: {width: 104, height: 104},
   emptyText: {
     marginTop: 16,
     fontSize: 16,

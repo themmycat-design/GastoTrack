@@ -22,12 +22,18 @@ use App\Http\Controllers\PlatformUserController;
 use App\Http\Controllers\AdminActivityLogController;
 use App\Http\Controllers\BusinessSubscriptionController;
 use App\Http\Controllers\BusinessBulkActionController;
+use App\Http\Controllers\PublicContactController;
 use App\Models\BugReport;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::view('/contact', 'public.contact')->name('contact');
+Route::post('/contact', PublicContactController::class)->middleware('throttle:3,1')->name('contact.send');
+Route::view('/terms', 'public.terms')->name('terms');
+Route::view('/privacy', 'public.privacy')->name('privacy');
 
 Route::get('/dashboard', OwnerDashboardController::class)
     ->middleware(['auth', 'verified', 'owner', 'owner.security'])
@@ -50,6 +56,9 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscri
     Route::get('/owner/live-state', OwnerLiveStateController::class)->name('owner.live-state');
     Route::post('/notifications/read-all', [OwnerNotificationController::class, 'readAll'])
         ->name('owner.notifications.read-all');
+    Route::delete('/notifications/{notification}', [OwnerNotificationController::class, 'destroy'])
+        ->whereNumber('notification')
+        ->name('owner.notifications.destroy');
 
     Route::get('/goals', [OwnerGoalController::class, 'index'])->name('goals.index');
     Route::post('/goals', [OwnerGoalController::class, 'store'])->name('goals.store');
@@ -112,6 +121,7 @@ Route::middleware(['auth', 'super_admin', 'platform.account.active'])->prefix('s
     Route::post('/businesses', [SuperAdminController::class, 'store'])->name('businesses.store');
     Route::post('/businesses/{business}/restore', [SuperAdminController::class, 'restore'])->name('businesses.restore');
     Route::delete('/businesses/{business}/permanent', [SuperAdminController::class, 'forceDestroy'])->name('businesses.force-destroy');
+    Route::delete('/businesses/{business}/pending-registration', [SuperAdminController::class, 'deletePendingRegistration'])->name('businesses.pending-registration.delete');
     Route::get('/businesses/{business}', [SuperAdminController::class, 'show'])->name('businesses.show');
     Route::put('/businesses/{business}/subscription', [BusinessSubscriptionController::class, 'update'])->name('businesses.subscription.update');
     Route::post('/businesses/{business}/subscription/extend', [BusinessSubscriptionController::class, 'extend'])->name('businesses.subscription.extend');

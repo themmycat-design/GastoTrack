@@ -1,11 +1,11 @@
 import React from 'react';
-import {ActivityIndicator, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {COLORS} from '../../theme';
 
 const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete'];
 
-const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, onSignOut}) => {
+const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, recoveryRequiresSignIn, onSignOut}) => {
   const insets = useSafeAreaInsets();
   const title = mode === 'setup' ? 'Create your MPIN' : mode === 'confirm' ? 'Confirm your MPIN'
     : mode === 'locked' ? 'MPIN locked' : 'Enter your MPIN';
@@ -18,8 +18,8 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, o
   return (
     <View style={[styles.page, {paddingTop: Math.max(insets.top, 20) + 28, paddingBottom: Math.max(insets.bottom, 16)}]}>
       <View style={styles.header}>
-        <View style={styles.badge}><Text style={styles.badgeText}>GT</Text></View>
-        <Text style={styles.eyebrow}>GASTOTRACK STAFF</Text>
+        <Image source={require('../../../assets/mascot/gasto-login.png')}
+          style={styles.mascot} resizeMode="contain" accessibilityLabel="Gasto the cat" />
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.hint}>{hint}</Text>
         <View style={styles.dots} accessibilityLabel={`${pin.length} of 4 digits entered`}>
@@ -41,12 +41,16 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, o
           </TouchableOpacity>
         ) : <View key={`empty-${index}`} style={styles.key} />)}
       </View> : <View />}
-      {onRecover ? <TouchableOpacity accessibilityRole="button" onPress={onRecover} disabled={busy} style={styles.signOut}>
-        <Text style={styles.signOutText}>Forgot MPIN? Create a new one</Text>
-      </TouchableOpacity> : null}
-      <TouchableOpacity accessibilityRole="button" onPress={onSignOut} disabled={busy} style={styles.signOut}>
-        <Text style={styles.signOutText}>Sign out</Text>
-      </TouchableOpacity>
+      <View style={styles.footer}>
+        {onRecover ? <TouchableOpacity accessibilityRole="button"
+          accessibilityLabel={recoveryRequiresSignIn ? 'Forgot MPIN? Sign in to create a new one' : 'Forgot MPIN? Create a new one'}
+          onPress={onRecover} disabled={busy} style={styles.signOut}>
+          <Text style={styles.signOutText}>Forgot MPIN? Create a new one</Text>
+        </TouchableOpacity> : null}
+        <TouchableOpacity accessibilityRole="button" onPress={onSignOut} disabled={busy} style={styles.signOut}>
+          <Text style={styles.signOutText}>Sign out</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -54,10 +58,8 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, o
 const styles = StyleSheet.create({
   page: {flex: 1, backgroundColor: '#F1FFF5', paddingHorizontal: 24, justifyContent: 'space-between', alignItems: 'center'},
   header: {alignItems: 'center', width: '100%'},
-  badge: {width: 58, height: 58, borderRadius: 18, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center'},
-  badgeText: {fontSize: 20, fontWeight: '900', color: COLORS.textDark},
-  eyebrow: {marginTop: 24, fontSize: 11, fontWeight: '800', letterSpacing: 2, color: COLORS.accentDark},
-  title: {marginTop: 10, fontSize: 28, fontWeight: '800', color: COLORS.textDark, textAlign: 'center'},
+  mascot: {width: 112, height: 112},
+  title: {marginTop: 14, fontSize: 28, fontWeight: '800', color: COLORS.textDark, textAlign: 'center'},
   hint: {marginTop: 10, fontSize: 14, lineHeight: 21, color: COLORS.textGray, textAlign: 'center'},
   dots: {flexDirection: 'row', gap: 18, marginTop: 32, marginBottom: 14},
   dot: {width: 15, height: 15, borderRadius: 8, borderWidth: 2, borderColor: COLORS.accentDark},
@@ -67,6 +69,7 @@ const styles = StyleSheet.create({
   key: {width: '33.333%', height: 68, alignItems: 'center', justifyContent: 'center'},
   keyText: {fontSize: 28, fontWeight: '600', color: COLORS.textDark},
   deleteText: {fontSize: 27, color: COLORS.accentDark},
+  footer: {width: '100%', alignItems: 'center'},
   signOut: {minHeight: 48, padding: 12, alignItems: 'center', justifyContent: 'center'},
   signOutText: {color: COLORS.accentDark, fontSize: 13, fontWeight: '700', textAlign: 'center'},
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import {Image, Text, TextInput, TouchableOpacity} from 'react-native';
+import {Image, Modal, PermissionsAndroid, Platform, Text, TextInput, TouchableOpacity} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import ReceiptScannerScreen from '../src/screens/staff/ReceiptScannerScreen';
 import {useTransactions} from '../src/context/TransactionContext';
@@ -14,6 +14,7 @@ jest.mock('react-native-image-picker', () => ({
 
 jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => 'MockIcon');
 jest.mock('../src/components/staff/StaffScreenHeader', () => () => null);
+jest.mock('../src/components/staff/ReceiptCamera', () => 'ReceiptCamera');
 jest.mock('../src/context/TransactionContext', () => ({useTransactions: jest.fn()}));
 jest.mock('../src/services/OCRService', () => ({
   scanReceipt: jest.fn(),
@@ -61,6 +62,39 @@ const chooseReceiptPhoto = async screen => {
 describe('ReceiptScannerScreen automatic transaction flow', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it('opens the in-app camera and scans only after a photo is captured', async () => {
+    const originalPlatform = Platform.OS;
+    Platform.OS = 'android';
+    const permission = jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+    const addTransaction = jest.fn().mockResolvedValue({success: true, transaction: {id: 31}});
+    setupScanner(addTransaction);
+    api.post.mockResolvedValue({data: {category: 'Ingredients'}});
+    let screen;
+    try {
+      await ReactTestRenderer.act(async () => {
+        screen = ReactTestRenderer.create(<ReceiptScannerScreen navigation={{goBack: jest.fn()}} />);
+      });
+      const takePhoto = screen.root.findAllByType(TouchableOpacity)
+        .find(node => node.props.accessibilityLabel === 'Take a receipt photo');
+      await ReactTestRenderer.act(async () => takePhoto.props.onPress());
+      expect(permission).toHaveBeenCalled();
+      expect(screen.root.findByType('ReceiptCamera')).toBeDefined();
+      expect(scanReceipt).not.toHaveBeenCalled();
+
+      await ReactTestRenderer.act(async () => {
+        screen.root.findByType('ReceiptCamera').props.onCapture('file:///captured-receipt.jpg');
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+      expect(screen.root.findAllByType(Modal).find(node => node.props.visible)).toBeUndefined();
+      expect(scanReceipt).toHaveBeenCalledWith('file:///captured-receipt.jpg');
+      expect(addTransaction).toHaveBeenCalledTimes(1);
+    } finally {
+      if (screen) ReactTestRenderer.act(() => screen.unmount());
+      permission.mockRestore();
+      Platform.OS = originalPlatform;
+    }
+  });
+
   it('classifies and saves a scanned receipt automatically without a manual save form', async () => {
     const addTransaction = jest.fn().mockResolvedValue({success: true, transaction: {id: 12}});
     setupScanner(addTransaction);
@@ -89,7 +123,7 @@ describe('ReceiptScannerScreen automatic transaction flow', () => {
     }));
     expect(screen.root.findAllByType(Text).some(node => node.props.children === 'Saved automatically to Transactions.')).toBe(true);
     expect(screen.root.findAllByType(Text).some(node => node.props.children === 'Save transaction')).toBe(false);
-    expect(screen.root.findAllByType(Image)).toHaveLength(0);
+    expect(screen.root.findAllByType(Image).filter(node => node.props.source?.uri === 'file:///receipt.jpg')).toHaveLength(0);
     expect(screen.root.findAllByType(Text).some(node => node.props.children === 'Extracted text' || node.props.children === 'receipt text')).toBe(false);
   });
 
@@ -106,7 +140,7 @@ describe('ReceiptScannerScreen automatic transaction flow', () => {
 
     expect(addTransaction).not.toHaveBeenCalled();
     expect(screen.root.findAllByType(Text).some(node => String(node.props.children).includes('The photo may be blurry, too dark, or cropped'))).toBe(true);
-    expect(screen.root.findAllByType(Image)).toHaveLength(0);
+    expect(screen.root.findAllByType(Image).filter(node => node.props.source?.uri === 'file:///receipt.jpg')).toHaveLength(0);
     expect(screen.root.findAllByType(Text).some(node => node.props.children === 'Extracted text')).toBe(false);
   });
 

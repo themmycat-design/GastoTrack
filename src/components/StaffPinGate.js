@@ -116,7 +116,13 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
   };
 
   const recoverPin = async () => {
-    if (!passwordAuthenticated || busy || processing.current) return;
+    if (busy || processing.current) return;
+    if (!passwordAuthenticated) {
+      // An already-unlocked session does not prove the staff member knows the
+      // account password. Return to sign-in before allowing PIN replacement.
+      await onSignOut();
+      return;
+    }
     processing.current = true;
     setBusy(true);
     try {
@@ -144,7 +150,8 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
   );
   const pinScreen = <StaffPinScreen mode={mode} pin={pin} error={error} busy={busy} onDigit={onDigit}
     onDelete={() => {setPin(current => current.slice(0, -1)); setError('');}}
-    onRecover={passwordAuthenticated && mode === 'unlock' ? recoverPin : null} onSignOut={onSignOut} />;
+    onRecover={mode === 'unlock' ? recoverPin : null}
+    recoveryRequiresSignIn={!passwordAuthenticated} onSignOut={onSignOut} />;
   if (!hasOpened) return pinScreen;
 
   return <View style={styles.gate}>

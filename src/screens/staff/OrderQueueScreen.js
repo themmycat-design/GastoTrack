@@ -22,6 +22,7 @@ import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import GastoModalMascot from '../../components/staff/GastoModalMascot';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 
 const OrderQueueScreen = ({navigation, route}) => {
@@ -57,7 +58,6 @@ const OrderQueueScreen = ({navigation, route}) => {
   const [quantity, setQuantity] = useState('1');
   const [ingredientAmounts, setIngredientAmounts] = useState({});
   const [ingredientError, setIngredientError] = useState('');
-  const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   const availableProducts = useMemo(
@@ -166,7 +166,6 @@ const OrderQueueScreen = ({navigation, route}) => {
       setWalletPickerVisible(false);
       setPaymentType(null);
       setSelectedEwallet(null);
-      setNotes('');
       setDetectedWalletSignal(null);
       setPaymentSignalDetected(false);
       setDetectedAmount(0);
@@ -368,7 +367,6 @@ const OrderQueueScreen = ({navigation, route}) => {
       })),
       customerName: 'Walk-in Customer',
       customerPhone: null,
-      notes: notes.trim() || null,
       paymentMethod,
     };
 
@@ -382,8 +380,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         setQrPaymentModalVisible(false);
         setPaymentType(null);
         setSelectedEwallet(null);
-        setNotes('');
-        Alert.alert('Saved on this device', 'This cash order is waiting to sync. It is not yet a completed sale and stock has not been deducted. Check Offline records for its status.');
+        Alert.alert('Saved on this device', 'This cash order will sync when the server is reachable. It is not a completed sale until the server accepts it.');
       } else if (orderPaymentType === 'cashless' && order.paymentStatus !== 'confirmed') {
         setQrPaymentModalVisible(true);
         setPaymentSignalDetected(false);
@@ -399,14 +396,16 @@ const OrderQueueScreen = ({navigation, route}) => {
         cashlessCartSnapshotRef.current = null;
         setPaymentType(null);
         setSelectedEwallet(null);
-        setNotes('');
         setDetectedWalletSignal(null);
         setPaymentSignalDetected(false);
         setDetectedAmount(0);
         setPaymentNotice('This order is completed; payment and sales were recorded by the server.');
       }
     } catch (error) {
-      Alert.alert('Order not submitted', getApiErrorMessage(error, 'The server did not confirm this order. Your cart remains available to retry.'));
+      const message = getApiErrorMessage(error, 'The server did not confirm this order. Your cart remains available to retry.');
+      const stockShortage = /insufficient stock|order ingredients are unavailable|is inactive and cannot be used for this order/i.test(message);
+      Alert.alert(stockShortage ? 'Not enough stock' : 'Order not submitted',
+        stockShortage ? message.replace(/\s*No payment or inventory changes were made\.\s*$/i, '').trim() : message);
     } finally {
       submittingOrder.current = false;
       setIsPlacingOrder(false);
@@ -552,7 +551,11 @@ const OrderQueueScreen = ({navigation, route}) => {
 
       {paymentNotice ? (
         <View style={styles.paymentNotice} accessibilityLiveRegion="polite">
-          <Icon name="check-circle-outline" size={19} color={COLORS.success} />
+          {/completed|order was saved/.test(paymentNotice) ? (
+            <Image source={require('../../../assets/mascot/gasto-order-success.png')} style={styles.paymentNoticeMascot} resizeMode="contain" accessibilityLabel="Gasto celebrating the completed order" />
+          ) : (
+            <Icon name="check-circle-outline" size={19} color={COLORS.success} />
+          )}
           <Text style={styles.paymentNoticeText}>{paymentNotice}</Text>
           <TouchableOpacity onPress={() => setPaymentNotice('')} accessibilityLabel="Dismiss payment notice">
             <Icon name="close" size={18} color={COLORS.textGray} />
@@ -633,6 +636,7 @@ const OrderQueueScreen = ({navigation, route}) => {
             {selectedProduct && (
               <>
                 <View style={styles.modalHeader}>
+                  <GastoModalMascot variant="thinking" />
                   <Text style={styles.modalTitle}>{selectedProduct.name}</Text>
                   <TouchableOpacity onPress={closeProductDetails} accessibilityRole="button" accessibilityLabel="Close product details">
                     <Text style={styles.modalClose}>✕</Text>
@@ -768,6 +772,7 @@ const OrderQueueScreen = ({navigation, route}) => {
           <View style={styles.modalContainer}>
             
             <View style={styles.modalHeader}>
+              <GastoModalMascot variant="welcome" />
               <Text style={styles.modalTitle}>Checkout</Text>
               <TouchableOpacity
                 onPress={() => setCheckoutModalVisible(false)}
@@ -853,19 +858,6 @@ const OrderQueueScreen = ({navigation, route}) => {
                 ))}
               </View>
 
-              {/* Notes */}
-              <View style={styles.detailSection}>
-                <Text style={styles.detailSectionTitle}>Special Instructions (optional)</Text>
-                <TextInput
-                  style={[styles.input, styles.notesInput]}
-                  placeholder="E.g., Less ice, no sugar, etc."
-                  placeholderTextColor={COLORS.placeholder}
-                  value={notes}
-                  onChangeText={setNotes}
-                  multiline
-                />
-              </View>
-
               {/* Total */}
               <View style={styles.totalBox}>
                 <View style={styles.totalRow}>
@@ -921,6 +913,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
+              <GastoModalMascot variant="thinking" />
               <Text style={styles.modalTitle}>Choose a wallet</Text>
               <TouchableOpacity
                 onPress={() => setWalletPickerVisible(false)}
@@ -963,6 +956,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         onRequestClose={() => {}}>
         <View style={styles.modalOverlay}>
           <ScrollView style={styles.qrModalCard} contentContainerStyle={styles.qrModalContent} keyboardShouldPersistTaps="handled">
+            <GastoModalMascot variant={paymentSignalDetected ? 'success' : 'thinking'} />
             
             {paymentSignalDetected ? (
               <>
@@ -1099,6 +1093,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF8F0',
   },
   paymentNoticeText: {flex: 1, fontSize: 12, lineHeight: 17, color: COLORS.textDark},
+  paymentNoticeMascot: {width: 48, height: 48},
   cartLoadingNotice: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1262,6 +1257,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1A1A1A',
@@ -1459,10 +1455,6 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-  },
-  notesInput: {
-    height: 80,
-    textAlignVertical: 'top',
   },
   chipRow: {
     flexDirection: 'row',

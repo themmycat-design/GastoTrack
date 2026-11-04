@@ -157,9 +157,15 @@ android {
 // task silently produce an APK signed with the public Android debug key.
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     doFirst {
-        if (!releaseSigningConfigured) {
+        // EAS injects its imported release keystore immediately before Gradle runs.
+        def easSigningConfigured = System.getenv("EAS_BUILD") == "true"
+            && rootProject.file("../credentials.json").exists()
+            && file("eas-build.gradle").exists()
+            && android.signingConfigs.release?.storeFile?.exists()
+        if (!releaseSigningConfigured && !easSigningConfigured) {
             throw new GradleException(
-                "Release signing is not configured. Set GASTOTRACK_STORE_FILE, " +
+                "Release signing is not configured. For EAS, import the existing keystore; " +
+                "for local builds, set GASTOTRACK_STORE_FILE, " +
                 "GASTOTRACK_STORE_PASSWORD, GASTOTRACK_KEY_ALIAS, and GASTOTRACK_KEY_PASSWORD " +
                 "in the environment or android/keystore.properties, and ensure the keystore file exists."
             )

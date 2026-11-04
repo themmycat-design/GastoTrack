@@ -6,14 +6,17 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
+  Modal,
   ScrollView,
   Platform,
   PermissionsAndroid,
 } from 'react-native';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import {launchImageLibrary} from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import ReceiptCamera from '../../components/staff/ReceiptCamera';
 import { scanReceipt, parseReceiptData, buildReceiptCategoryDescription } from '../../services/OCRService';
 import { useTransactions } from '../../context/TransactionContext';
 import api from '../../services/api';
@@ -33,6 +36,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
   const [parsedData, setParsedData] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSelectingImage, setIsSelectingImage] = useState(false);
+  const [cameraVisible, setCameraVisible] = useState(false);
   const [categorySuggestion, setCategorySuggestion] = useState(null);
   const [scanError, setScanError] = useState('');
   const [scanSaved, setScanSaved] = useState(false);
@@ -92,38 +96,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
         return;
       }
 
-      let result;
-      try {
-        result = await launchCamera({
-          mediaType: 'photo',
-          quality: 0.8,
-          saveToPhotos: false,
-          cameraType: 'back',
-        });
-      } catch {
-        Alert.alert('Camera unavailable', 'GastoTrack could not open the camera. Check camera permission in your device settings and try again.');
-        return;
-      }
-
-      if (result.didCancel) return;
-
-      if (result.errorCode) {
-        const permissionError = /permission|access/i.test(`${result.errorCode} ${result.errorMessage || ''}`);
-        Alert.alert(
-          permissionError ? 'Camera Permission Required' : 'Camera Error',
-          permissionError
-            ? 'Allow camera access in your device settings, then try again.'
-            : result.errorMessage || 'Failed to open camera. Please try again.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      if (result.assets && result.assets[0]) {
-        const uri = result.assets[0].uri;
-        setImageUri(uri);
-        await processImage(uri);
-      }
+      setCameraVisible(true);
     } finally {
       setIsSelectingImage(false);
     }
@@ -444,6 +417,16 @@ const ReceiptScannerScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
 
+      <Modal visible={cameraVisible} animationType="slide" onRequestClose={() => setCameraVisible(false)} statusBarTranslucent>
+        {cameraVisible ? <ReceiptCamera
+          onClose={() => setCameraVisible(false)}
+          onCapture={uri => {
+            setCameraVisible(false);
+            setImageUri(uri);
+            processImage(uri);
+          }} /> : null}
+      </Modal>
+
       <StaffScreenHeader
         title="Scan receipt"
         leftIcon="arrow-left"
@@ -454,7 +437,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroCard}>
-          <View style={styles.heroIcon}><Icon name="line-scan" size={30} color={COLORS.textWhite} /></View>
+          <Image source={require('../../../assets/mascot/gasto-receipt.png')} style={styles.heroMascot} resizeMode="contain" accessibilityLabel="Gasto inspecting a receipt" />
           <Text style={styles.heroTitle}>Scan receipt</Text>
           <View style={styles.stepList}>
             <View style={styles.stepRow}>
@@ -509,6 +492,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
         {scanning ? (
           <View style={styles.processingStatus} accessibilityLiveRegion="polite">
+            <Image source={require('../../../assets/mascot/gasto-thinking.png')} style={styles.statusMascot} resizeMode="contain" accessibilityLabel="Gasto thinking" />
             <ActivityIndicator size="small" color={COLORS.accentDark} />
             <Text style={styles.processingStatusText}>{processingMessage || 'Processing receipt...'}</Text>
           </View>
@@ -686,6 +670,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
         {scanError ? (
           <View style={styles.scanStatusError} accessibilityLiveRegion="polite">
+            <Image source={require('../../../assets/mascot/gasto-error.png')} style={styles.statusMascot} resizeMode="contain" accessibilityLabel="Gasto showing a scan error" />
             <Icon name="alert-circle-outline" size={20} color="#A33A2B" />
             <Text style={styles.scanStatusErrorText}>{scanError}</Text>
             {imageUri ? (
@@ -719,6 +704,8 @@ const styles = StyleSheet.create({
   },
   heroCard: {backgroundColor: COLORS.textDark, borderRadius: 20, padding: 16, marginBottom: 16, ...SHADOWS.card},
   heroIcon: {width: 48, height: 48, borderRadius: 14, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12},
+  heroMascot: {width: 100, height: 100, alignSelf: 'center', marginBottom: 8},
+  statusMascot: {width: 52, height: 52, alignSelf: 'center'},
   heroTitle: {fontSize: 20, fontWeight: '800', color: COLORS.textWhite, lineHeight: 25, textAlign: 'center'},
   stepList: {gap: 10, marginTop: 16},
   stepRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 10},

@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {
   Animated,
   DeviceEventEmitter,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -10,25 +11,33 @@ import {
   View,
 } from 'react-native';
 import {APP_DIALOG_EVENT} from '../services/AppDialogService';
-import {COLORS, RADIUS, SHADOWS} from '../theme';
+import {COLORS, SHADOWS} from '../theme';
 import useReduceMotion from '../hooks/useReduceMotion';
 
-const getTone = title => {
-  const value = (title || '').toLowerCase();
-
-  if (/could not|failed|error|invalid|unavailable|required|not submitted|not cancelled|not saved|insufficient/.test(value)) {
-    return {color: COLORS.danger, background: '#FFF0F0', symbol: '!'};
+const getMascot = (title, message) => {
+  const text = `${title || ''} ${message || ''}`.toLowerCase();
+  if (/notification access/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-permission.png'), label: 'Gasto holding a notification bell'};
   }
-
-  if (/saved|updated|added|confirmed|complete|success|cancelled/.test(value)) {
-    return {color: COLORS.success, background: '#E9F7F1', symbol: '\u2713'};
+  if (/low stock|out of stock|not enough stock/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-low-stock.png'), label: 'Gasto checking an empty stock box'};
   }
-
-  if (/delete|remove|cancel|sign out|clear|retry|mark payment|empty|not enough|low stock|pending|missing|choose/.test(value)) {
-    return {color: COLORS.warning, background: '#FFF6E7', symbol: '!'};
+  if (/saved on this device|offline|no connection|cannot reach|could not reach|network error|server.*unavailable/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-offline.png'), label: 'Gasto resting while the connection is unavailable'};
   }
-
-  return {color: COLORS.accentDark, background: '#E8F7F2', symbol: 'i'};
+  if (/order placed|order completed|payment confirmed/.test(text) && !/could not|failed|not confirmed/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-order-success.png'), label: 'Gasto celebrating a completed order'};
+  }
+  if (/could not|failed|error|invalid|unavailable|not submitted|not saved/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-error.png'), label: 'Gasto showing an error'};
+  }
+  if (/saved|updated|added|confirmed|complete|success/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-order-success.png'), label: 'Gasto celebrating'};
+  }
+  if (/delete|remove|cancel|sign out|clear|retry|pending|missing|choose/.test(text)) {
+    return {source: require('../../assets/mascot/gasto-thinking.png'), label: 'Gasto thinking'};
+  }
+  return {source: require('../../assets/mascot/gasto-waving.png'), label: 'Gasto waving'};
 };
 
 const AppDialogHost = () => {
@@ -94,7 +103,7 @@ const AppDialogHost = () => {
 
   if (!dialog && !modalVisible) return null;
 
-  const tone = getTone(dialog?.title);
+  const mascot = getMascot(dialog?.title, dialog?.message);
   const buttons = dialog?.buttons || [];
   const horizontalButtons = buttons.length <= 2;
   const backdropOpacity = animation.interpolate({inputRange: [0, 1], outputRange: [0, 0.48]});
@@ -117,9 +126,7 @@ const AppDialogHost = () => {
           accessibilityViewIsModal
           accessibilityRole="alert"
           style={[styles.card, {opacity: cardOpacity, transform: cardTransform}]}>
-          <View style={[styles.iconBadge, {backgroundColor: tone.background}]}>
-            <Text style={[styles.iconText, {color: tone.color}]}>{tone.symbol}</Text>
-          </View>
+          <Image source={mascot.source} style={styles.mascotImage} resizeMode="contain" accessibilityLabel={mascot.label} />
 
           {dialog?.title ? <Text accessibilityRole="header" style={styles.title}>{dialog.title}</Text> : null}
           {dialog?.message ? (
@@ -183,8 +190,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.card,
     elevation: 18,
   },
-  iconBadge: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill, marginBottom: 13},
-  iconText: {fontSize: 24, fontWeight: '800'},
+  mascotImage: {width: 88, height: 88, marginBottom: 12},
   title: {color: COLORS.textDark, fontSize: 18, lineHeight: 24, fontWeight: '800', textAlign: 'center'},
   messageScroll: {flexGrow: 0, width: '100%', maxHeight: 240, marginTop: 7},
   messageContent: {paddingVertical: 2},

@@ -12,6 +12,7 @@ import {useProducts} from '../../context/ProductContext';
 import {useTransactions} from '../../context/TransactionContext';
 import {COLORS} from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
+import GastoModalMascot from '../../components/staff/GastoModalMascot';
 import ApiErrorBanner from '../../components/ApiErrorBanner';
 import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {getApiErrorMessage} from '../../services/apiErrors';
@@ -423,6 +424,12 @@ const StockScreen = () => {
           ))}
         </View>
       )}
+      {activeTab === 'stock' && (statusCounts.Low > 0 || statusCounts.Out > 0) ? (
+        <View style={styles.stockMascotNotice}>
+          <Image source={require('../../../assets/mascot/gasto-low-stock.png')} style={styles.stockMascot} resizeMode="contain" accessibilityLabel="Gasto checking an empty stock box" />
+          <Text style={styles.stockMascotText}>Some ingredients need attention. Review low and out-of-stock items below.</Text>
+        </View>
+      ) : null}
 
       <View style={styles.searchBox}>
         <Icon name="magnify" size={21} color={COLORS.textGray} />
@@ -455,19 +462,20 @@ const StockScreen = () => {
                 <Text style={styles.alternativesTitle}>Out-of-stock ingredients</Text>
                 {alternativesLoading ? <ActivityIndicator size="small" color={COLORS.accent} /> : null}
               </View>
-              {alternativesLoading && !alternativeItems.length ? <Text style={styles.alternativesHint}>Checking affected products and available stock...</Text> : null}
+              {alternativesLoading && !alternativeItems.length ? <Text style={styles.alternativesHint}>Finding substitutes...</Text> : null}
               {alternativeItems.map(item => (
                 <View key={item.stock_id} style={styles.alternativeItem}>
                   <Text style={styles.alternativeIngredient}>{item.ingredient} is out of stock</Text>
-                  <Text style={styles.alternativesHint}>Used in: {item.products.map(product => product.name).join(', ')}</Text>
+                  <Text style={styles.alternativesHint}>For {item.products.map(product => product.name).join(', ')}</Text>
                   {item.alternatives.length ? (
-                    <Text style={styles.alternativeSuggestion}>Possible alternative: {item.alternatives.map(alternative => alternative.name).join(', ')}</Text>
+                    <Text style={styles.alternativeSuggestion}>In stock: {item.alternatives.map(alternative => alternative.name).join(', ')}</Text>
                   ) : (
-                    <Text style={styles.alternativesHint}>{alternativesStatus === 'unavailable' ? 'AI suggestions are unavailable. Restock or review the recipe manually.' : 'No suitable alternative found in available stock.'}</Text>
+                    !item.purchase_suggestions?.length ? <Text style={styles.alternativesHint}>{alternativesStatus === 'unavailable' ? 'Suggestions unavailable.' : 'No stocked substitute.'}</Text> : null
                   )}
+                  {item.purchase_suggestions?.length ? <Text style={styles.alternativeSuggestion}>Could buy: {item.purchase_suggestions.join(', ')}</Text> : null}
                 </View>
               ))}
-              {alternativeItems.length ? <Text style={styles.alternativesDisclaimer}>Suggestions only. Check taste, allergens, portions, and cost with the owner before changing a recipe. Nothing is changed automatically.</Text> : null}
+              {alternativeItems.length ? <Text style={styles.alternativesDisclaimer}>Check allergens and recipe changes with the owner first.</Text> : null}
             </View>
           ) : null}
           contentContainerStyle={filteredItems.length ? styles.list : styles.emptyList}
@@ -486,7 +494,8 @@ const StockScreen = () => {
       <Modal visible={stockEditorVisible} transparent animationType="slide" onRequestClose={() => setStockEditorVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add stock item</Text>
+            <GastoModalMascot variant="stock" />
+            <Text style={[styles.modalTitle, styles.headerCopy]}>Add stock item</Text>
             <TouchableOpacity style={styles.closeButton} accessibilityRole="button" onPress={() => setStockEditorVisible(false)} accessibilityLabel="Close stock item form"><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
@@ -510,6 +519,7 @@ const StockScreen = () => {
       <Modal visible={Boolean(selectedItem)} transparent animationType="fade" onRequestClose={() => setSelectedItem(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
+            <GastoModalMascot variant="stock" />
             <View style={styles.headerCopy}><Text style={styles.modalTitle}>{selectedItem?.name}</Text><Text style={styles.modalSubtitle}>Adjust the physical stock count</Text></View>
             <TouchableOpacity style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close stock adjustment" onPress={() => setSelectedItem(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
@@ -551,7 +561,8 @@ const StockScreen = () => {
       <Modal visible={Boolean(selectedProduct)} transparent animationType="fade" onRequestClose={() => setSelectedProduct(null)}>
         <View style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{selectedProduct?.name}</Text>
+            <GastoModalMascot variant="thinking" />
+            <Text style={[styles.modalTitle, styles.headerCopy]}>{selectedProduct?.name}</Text>
             <TouchableOpacity onPress={() => setSelectedProduct(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
           {selectedProduct && <ScrollView>
@@ -573,10 +584,10 @@ const StockScreen = () => {
             {alternativeItems.filter(shortage => shortage.products.some(product => Number(product.id) === Number(selectedProduct.id))).map(shortage => (
               <View key={shortage.stock_id} style={styles.productShortage}>
                 <Text style={styles.alternativeIngredient}>{shortage.ingredient} is out of stock</Text>
-                <Text style={styles.alternativeSuggestion}>{shortage.alternatives.length
-                  ? `Possible alternative: ${shortage.alternatives.map(alternative => alternative.name).join(', ')}`
-                  : alternativesStatus === 'unavailable' ? 'AI suggestions unavailable. Restock or review manually.' : 'No suitable stocked alternative found.'}</Text>
-                <Text style={styles.alternativesHint}>Confirm recipe, allergen, taste, and cost changes with the owner. No substitution is applied automatically.</Text>
+                {shortage.alternatives.length ? <Text style={styles.alternativeSuggestion}>In stock: {shortage.alternatives.map(alternative => alternative.name).join(', ')}</Text> : null}
+                {shortage.purchase_suggestions?.length ? <Text style={styles.alternativeSuggestion}>Could buy: {shortage.purchase_suggestions.join(', ')}</Text> : null}
+                {!shortage.alternatives.length && !shortage.purchase_suggestions?.length ? <Text style={styles.alternativesHint}>{alternativesStatus === 'unavailable' ? 'Suggestions unavailable.' : 'No substitute found.'}</Text> : null}
+                <Text style={styles.alternativesHint}>Check allergens and recipe changes with the owner first.</Text>
               </View>
             ))}
             <View style={styles.productActions}>
@@ -600,6 +611,7 @@ const StockScreen = () => {
       <Modal visible={productEditorVisible} transparent animationType="slide" onRequestClose={() => setProductEditorVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
+            <GastoModalMascot variant="thinking" />
             <View style={styles.headerCopy}>
               <Text style={styles.modalTitle}>{editingProduct ? 'Edit product' : 'Add product'}</Text>
               <Text style={styles.modalSubtitle}>Set menu details and stock recipe</Text>
@@ -692,6 +704,9 @@ const styles = StyleSheet.create({
   tabActive: {borderBottomColor: COLORS.accent}, tabText: {fontSize: 14, fontWeight: '600', color: COLORS.textGray}, tabTextActive: {color: COLORS.accentDark},
   summary: {flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 6, borderRadius: 16, backgroundColor: COLORS.surface, paddingVertical: 11, borderWidth: 1, borderColor: COLORS.border},
   summaryItem: {flex: 1, alignItems: 'center'}, summaryCount: {fontSize: 20, fontWeight: '700', color: COLORS.textDark}, summaryLabel: {fontSize: 12, fontWeight: '600', marginTop: 2},
+  stockMascotNotice: {flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface},
+  stockMascot: {width: 68, height: 68},
+  stockMascotText: {flex: 1, fontSize: 12, lineHeight: 18, color: COLORS.textGray},
   searchBox: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
   searchInput: {flex: 1, paddingVertical: 9, paddingHorizontal: 8, color: COLORS.textDark}, list: {paddingHorizontal: 16, paddingBottom: 20}, emptyList: {flexGrow: 1},
   skeletonList: {paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20},

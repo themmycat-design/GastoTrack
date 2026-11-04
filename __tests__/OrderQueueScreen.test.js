@@ -249,4 +249,20 @@ describe('OrderQueueScreen ordering flow', () => {
 
     expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({paymentMethod: 'cash'}));
   });
+
+  it('explains an insufficient-stock rejection and keeps checkout available', async () => {
+    const {screen, createOrder} = setup({cart: [{product, quantity: 1}]});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+    createOrder.mockRejectedValue(Object.assign(new Error('Insufficient stock for Milk. No payment or inventory changes were made.'), {
+      code: 'STAFF_OFFLINE_ACTION_REJECTED',
+    }));
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cash payment method');
+    await pressByLabel(screen, 'Save cash order');
+
+    expect(alertSpy).toHaveBeenCalledWith('Not enough stock', 'Insufficient stock for Milk.');
+    expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(true);
+    alertSpy.mockRestore();
+  });
 });

@@ -58,12 +58,14 @@ class AppServiceProvider extends ServiceProvider
                     $unread = Notification::query()
                         ->where('user_id', $owner->id)
                         ->where('business_id', $owner->business_id)
+                        ->whereNull('data->dismissed_at')
                         ->whereNull('read_at');
                     $notifications = [
                         'count' => (clone $unread)->count(),
                         'items' => Notification::query()
                             ->where('user_id', $owner->id)
                             ->where('business_id', $owner->business_id)
+                            ->whereNull('data->dismissed_at')
                             ->latest('id')
                             ->limit(8)
                             ->get(),

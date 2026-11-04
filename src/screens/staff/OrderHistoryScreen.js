@@ -1,7 +1,8 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Modal, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, FlatList, Image, Modal, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import GastoModalMascot from '../../components/staff/GastoModalMascot';
 
 import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
@@ -193,7 +194,7 @@ const OrderHistoryScreen = ({navigation}) => {
       <View style={styles.orderCard}>
         <View style={styles.cardTop}>
           <View style={styles.orderIcon}>
-            <Icon name="receipt-text-outline" size={21} color={COLORS.accentDark} />
+            <Icon name="receipt" size={21} color={COLORS.accentDark} />
           </View>
           <View style={styles.orderInfo}>
             <Text style={styles.orderTitle}>{item.customerName || item.customer_name || 'Order'}</Text>
@@ -283,7 +284,7 @@ const OrderHistoryScreen = ({navigation}) => {
           onEndReachedThreshold={0.35}
           ListEmptyComponent={(
             <View style={styles.centerState}>
-              <Icon name="receipt-text-clock-outline" size={52} color={COLORS.textMuted} />
+              <Image source={loadError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={loadError ? 'Gasto could not load orders' : 'Gasto beside an empty tray'} />
               <Text style={styles.emptyTitle}>{showHistory ? 'No previous orders' : 'No orders today'}</Text>
               <Text style={styles.stateText}>{showHistory ? 'Completed orders will appear here.' : 'Older and cancelled orders remain available in History.'}</Text>
             </View>
@@ -295,6 +296,7 @@ const OrderHistoryScreen = ({navigation}) => {
       <Modal visible={!!action} transparent animationType="slide" onRequestClose={closeAction}>
         <View style={styles.modalBackdrop}>
           <View style={styles.actionModal}>
+            <GastoModalMascot variant="thinking" />
             <Text style={styles.modalTitle}>
               {action === 'cancel' ? 'Cancel order'
                 : action === 'confirm-payment' ? 'Manually confirm payment'
@@ -406,6 +408,7 @@ const styles = StyleSheet.create({
   disabled: {opacity: 0.65},
   status: {fontSize: 11, fontWeight: '700', color: COLORS.success, textTransform: 'capitalize'},
   centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20},
+  emptyMascot: {width: 120, height: 120},
   emptyTitle: {fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginTop: 10},
   stateText: {fontSize: 13, lineHeight: 19, color: COLORS.textGray, textAlign: 'center', marginTop: 6},
   footer: {paddingVertical: 16},

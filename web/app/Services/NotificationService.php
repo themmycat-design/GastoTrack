@@ -219,7 +219,12 @@ class NotificationService
                     return;
                 }
                 User::where('business_id', $goal->business_id)->where('role', 'owner')->each(function (User $user) use ($goal) {
-                    $exists = Notification::where('user_id', $user->id)->where('type', 'goal_deadline')->whereNull('read_at')->where('data->goal_id', $goal->id)->exists();
+                    $exists = Notification::where('user_id', $user->id)
+                        ->where('business_id', $goal->business_id)
+                        ->where('type', 'goal_deadline')
+                        ->where('data->goal_id', $goal->id)
+                        ->where(fn ($query) => $query->whereNull('read_at')->orWhereNotNull('data->dismissed_at'))
+                        ->exists();
                     if (!$exists) Notification::create(['user_id' => $user->id, 'business_id' => $goal->business_id, 'type' => 'goal_deadline', 'title' => 'Goal deadline approaching', 'message' => "{$goal->name} is due {$goal->deadline->format('M d, Y')}.", 'data' => ['goal_id' => $goal->id]]);
                 });
             });

@@ -129,6 +129,10 @@ export const recordStaffAction = async (account, kind, payload, clientId = creat
   } catch {
     // The SQLite row is durable and will be retried by the foreground worker.
   }
-  if (result?.status === 'rejected') throw new Error(result.reason);
+  if (result?.status === 'rejected') {
+    const error = new Error(result.reason);
+    error.code = 'STAFF_OFFLINE_ACTION_REJECTED';
+    throw error;
+  }
   return {clientId, synced: result?.status === 'synced', data: result?.data};
 };

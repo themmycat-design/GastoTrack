@@ -24,16 +24,26 @@
                     <div class="border-b border-[#EAF2EF] px-5 py-4">
                         <p class="text-sm font-extrabold text-[#0A2E2A]">Notifications</p>
                         <p data-notification-unread-label class="mt-1 text-xs text-slate-500">{{ $unreadNotifications }} unread</p>
+                        <p data-notification-action-error role="alert" class="mt-2 hidden text-xs font-semibold text-rose-700">Could not delete the notification. Try again.</p>
                     </div>
                     <div data-owner-notification-list>
                     @if($recentNotifications->isNotEmpty())
-                        <ul class="max-h-72 divide-y divide-[#EAF2EF] overflow-y-auto">
+                        <ul data-notification-items class="max-h-72 divide-y divide-[#EAF2EF] overflow-y-auto">
                             @foreach($recentNotifications as $notification)
                                 @php $isRead = $notification->read_at !== null; @endphp
-                                <li class="px-5 py-3">
+                                <li data-notification-item class="px-5 py-3">
                                     <div class="flex items-start justify-between gap-3">
-                                        <p class="text-sm font-bold text-[#0A2E2A]">{{ $notification->title }}</p>
-                                        <span data-notification-read-state class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold {{ $isRead ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-700' }}">{{ $isRead ? 'Read' : 'Unread' }}</span>
+                                        <p class="min-w-0 flex-1 text-sm font-bold text-[#0A2E2A]">{{ $notification->title }}</p>
+                                        <div class="flex shrink-0 items-center gap-2">
+                                            <span data-notification-read-state class="rounded-full px-2 py-0.5 text-[10px] font-bold {{ $isRead ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-700' }}">{{ $isRead ? 'Read' : 'Unread' }}</span>
+                                            <form method="POST" action="{{ route('owner.notifications.destroy', $notification->id) }}" data-notification-delete-form>
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="gt-focus inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-rose-50 hover:text-rose-700" aria-label="Delete notification: {{ $notification->title }}" title="Delete notification">
+                                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </div>
                                     <p class="mt-1 text-xs leading-5 text-slate-600">{{ $notification->message }}</p>
                                     <div class="mt-2">
@@ -54,6 +64,7 @@
                                 </li>
                             @endforeach
                         </ul>
+                        <p data-notification-empty class="hidden px-5 py-6 text-sm text-slate-500">No notifications yet. Active stock alerts remain on the Inventory tab until resolved.</p>
                     @else
                         <p class="px-5 py-6 text-sm text-slate-500">No notifications yet. Active stock alerts remain on the Inventory tab until resolved.</p>
                     @endif
@@ -118,6 +129,64 @@
     });
 
     let isMarkingRead = false;
+    const updateUnreadState = count => {
+        const unreadCount = Math.max(0, Number(count) || 0);
+        trigger.dataset.unreadCount = String(unreadCount);
+        trigger.setAttribute('aria-label', unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications, none unread');
+        let badge = trigger.querySelector('[data-notification-count]');
+        if (unreadCount) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.dataset.notificationCount = '';
+                badge.className = 'absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white';
+                trigger.appendChild(badge);
+            }
+            badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+            trigger.classList.remove('border-[#DDE9E5]', 'bg-white', 'text-slate-600', 'hover:bg-[#F4F8F7]');
+            trigger.classList.add('border-rose-200', 'bg-rose-50', 'text-rose-700', 'hover:bg-rose-100');
+        } else {
+            badge?.remove();
+            trigger.classList.remove('border-rose-200', 'bg-rose-50', 'text-rose-700', 'hover:bg-rose-100');
+            trigger.classList.add('border-[#DDE9E5]', 'bg-white', 'text-slate-600', 'hover:bg-[#F4F8F7]');
+        }
+        const unreadLabel = document.querySelector('[data-notification-unread-label]');
+        if (unreadLabel) unreadLabel.textContent = `${unreadCount} unread`;
+    };
+
+    panel.addEventListener('submit', event => {
+        const form = event.target.closest('[data-notification-delete-form]');
+        if (!form) return;
+        event.preventDefault();
+        const button = form.querySelector('button[type="submit"]');
+        if (button?.disabled) return;
+        button.disabled = true;
+        document.querySelector('[data-notification-action-error]')?.classList.add('hidden');
+
+        fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: new FormData(form),
+        })
+            .then(response => {
+                if (!response.ok) throw new Error('Could not delete notification.');
+                return response.json();
+            })
+            .then(data => {
+                form.closest('[data-notification-item]')?.remove();
+                const list = panel.querySelector('[data-notification-items]');
+                if (list && !list.querySelector('[data-notification-item]')) {
+                    list.classList.add('hidden');
+                    panel.querySelector('[data-notification-empty]')?.classList.remove('hidden');
+                }
+                updateUnreadState(data.unread_count);
+            })
+            .catch(() => {
+                document.querySelector('[data-notification-action-error]')?.classList.remove('hidden');
+            })
+            .finally(() => { button.disabled = false; });
+    });
+
     trigger.addEventListener('click', () => {
         if (isMarkingRead || Number(trigger.dataset.unreadCount || 0) < 1) return;
 
@@ -139,13 +208,7 @@
                 return response.json();
             })
             .then(() => {
-                trigger.dataset.unreadCount = '0';
-                trigger.setAttribute('aria-label', 'Notifications, none unread');
-                trigger.querySelector('[data-notification-count]')?.remove();
-                trigger.classList.remove('border-rose-200', 'bg-rose-50', 'text-rose-700', 'hover:bg-rose-100');
-                trigger.classList.add('border-[#DDE9E5]', 'bg-white', 'text-slate-600', 'hover:bg-[#F4F8F7]');
-                const unreadLabel = document.querySelector('[data-notification-unread-label]');
-                if (unreadLabel) unreadLabel.textContent = '0 unread';
+                updateUnreadState(0);
                 document.querySelectorAll('[data-notification-read-state]').forEach(state => {
                     state.textContent = 'Read';
                     state.classList.remove('bg-rose-50', 'text-rose-700');

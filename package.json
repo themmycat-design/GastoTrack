@@ -6,6 +6,7 @@
     "android": "react-native run-android",
     "android:device": "react-native run-android --active-arch-only",
     "android:no-emulator": "react-native run-android --no-emulator",
+    "eas-build-post-install": "node scripts/prepare-eas-android.js",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",

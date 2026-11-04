@@ -57,6 +57,13 @@ describe('staff SQLite outbox', () => {
     expect(api.post).toHaveBeenCalledTimes(2);
   });
 
+  it('returns the server stock rejection to cash checkout', async () => {
+    api.post.mockRejectedValueOnce({response: {status: 422, data: {message: 'Insufficient stock for Milk.'}}});
+    await expect(recordStaffAction(account, 'cash_order', {payment_method: 'cash', items: [{product_id: 3, quantity: 1}]}, 'low-stock'))
+      .rejects.toMatchObject({code: 'STAFF_OFFLINE_ACTION_REJECTED', message: 'Insufficient stock for Milk.'});
+    expect(rows[0].status).toBe('rejected');
+  });
+
   it('does not read another staff account’s queued records', async () => {
     rows = [{userId: 8, businessId: 2, client_id: 'other', kind: 'transaction', payload: {}, status: 'pending'}];
     expect(await getStaffOfflineActions(account)).toEqual([]);

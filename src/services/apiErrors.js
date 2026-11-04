@@ -8,6 +8,9 @@ export const getApiErrorMessage = (error, fallback = 'The request could not be c
   if (error?.code === 'ORDER_RETRY_STORAGE_UNAVAILABLE') {
     return error.message;
   }
+  if (error?.code === 'STAFF_OFFLINE_ACTION_REJECTED') {
+    return error.message || fallback;
+  }
 
   if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
     return 'The server took too long to respond. Check your connection and try again.';

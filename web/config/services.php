@@ -40,4 +40,9 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
     ],
 
+    'gastotrack' => [
+        'android_apk_url' => env('GASTOTRACK_APK_DOWNLOAD_URL'),
+        'contact_email' => env('GASTOTRACK_CONTACT_EMAIL', 'paghari-oncc.694.stud@cdd.edu.ph'),
+    ],
+
 ];

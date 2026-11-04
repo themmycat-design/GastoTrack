@@ -229,6 +229,46 @@ class SuperAdminController extends Controller
     {
         $record = Business::onlyTrashed()->findOrFail($business);
 
+        $this->permanentlyDeleteBusiness($record);
+
+        return redirect()->route('super-admin.businesses', ['archived' => 1])
+            ->with('success', 'The archived business and its associated records were permanently deleted.');
+    }
+
+    public function deletePendingRegistration(Business $business)
+    {
+        DB::transaction(function () use ($business): void {
+            $record = Business::whereKey($business->id)->lockForUpdate()->firstOrFail();
+            $owner = $record->owner_account;
+
+            // This shortcut is for untouched registrations only. Established
+            // businesses must use the existing archive and deletion workflow.
+            abort_unless(
+                $record->status === 'pending'
+                && ! $record->active
+                && $owner?->role === 'owner'
+                && ! $owner->hasVerifiedEmail()
+                && $record->users()->count() === 1
+                && ! $record->orders()->exists()
+                && ! $record->transactions()->exists()
+                && ! $record->products()->exists()
+                && ! $record->stockItems()->exists()
+                && ! $record->goals()->exists()
+                && ! $record->bugReports()->exists(),
+                409,
+                'Only an unverified, unused pending registration can be deleted here.'
+            );
+
+            $this->permanentlyDeleteBusiness($record);
+        });
+
+        return redirect()->route('super-admin.businesses')
+            ->with('success', 'Pending registration and owner account deleted. The email can be registered again.');
+    }
+
+    private function permanentlyDeleteBusiness(Business $record): void
+    {
+
         DB::transaction(function () use ($record): void {
             $this->revokeBusinessTokens($record);
 
@@ -270,12 +310,10 @@ class SuperAdminController extends Controller
             // removed by their configured foreign-key cascades.
             $record->forceDelete();
 
+            $this->audit('business.permanently_deleted', $record);
+
             DB::afterCommit(fn () => Storage::disk('local')->delete($bugScreenshotPaths->all()));
         });
-        $this->audit('business.permanently_deleted', $record);
-
-        return redirect()->route('super-admin.businesses', ['archived' => 1])
-            ->with('success', 'The archived business and its associated records were permanently deleted.');
     }
 
     /**

@@ -1,10 +1,7 @@
-name: Android APK - Firebase App Distribution
+name: Legacy Android APK - Firebase App Distribution
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: read
@@ -73,17 +70,7 @@ jobs:
             fi
           done
 
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$ ]]; then
-              echo "::error::Release tags must use a version such as v1.2.3 or v1.2.3-beta.1."
-              exit 1
-            fi
-            version_name="${BASH_REMATCH[1]}"
-          else
-            version_name="1.0.${GITHUB_RUN_NUMBER}"
-          fi
-
-          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "version_name=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "version_code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Install JavaScript dependencies

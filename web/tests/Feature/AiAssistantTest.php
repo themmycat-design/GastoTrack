@@ -63,9 +63,11 @@ class AiAssistantTest extends TestCase
         $product = Product::create(['business_id' => $business->id, 'name' => 'Cafe Latte', 'category' => 'Coffee', 'price' => 120, 'active' => true, 'is_available' => true]);
         ProductIngredient::create(['product_id' => $product->id, 'stock_item_id' => $milk->id, 'quantity' => 200]);
         Sanctum::actingAs($staff);
+        $this->getJson('/api/v1/stock?per_page=1')->assertOk()->assertJsonPath('meta.out_of_stock_count', 2);
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
             'candidates' => [['content' => ['parts' => [['text' => json_encode(['items' => [[
                 'stock_id' => $milk->id, 'alternative_ids' => [$oat->id, $unavailable->id, $foreign->id],
+                'purchase_suggestions' => ['Almond milk', 'Almond milk', '<script>bad</script>'],
             ]]])]]]]],
         ])]);
 
@@ -76,9 +78,34 @@ class AiAssistantTest extends TestCase
             ->assertJsonPath('items.0.products.0.name', 'Cafe Latte')
             ->assertJsonPath('items.0.alternatives.0.name', 'Oat Milk')
             ->assertJsonCount(1, 'items.0.alternatives')
+            ->assertJsonPath('items.0.purchase_suggestions.0', 'Almond milk')
+            ->assertJsonCount(1, 'items.0.purchase_suggestions')
             ->assertDontSee('Private Milk');
         $this->getJson('/api/v1/ai/stock-alternatives')->assertOk()->assertJsonPath('suggestion_status', 'ready');
         Http::assertSentCount(1);
+        Cache::flush();
+    }
+
+    public function test_ai_can_suggest_an_ingredient_not_yet_in_business_stock(): void
+    {
+        Cache::flush();
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
+        $business = Business::create(['name' => 'Cafe One', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        $milk = StockItem::create(['business_id' => $business->id, 'name' => 'Whole Milk', 'unit' => 'ml', 'current_quantity' => 0, 'minimum_quantity' => 100, 'unit_cost' => 1, 'active' => true]);
+        $product = Product::create(['business_id' => $business->id, 'name' => 'Cafe Latte', 'category' => 'Coffee', 'price' => 120, 'active' => true, 'is_available' => true]);
+        ProductIngredient::create(['product_id' => $product->id, 'stock_item_id' => $milk->id, 'quantity' => 200]);
+        Sanctum::actingAs($staff);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['items' => [[
+                'stock_id' => $milk->id, 'alternative_ids' => [], 'purchase_suggestions' => ['Oat milk'],
+            ]]])]]]]],
+        ])]);
+
+        $this->getJson('/api/v1/ai/stock-alternatives')
+            ->assertOk()
+            ->assertJsonPath('items.0.purchase_suggestions.0', 'Oat milk')
+            ->assertJsonCount(0, 'items.0.alternatives');
         Cache::flush();
     }
 

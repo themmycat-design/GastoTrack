@@ -17,6 +17,13 @@ describe('API error messages', () => {
       .toBe('The GastoTrack server is temporarily unavailable. Please try again shortly.');
   });
 
+  it('shows a rejected offline action reason without exposing unrelated JavaScript errors', () => {
+    expect(getApiErrorMessage({code: 'STAFF_OFFLINE_ACTION_REJECTED', message: 'Insufficient stock for Milk.'}))
+      .toBe('Insufficient stock for Milk.');
+    expect(getApiErrorMessage(new Error('Internal detail'), 'Order not submitted.'))
+      .toBe('Order not submitted.');
+  });
+
   it('shows the server guidance for an unavailable AI provider', () => {
     expect(getApiErrorMessage({response: {
       status: 503,

@@ -20,6 +20,7 @@ const normalizePagination = (meta, page, count) => ({
 
 export const StockProvider = ({children}) => {
   const [stockItems, setStockItems] = useState([]);
+  const [outOfStockCount, setOutOfStockCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -41,13 +42,17 @@ export const StockProvider = ({children}) => {
         : normalized,
       );
       setPagination(normalizePagination(response.data?.meta, page, normalized.length));
+      setOutOfStockCount(Number(response.data?.meta?.out_of_stock_count ?? 0));
       setLoadError(null);
       return {success: true};
     } catch (error) {
       if (offlineAccount && page === 1) {
         try {
           const cached = await getStaffSnapshot(offlineAccount, 'stock');
-          if (cached) setStockItems(cached);
+          if (cached) {
+            setStockItems(cached);
+            setOutOfStockCount(cached.filter(item => item.quantity <= 0 && item.active !== false).length);
+          }
         } catch {}
       }
       setLoadError(getApiErrorMessage(error));
@@ -73,6 +78,7 @@ export const StockProvider = ({children}) => {
       fetchStock();
     } else {
       setStockItems([]);
+      setOutOfStockCount(0);
       setLoadError(null);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
     }
@@ -90,6 +96,10 @@ export const StockProvider = ({children}) => {
     if (!response.synced) return {...stockItems.find(item => item.id === id), offlinePending: true};
     const updated = normalize(response.data.item);
     setStockItems(current => current.map(item => item.id === updated.id ? updated : item));
+    const previous = stockItems.find(item => item.id === updated.id);
+    if (previous && previous.active !== false && updated.active !== false) {
+      setOutOfStockCount(current => Math.max(0, current + Number(updated.quantity <= 0) - Number(previous.quantity <= 0)));
+    }
     return updated;
   };
 
@@ -97,12 +107,14 @@ export const StockProvider = ({children}) => {
     const response = await api.post('/stock', stockData);
     const created = normalize(response.data.item);
     setStockItems(current => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+    if (created.active !== false && created.quantity <= 0) setOutOfStockCount(current => current + 1);
     setPagination(current => ({...current, total: current.total + 1}));
     return created;
   };
 
   return <StockContext.Provider value={{
     stockItems,
+    outOfStockCount,
     loadError,
     stockTotal: pagination.total,
     isLoading,

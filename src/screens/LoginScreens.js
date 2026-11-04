@@ -17,6 +17,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {AppAlert as Alert} from '../services/AppDialogService';
 import {AuthContext} from '../context/AuthContext';
+import StaffPawBackground from '../components/staff/StaffPawBackground';
 
 const WELCOME_HOLD_MS = 2000;
 const BRAND_MOVE_MS = 750;
@@ -118,6 +119,7 @@ const LoginScreen = () => {
 
   return (
     <Animated.View style={[styles.container, {backgroundColor}]}>
+      {introComplete ? <StaffPawBackground /> : null}
       <Animated.View style={[styles.brand, compactBrand && styles.brandCompact, {
         top: compactBrand ? insets.top + 6 : initialBrandTop,
         transform: [{translateY: compactBrand ? 0 : brandMove}],
@@ -155,9 +157,17 @@ const LoginScreen = () => {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             contentContainerStyle={[styles.formScroll, compactBrand && styles.formScrollCompact, {
-              paddingTop: compactBrand ? insets.top + 102 : Math.max(finalBrandTop + 215, 285),
+              paddingTop: compactBrand ? insets.top + 102 : Math.max(finalBrandTop + 185, 255),
               paddingBottom: compactBrand ? Math.max(insets.bottom + 12, 16) : Math.max(insets.bottom + 20, 24),
             }]}>
+            {!compactBrand ? (
+              <Image
+                source={require('../../assets/mascot/gasto-login.png')}
+                style={styles.loginMascot}
+                resizeMode="contain"
+                accessibilityLabel="Gasto welcoming staff to sign in"
+              />
+            ) : null}
             <Animated.View style={[styles.formCard, {opacity: formReveal}]}>
               {startupError ? <Text style={styles.startupError} accessibilityRole="alert">{startupError}</Text> : null}
 
@@ -212,6 +222,7 @@ const styles = StyleSheet.create({
   brand: {position: 'absolute', left: 24, right: 24, zIndex: 1, alignItems: 'center'},
   brandCompact: {left: 16, right: 16},
   logo: {width: 112, height: 112},
+  loginMascot: {width: 112, height: 112, alignSelf: 'center', marginBottom: 12},
   logoCompact: {width: 48, height: 48},
   title: {marginTop: 6, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -1},
   titleCompact: {marginTop: 0, fontSize: 20, letterSpacing: -0.4},

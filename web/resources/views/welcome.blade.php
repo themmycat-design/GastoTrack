@@ -24,6 +24,8 @@
                 <a href="#features" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Features</a>
                 <a href="#workflow" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">How it works</a>
                 <a href="#get-started" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Get started</a>
+                <a href="#download" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Download app</a>
+                <a href="{{ route('contact') }}" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Contact</a>
             </div>
 
             <div class="flex items-center gap-2 sm:gap-3">
@@ -49,6 +51,8 @@
             <a href="#features" class="gt-focus shrink-0 hover:text-[#72E6C4]">Features</a>
             <a href="#workflow" class="gt-focus shrink-0 hover:text-[#72E6C4]">How it works</a>
             <a href="#get-started" class="gt-focus shrink-0 hover:text-[#72E6C4]">Get started</a>
+            <a href="#download" class="gt-focus shrink-0 hover:text-[#72E6C4]">Download app</a>
+            <a href="{{ route('contact') }}" class="gt-focus shrink-0 hover:text-[#72E6C4]">Contact</a>
         </nav>
     </header>
 
@@ -115,7 +119,7 @@
                         ['number' => '02', 'title' => 'Inventory control', 'text' => 'Watch ingredient levels and catch low stock before service is affected.', 'icon' => 'inventory'],
                         ['number' => '03', 'title' => 'Staff operations', 'text' => 'Give your team focused tools for orders, stock, and daily records.', 'icon' => 'staff'],
                         ['number' => '04', 'title' => 'E-wallet capture', 'text' => 'Review supported payment notifications and reduce manual encoding.', 'icon' => 'wallet'],
-                        ['number' => '05', 'title' => 'Receipt OCR', 'text' => 'Extract receipt details, review them, then record an expense.', 'icon' => 'receipt'],
+                        ['number' => '05', 'title' => 'Receipt OCR', 'text' => 'Read receipt details and automatically categorize an expense when scanning succeeds.', 'icon' => 'receipt'],
                         ['number' => '06', 'title' => 'Business insights', 'text' => 'Use sales, expenses, and stock data to guide everyday decisions.', 'icon' => 'insights'],
                     ];
                 @endphp
@@ -156,7 +160,7 @@
                 </div>
                 <div class="mt-9 grid gap-4 lg:grid-cols-3">
                     @foreach([
-                        ['step' => '01', 'title' => 'Create your workspace', 'text' => 'Register your business and open the owner dashboard.'],
+                        ['step' => '01', 'title' => 'Create your workspace', 'text' => 'Register, verify your email, and wait for business approval.'],
                         ['step' => '02', 'title' => 'Set up shop operations', 'text' => 'Add ingredients, stock limits, products, and staff accounts.'],
                         ['step' => '03', 'title' => 'Review and improve', 'text' => 'Use current financial records and stock status to guide decisions.'],
                     ] as $step)
@@ -192,12 +196,69 @@
                 </div>
             </div>
         </section>
+        @php
+            $apkDownloadUrl = trim((string) config('services.gastotrack.android_apk_url'));
+            $hasApkDownload = filter_var($apkDownloadUrl, FILTER_VALIDATE_URL)
+                && parse_url($apkDownloadUrl, PHP_URL_SCHEME) === 'https';
+        @endphp
+        <section id="download" class="scroll-mt-24 border-t border-[#DDE9E5] bg-white py-12 sm:py-16 lg:py-20" aria-labelledby="download-title">
+            <div class="gt-welcome-frame grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:gap-20">
+                <div class="gt-scroll-reveal max-w-2xl">
+                    <p class="text-xs font-extrabold uppercase tracking-[.18em] text-[#008F70]">Staff Android app</p>
+                    <h2 id="download-title" class="mt-4 text-5xl font-extrabold leading-[1.04] tracking-tight text-[#0A2E2A] sm:text-6xl lg:text-7xl">Ready for a smoother shop day?</h2>
+                    <p class="mt-7 max-w-xl text-base leading-8 text-slate-600 sm:text-lg">Install GastoTrack on an Android phone to handle orders, expenses, and stock during service. Staff accounts are created by the business owner.</p>
+                    <p class="mt-7 flex items-start gap-2 text-sm leading-6 text-slate-500">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-[#08745D]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                        Built for participating food and beverage shops in Calasiao, Pangasinan.
+                    </p>
+                </div>
+                <div class="gt-scroll-reveal rounded-2xl border border-[#DDE9E5] bg-white p-6 shadow-[0_18px_45px_rgba(10,46,42,0.08)] sm:p-8" style="--gt-reveal-delay: 90ms">
+                    <div class="flex items-center gap-4">
+                        <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#DDE9E5] bg-[#F4F8F7]">
+                            <img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-11 w-11 object-contain">
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-extrabold text-[#0A2E2A]">GastoTrack Staff</h3>
+                            <p class="mt-1 text-sm text-slate-500">Android APK for testers</p>
+                        </div>
+                    </div>
+                    <div class="mt-8 space-y-3">
+                        @if($hasApkDownload)
+                            <a href="{{ $apkDownloadUrl }}" class="gt-focus flex min-h-14 items-center justify-between gap-3 rounded-xl bg-[#0A2E2A] px-5 text-sm font-bold text-white transition hover:bg-[#08745D]">
+                                Download for Android
+                                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>
+                            </a>
+                        @endif
+                        <a href="{{ route('contact') }}" class="gt-focus flex min-h-14 items-center justify-between gap-3 rounded-xl px-5 text-sm font-bold transition {{ $hasApkDownload ? 'border border-[#DDE9E5] text-[#0A2E2A] hover:bg-[#F4F8F7]' : 'bg-[#0A2E2A] text-white hover:bg-[#08745D]' }}">
+                            Request tester access
+                            <span aria-hidden="true">&#8594;</span>
+                        </a>
+                    </div>
+                    <p class="mt-6 text-xs leading-5 text-slate-500">@if($hasApkDownload) Install only the release provided by the GastoTrack team. @else The project team shares EAS-built APKs with approved testers. @endif Read the <a href="{{ route('terms') }}" class="gt-focus underline underline-offset-2 hover:text-[#08745D]">Terms</a> and <a href="{{ route('privacy') }}" class="gt-focus underline underline-offset-2 hover:text-[#08745D]">Privacy Policy</a>.</p>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <footer class="border-t border-[#DDE9E5] bg-white py-7">
-        <div class="gt-welcome-frame flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p class="text-slate-500"><span class="font-extrabold text-[#0A2E2A]">GastoTrack</span> <span class="px-1 text-[#9BB9AF]">·</span> Financial management for growing shops.</p>
-            <p class="text-slate-400">&copy; {{ now()->year }} GastoTrack</p>
+    <footer class="border-t border-[#DDE9E5] bg-white py-8 sm:py-10">
+        <div class="gt-welcome-frame">
+            <div class="flex flex-col gap-5 border-b border-[#DDE9E5] pb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+                <div class="max-w-xl">
+                    <h2 class="text-lg font-extrabold text-[#0A2E2A] sm:text-xl">Questions about GastoTrack?</h2>
+                    <p class="mt-1 text-sm leading-6 text-slate-600">Send the team a message about your account or the project.</p>
+                </div>
+                <a href="{{ route('contact') }}" class="gt-focus inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#08745D] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#065A49] sm:w-auto">Contact us <span aria-hidden="true">&#8594;</span></a>
+            </div>
+            <div class="flex flex-col gap-5 pt-6 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <a href="{{ url('/') }}" class="gt-focus text-lg font-extrabold text-[#0A2E2A]">GastoTrack<span class="text-[#00A87E]">.</span></a>
+                    <p class="mt-1 text-xs text-slate-500">&copy; {{ now()->year }} GastoTrack</p>
+                </div>
+                <nav class="flex flex-wrap gap-x-6 gap-y-2 text-xs sm:text-sm" aria-label="Information links">
+                    <a href="{{ route('terms') }}" class="gt-focus text-slate-600 hover:text-[#08745D] hover:underline">Terms and Conditions</a>
+                    <a href="{{ route('privacy') }}" class="gt-focus text-slate-600 hover:text-[#08745D] hover:underline">Privacy Policy</a>
+                </nav>
+            </div>
         </div>
     </footer>
     <button id="welcome-back-to-top" type="button" class="gt-welcome-back-to-top gt-focus" aria-label="Back to top" hidden>

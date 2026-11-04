@@ -63,6 +63,60 @@ class PersistentStockNotificationTest extends TestCase
         $this->assertNotNull($otherNotification->fresh()->read_at);
     }
 
+    public function test_owner_can_delete_a_notification_without_clearing_the_inventory_warning(): void
+    {
+        [$owner, $item, $notification] = $this->lowStockFixture();
+
+        $this->actingAs($owner)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Delete notification: Low stock');
+
+        $this->deleteJson(route('owner.notifications.destroy', $notification->id))
+            ->assertOk()
+            ->assertJsonPath('unread_count', 0);
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Notifications, none unread')
+            ->assertDontSee('Delete notification: Low stock')
+            ->assertSee('Inventory, 0 out of stock and 1 low stock');
+
+        $this->assertSame(1, Notification::where('user_id', $owner->id)->count());
+        $this->assertNotNull($notification->fresh()->data['dismissed_at'] ?? null);
+        $this->assertSame(2.0, (float) $item->fresh()->current_quantity);
+    }
+
+    public function test_owner_cannot_delete_another_business_notification(): void
+    {
+        [$owner] = $this->lowStockFixture();
+        [$otherOwner, , $otherNotification] = $this->lowStockFixture();
+
+        $this->actingAs($owner)
+            ->deleteJson(route('owner.notifications.destroy', $otherNotification->id))
+            ->assertNotFound();
+
+        $this->assertNull($otherNotification->fresh()->data['dismissed_at'] ?? null);
+        $this->assertNotSame($owner->business_id, $otherOwner->business_id);
+    }
+
+    public function test_restocking_allows_a_new_alert_after_a_deleted_stock_notification(): void
+    {
+        [$owner, $item, $notification] = $this->lowStockFixture();
+        $this->actingAs($owner)->delete(route('owner.notifications.destroy', $notification->id))->assertRedirect();
+
+        $item->update(['current_quantity' => 6]);
+        app(NotificationService::class)->notifyLowStock($item->fresh());
+        $item->update(['current_quantity' => 2]);
+        app(NotificationService::class)->notifyLowStock($item->fresh());
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Notifications, 1 unread')
+            ->assertSee('Delete notification: Low stock');
+        $this->assertSame(2, Notification::where('user_id', $owner->id)->count());
+    }
+
     public function test_restocking_resolves_unread_alert_and_a_later_low_stock_cycle_creates_a_new_one(): void
     {
         [$owner, $item, $notification] = $this->lowStockFixture();

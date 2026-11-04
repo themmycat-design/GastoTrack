@@ -12,7 +12,7 @@ After an online sign-in, staff can record manual transactions, cash orders, and 
 - GCash/Maya payment confirmation, AI suggestions/chat, account changes, product edits, receipt transaction submission, and server reports still require the API. On-device OCR can read a picture offline, but AI categorization and saving it cannot complete offline.
 - Offline sync runs while the app is open or when staff reopen it; it is not guaranteed to run while Android has stopped the app. A new APK containing the native SQLite module and the `2026_10_21_000004` and `2026_10_21_000005` Laravel migrations are required before using this feature. Back up and stage-test migrations before applying them to a live database.
 
-## Demo deployment: Laravel on alwaysdata, Android via Firebase
+## Demo deployment: Laravel on alwaysdata, Android APK via EAS Build
 
 This is a low-cost/academic demo path, not a production recommendation for shops' real financial data. The alwaysdata free plan is restricted to personal/non-profit use and has small resource/storage limits; confirm its current [plan terms and limits](https://www.alwaysdata.com/en/offers/) before creating an account or uploading business data. Its database service is MariaDB, which Laravel connects to through its MySQL driver (`DB_CONNECTION=mysql`); it is MySQL-compatible, but it is not Oracle MySQL. If the requirement is specifically Oracle MySQL, or the deployment is commercial, choose a host that explicitly provides that instead. See alwaysdata's [database and technical details](https://help.alwaysdata.com/en/docs/technical-specifications/login-details/).
 
@@ -53,6 +53,8 @@ BUSINESS_TIMEZONE=Asia/Manila
 
 Keep the existing `.env.example` values for other app settings unless you have deliberately configured them. Configure a real SMTP provider before owner registration so verification and security emails can be delivered; `MAIL_MAILER=log` only writes mail to application logs. `GEMINI_API_KEY` is optional and must remain server-side. For product images, this project uses Laravel's public storage disk; private bug-report screenshots use local private storage. The host filesystem must remain persistent, and the free plan's storage quota applies to uploaded files.
 
+The public Contact form sends submissions to `GASTOTRACK_CONTACT_EMAIL` (default: the project email in `.env.example`) using the same configured mailer. Set `MAIL_FROM_ADDRESS` to the authenticated sender address accepted by your SMTP provider. Visitors' email addresses are used as Reply-To. The form reports delivery as unavailable when the configured mailer is `log`, `array`, or the current `failover` setup (which falls back to logging). The form is limited to three submissions per minute per IP address.
+
 Build the website assets on your Windows development PC (the `public/build` directory is git-ignored), then upload the generated `web/public/build` directory to the same path on the host:
 
 ```powershell
@@ -87,46 +89,52 @@ Set up and test a separate database and uploaded-file backup before entering any
 
 ### 4. Point the Android release at the hosted API
 
-After HTTPS works, set the existing GitHub Actions repository variable `MOBILE_API_URL` to `https://YOUR-ACCOUNT.alwaysdata.net/api/v1` (no trailing slash). Keep the existing Firebase variables and signing/service-account secrets configured as described below. Then run the GitHub Actions workflow to build and distribute the signed APK. Firebase App Distribution delivers the APK; the API, owner website, and MariaDB remain on the web host.
+After the hosted Laravel API works over HTTPS, configure `MOBILE_API_URL` in the EAS **production** environment to `https://YOUR-ACCOUNT.alwaysdata.net/api/v1` (or the public HTTPS URL of your AWS-hosted API). EAS builds the APK; the website, API, and database remain on your chosen web host.
 
 Do not use localhost, `127.0.0.1`, an emulator/ADB tunnel, or a private LAN address in a release build. Do not point the APK at the API until the deployed HTTPS endpoint is reachable from the phone.
 
-## Build and distribute an Android release APK
+## Build and share the Android APK with EAS Build
 
-GitHub Actions can build a signed release APK and distribute it to a Firebase App Distribution tester group. This is for testing and sharing the Android app; it does not host the Laravel API. The installed app needs the API's public HTTPS base URL.
+This is a React Native CLI app with native Android modules. EAS Build compiles the existing `android` project into a release APK; it does not move the Laravel API or database to Expo. Use the `demo` profile in `eas.json` to produce an installable APK without Metro. EAS's free plan has a limited monthly build allowance; check the current [Expo pricing](https://expo.dev/pricing).
 
-### One-time setup
+### One-time setup in the VS Code PowerShell terminal
 
-1. In Firebase, create a project, register an Android app with package name `com.gastotrack`, enable **App Distribution**, and create a tester group. Copy the Android app's Firebase App ID and the group's alias.
-2. Create a Google service account with the **Firebase App Distribution Admin** role and keep its JSON key private. Follow Firebase's [service-account setup guide](https://firebase.google.com/docs/app-distribution/authenticate-service-account).
-3. In GitHub, open **Settings > Secrets and variables > Actions** and add these repository variables:
-   - `MOBILE_API_URL`: the complete public HTTPS API base URL, including `/api/v1` (for example, `https://your-host.example/api/v1`). Do not use localhost, an emulator address, or a private LAN address.
-   - `FIREBASE_APP_ID`: the Firebase Android App ID.
-   - `FIREBASE_TESTER_GROUP`: the Firebase tester group alias.
-4. Add these repository secrets:
-   - `ANDROID_RELEASE_KEYSTORE_BASE64`: Base64 content of the existing Android release keystore. In PowerShell, copy it without printing it with:
+1. Create an Expo account, then run these commands from `C:\Users\Chris\GastoTrack`:
 
-     ```powershell
-     [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\your\existing-upload.keystore")) | Set-Clipboard
-     ```
+   ```powershell
+   npx.cmd eas-cli@latest login
+   npx.cmd eas-cli@latest init
+   ```
 
-     Paste the clipboard value directly into the GitHub secret. Keep a secure backup of the original keystore; the same key is required for future Android updates.
-   - `GASTOTRACK_STORE_PASSWORD`: the keystore password.
-   - `GASTOTRACK_KEY_ALIAS`: the existing release key alias.
-   - `GASTOTRACK_KEY_PASSWORD`: the release key password.
-   - `FIREBASE_SERVICE_ACCOUNT_JSON`: the full service-account JSON content.
+   `eas init` links this repository to your Expo project and may add a project ID to `app.json`. Keep the Android application ID `com.gastotrack`.
+2. **Import the existing release keystore** into EAS before building. If you already installed a release-signed APK, a new keystore will not update it. Keep the original `.keystore` file and its passwords private. Run `npx.cmd eas-cli@latest credentials -p android`, select the `demo` profile, and choose to upload your existing Android keystore. If the original keystore is unavailable, you must use a new key and uninstall old release builds before installing the EAS APK; first sync any device-only offline records. Do not use the debug keystore as the release key.
+3. In the Expo project dashboard, under **Environment variables > production**, set these non-secret values:
+   - `MOBILE_API_URL`: your hosted public HTTPS API base URL ending in `/api/v1`.
+   - `ANDROID_VERSION_CODE`: a positive whole number **greater than every previously distributed release APK's versionCode**. Increase it for every new APK.
+   - `ANDROID_VERSION_NAME`: optional display version, such as `1.0.0`.
 
-   Never commit the keystore, passwords, or service-account JSON to the repository.
+   The EAS post-install hook validates the API URL and writes the ignored `.env.production` file used by `react-native-config`. Do not put credentials or API keys in the mobile URL or the APK. The release build will fail if the URL or version code is missing. The keystore and passwords must never be committed.
 
-### Create a release
+### Create and install a release
 
-- In GitHub, open **Actions > Android APK - Firebase App Distribution > Run workflow**. A manual build gets an automatically generated version name.
-- Or push a semantic version tag such as `v1.2.3`; the APK version name will be `1.2.3`. Each workflow run uses its unique GitHub run number as Android's version code.
-- Download the signed APK from the completed workflow run's **Artifacts** section. Firebase also notifies the tester group and makes the release available through App Distribution.
+```powershell
+Set-Location C:\Users\Chris\GastoTrack
+npx.cmd eas-cli@latest build --platform android --profile demo
+```
+
+After the build completes, open its EAS build link and download the `.apk`, or share that build link with your testers. Install it on an Android phone and confirm staff sign-in reaches the hosted API over mobile data. Increase `ANDROID_VERSION_CODE` before the next build. EAS Build's APK link is for distributing test builds; if you want a stable public landing-page download, host the signed APK at your own HTTPS URL.
+
+The earlier GitHub Actions/Firebase App Distribution workflow remains in `.github/workflows/android-firebase-distribution.yml` as a manual legacy option; version tags no longer trigger it. It is not needed for EAS builds.
+
+### Show an APK download on the landing page
+
+The landing page offers a tester-access request until a public APK URL is configured. Share an EAS build link directly with testers or provide a stable HTTPS download URL as described below.
+
+To show a direct **Download for Android** button, place a signed release APK on a public HTTPS file host that you control, then set `GASTOTRACK_APK_DOWNLOAD_URL` in `web/.env` on the web host to that exact APK URL. Reload Laravel configuration if it is cached (`php artisan config:cache`). The site displays the direct button only for a valid HTTPS URL; setting the variable does not upload or publish the APK. Replace the URL when you release a newer build.
 
 If the phone currently has a debug-signed development app, Android will not update it in place with the release-signed APK. Sync pending notification captures first; uninstalling the debug app clears device-local data, while server-saved business records remain on the server.
 
-The workflow verifies the APK signature against the configured keystore, requires a public HTTPS API URL, stores the APK artifact for 30 days, and distributes only manual or version-tagged builds. Firebase App Distribution releases have limited retention; see Firebase's [CLI distribution guide](https://firebase.google.com/docs/app-distribution/android/distribute-cli) for current details.
+After the first EAS build, compare its signing certificate to the existing release certificate before distributing it as an update. The debug build and release build use different keys, so a release APK cannot update a debug installation.
 
 ## Quick access (Windows)
 

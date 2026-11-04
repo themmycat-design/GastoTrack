@@ -48,7 +48,15 @@
                 <td class="p-4">{{ $business->staff_count }}</td>
                 <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-semibold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->status }}</span></td>
                 <td class="p-4 text-slate-600">{{ $business->created_at->format('M d, Y') }}</td>
-                <td class="p-4"><a href="{{ route('super-admin.businesses.show', $business) }}" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-emerald-700 hover:bg-emerald-50">View</a></td>
+                <td class="p-4"><div class="flex items-center gap-2">
+                    <a href="{{ route('super-admin.businesses.show', $business) }}" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-emerald-700 hover:bg-emerald-50">View</a>
+                    @if($business->status === 'pending' && ! $business->active && $business->owner_email_verification_pending)
+                        <form method="POST" action="{{ route('super-admin.businesses.pending-registration.delete', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Delete the unverified registration for ' + this.dataset.businessName + ' and its owner account? This cannot be undone.')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50">Delete</button>
+                        </form>
+                    @endif
+                </div></td>
             </tr>
         @empty
             <tr><td colspan="7" class="p-10 text-center text-slate-500">No businesses registered yet.</td></tr>

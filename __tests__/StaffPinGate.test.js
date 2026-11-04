@@ -143,4 +143,22 @@ describe('staff MPIN gate', () => {
     await enter('2222');
     expect(saveStaffPin).toHaveBeenCalledWith(17, '2222');
   });
+
+  it('offers recovery on a restored session and requires password sign-in before clearing the PIN', async () => {
+    getStaffPin.mockResolvedValue('0042');
+    await mount();
+    const pinScreen = tree.root.findByType(StaffPinScreen);
+    expect(pinScreen.props.mode).toBe('unlock');
+    expect(pinScreen.props.recoveryRequiresSignIn).toBe(true);
+    await act(async () => pinScreen.props.onRecover());
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+    expect(clearStaffPin).not.toHaveBeenCalled();
+
+    act(() => tree.unmount());
+    tree = null;
+    await mount(true);
+    await act(async () => tree.root.findByType(StaffPinScreen).props.onRecover());
+    expect(clearStaffPin).toHaveBeenCalledWith(17);
+    expect(tree.root.findByType(StaffPinScreen).props.mode).toBe('setup');
+  });
 });

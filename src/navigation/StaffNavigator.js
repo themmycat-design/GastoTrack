@@ -11,12 +11,14 @@ import OrdersStack from './OrdersStack';
 import StockScreen from '../screens/staff/StockScreen';
 import ProfileStack from './ProfileStack';
 import AiAssistantScreen from '../screens/staff/AiAssistantScreen';
+import {useStock} from '../context/StockContext';
 
 const Tab = createBottomTabNavigator();
 const renderTabBar = props => <CustomTabBar {...props} />;
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
+  const {outOfStockCount} = useStock();
   const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible?.() || false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
@@ -46,7 +48,10 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             target: route.key,
             canPreventDefault: true,
           });
-          if (!isFocused && !event.defaultPrevented) {
+          if (event.defaultPrevented) return;
+          if (route.name === 'Profile') {
+            navigation.navigate('Profile', {screen: 'ProfileMain'});
+          } else if (!isFocused) {
             navigation.navigate(route.name);
           }
         };
@@ -62,16 +67,21 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             })}
             accessibilityRole="tab"
             accessibilityState={isFocused ? { selected: true } : {}}
-            accessibilityLabel={descriptors[route.key].options.tabBarAccessibilityLabel || meta.label}
+            accessibilityLabel={route.name === 'Stock' && outOfStockCount > 0
+              ? `Inventory, ${outOfStockCount} out of stock`
+              : descriptors[route.key].options.tabBarAccessibilityLabel || meta.label}
             activeOpacity={0.7}>
-            <View style={[styles.iconWrap, isFocused && styles.activePill]}>
+            <View style={[styles.iconWrap, isFocused && styles.activePill, route.name === 'Stock' && outOfStockCount > 0 && styles.stockAlertPill]}>
               <Icon
                 name={meta.icon}
                 size={23}
-                color={isFocused ? COLORS.accentDark : COLORS.navInactive}
+                color={route.name === 'Stock' && outOfStockCount > 0 ? COLORS.danger : isFocused ? COLORS.accentDark : COLORS.navInactive}
               />
+              {route.name === 'Stock' && outOfStockCount > 0 ? <View style={styles.stockBadge}>
+                <Text style={styles.stockBadgeText}>{outOfStockCount > 99 ? '99+' : outOfStockCount}</Text>
+              </View> : null}
             </View>
-            <Text style={isFocused ? styles.activeLabel : styles.inactiveLabel}>
+            <Text style={[isFocused ? styles.activeLabel : styles.inactiveLabel, route.name === 'Stock' && outOfStockCount > 0 && styles.stockAlertLabel]}>
               {meta.label}
             </Text>
           </TouchableOpacity>
@@ -128,6 +138,10 @@ const styles = StyleSheet.create({
   activePill: {
     backgroundColor: COLORS.surfaceMuted,
   },
+  stockAlertPill: {backgroundColor: COLORS.dangerSurface},
+  stockBadge: {position: 'absolute', top: -5, right: -12, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 3, backgroundColor: COLORS.danger, alignItems: 'center', justifyContent: 'center'},
+  stockBadgeText: {color: COLORS.textWhite, fontSize: 10, fontWeight: '800'},
+  stockAlertLabel: {color: COLORS.danger},
   activeLabel: {
     fontSize: 11,
     fontWeight: '700',

@@ -1,5 +1,5 @@
 import React from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
+import {Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {COLORS, SHADOWS} from '../../theme';
@@ -13,7 +13,7 @@ const AboutScreen = ({navigation}) => (
       onLeftPress={() => navigation.goBack()}
       centered
     />
-    <View style={styles.content}>
+    <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.card}>
         <View style={styles.logo}>
           <Image source={require('../../../assets/brand/gastotrack-logo.png')} style={styles.logoImage} resizeMode="contain" accessibilityLabel="GastoTrack logo" />
@@ -37,8 +37,16 @@ const AboutScreen = ({navigation}) => (
           is unavailable.
         </Text>
         <Text style={styles.version}>Version 0.0.1</Text>
+        <View style={styles.links}>
+          <TouchableOpacity onPress={() => navigation.navigate('Terms')} accessibilityRole="link" accessibilityLabel="Terms and Conditions">
+            <Text style={styles.linkText}>Terms and Conditions</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')} accessibilityRole="link" accessibilityLabel="Privacy Policy">
+            <Text style={styles.linkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   </View>
 );
 
@@ -73,6 +81,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   version: {fontSize: 12, color: COLORS.textMuted, marginTop: 14},
+  links: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 10},
+  linkText: {fontSize: 12, fontWeight: '700', color: COLORS.accentDark, textDecorationLine: 'underline'},
 });
 
 export default AboutScreen;

@@ -81,6 +81,12 @@
                     @else
                         <div class="flex items-center gap-3">
                             <a href="{{ route('super-admin.businesses.show', $business) }}" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-emerald-700 hover:bg-emerald-50">View</a>
+                            @if($business->status === 'pending' && ! $business->active && $business->owner_email_verification_pending)
+                                <form method="POST" action="{{ route('super-admin.businesses.pending-registration.delete', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Delete the unverified registration for ' + this.dataset.businessName + ' and its owner account? This cannot be undone.')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50 hover:text-red-900">Delete</button>
+                                </form>
+                            @endif
                             <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Archive ' + this.dataset.businessName + '? Access will be disabled and its records preserved.')">
                                 @csrf
                                 @method('DELETE')

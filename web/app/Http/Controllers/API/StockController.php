@@ -15,6 +15,10 @@ class StockController extends Controller
     // GET /api/stock
     public function index(Request $request)
     {
+        $outOfStockCount = StockItem::where('business_id', $request->user()->business_id)
+            ->where('active', true)
+            ->where('current_quantity', '<=', 0)
+            ->count();
         $stock = StockItem::where('business_id', $request->user()->business_id)
             ->when($request->boolean('low_stock'), fn ($query) => $query->whereColumn('current_quantity', '<=', 'minimum_quantity'))
             ->orderBy('name')
@@ -25,7 +29,7 @@ class StockController extends Controller
             return $item;
         });
 
-        return response()->json(['stock' => $stock->items(), 'meta' => ['current_page' => $stock->currentPage(), 'last_page' => $stock->lastPage(), 'total' => $stock->total()]]);
+        return response()->json(['stock' => $stock->items(), 'meta' => ['current_page' => $stock->currentPage(), 'last_page' => $stock->lastPage(), 'total' => $stock->total(), 'out_of_stock_count' => $outOfStockCount]]);
     }
 
     // POST /api/stock
