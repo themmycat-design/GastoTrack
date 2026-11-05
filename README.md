@@ -12,6 +12,13 @@ After an online sign-in, staff can record manual transactions, cash orders, and 
 - GCash/Maya payment confirmation, AI suggestions/chat, account changes, product edits, receipt transaction submission, and server reports still require the API. On-device OCR can read a picture offline, but AI categorization and saving it cannot complete offline.
 - Offline sync runs while the app is open or when staff reopen it; it is not guaranteed to run while Android has stopped the app. A new APK containing the native SQLite module and the `2026_10_21_000004` and `2026_10_21_000005` Laravel migrations are required before using this feature. Back up and stage-test migrations before applying them to a live database.
 
+## Staff sign-in, profile, and support
+
+- After password sign-in, each staff account sets a four-digit MPIN on that device. The MPIN is kept in the device keychain and is requested when reopening the app; leaving the app in the background for 15 minutes locks it again. Five incorrect attempts sign the account out, so staff must sign in with the account password before setting a new MPIN.
+- **Profile** provides Personal information, Permissions, Your reports, Help, and About. Profile name and photo changes need a server connection. Use Permissions to check Android notification access for GCash/Maya payment capture.
+- **Your reports** lists submitted problem reports, their current status, and any public updates. Staff can submit a report from this page; loading and submitting reports require a server connection.
+- **Scan receipt** on Home lets staff take a receipt photo with the camera or choose one from the photo library. On-device OCR extracts receipt details. AI categorization and saving the transaction require the API; staff can review or edit the extracted details when needed.
+
 ## Demo deployment: Laravel on alwaysdata, Android APK via EAS Build
 
 This is a low-cost/academic demo path, not a production recommendation for shops' real financial data. The alwaysdata free plan is restricted to personal/non-profit use and has small resource/storage limits; confirm its current [plan terms and limits](https://www.alwaysdata.com/en/offers/) before creating an account or uploading business data. Its database service is MariaDB, which Laravel connects to through its MySQL driver (`DB_CONNECTION=mysql`); it is MySQL-compatible, but it is not Oracle MySQL. If the requirement is specifically Oracle MySQL, or the deployment is commercial, choose a host that explicitly provides that instead. See alwaysdata's [database and technical details](https://help.alwaysdata.com/en/docs/technical-specifications/login-details/).

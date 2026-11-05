@@ -58,6 +58,11 @@
                         </button>
                     </form>
 
+                    <p class="mt-4 text-center text-sm text-slate-600">
+                        Forgot your password?
+                        <a href="{{ route('password.request') }}" class="gt-focus rounded font-bold text-[#08745D] underline underline-offset-2">Request a reset link</a>
+                    </p>
+
                     <div class="mt-5 flex flex-col items-center justify-between gap-4 border-t border-[#EAF2EF] pt-5 text-sm sm:flex-row">
                         <p class="text-slate-500">Check spam or junk if it’s not in your inbox.</p>
                         <form method="POST" action="{{ route('logout') }}">

@@ -23,19 +23,25 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
-
-    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
-        ->name('password.request');
-
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
-        ->name('password.email');
-
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
-        ->name('password.reset');
-
-    Route::post('reset-password', [NewPasswordController::class, 'store'])
-        ->name('password.store');
 });
+
+// Let authenticated users reach account recovery too, including owners who are
+// currently held on the email-verification screen.
+Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
+    ->name('password.request');
+
+Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+    ->middleware('throttle:6,1')
+    ->name('password.email');
+
+// A reset link is authorized by its token, so keep this flow accessible when
+// the browser still has an authenticated but unverified account session.
+Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+    ->name('password.reset');
+
+Route::post('reset-password', [NewPasswordController::class, 'store'])
+    ->middleware('throttle:6,1')
+    ->name('password.store');
 
 Route::get('two-factor-challenge', [OwnerTwoFactorChallengeController::class, 'create'])
     ->middleware(['guest', 'throttle:6,1'])
