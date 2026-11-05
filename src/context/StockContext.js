@@ -3,6 +3,7 @@ import api from '../services/api';
 import {AuthContext} from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
 import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
+import {overlayStockActions, readPendingActions} from '../services/offlineRecords';
 
 const StockContext = createContext();
 
@@ -19,8 +20,11 @@ const normalizePagination = (meta, page, count) => ({
 });
 
 export const StockProvider = ({children}) => {
-  const [stockItems, setStockItems] = useState([]);
+  const [serverStockItems, setStockItems] = useState([]);
+  const [localActions, setLocalActions] = useState([]);
   const [outOfStockCount, setOutOfStockCount] = useState(0);
+  const [pendingStockAdjustments, setPendingStockAdjustments] = useState({});
+  const [rejectedStockAdjustments, setRejectedStockAdjustments] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -29,6 +33,7 @@ export const StockProvider = ({children}) => {
   const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
     ? {userId: user.id, businessId: user.business_id || business.id} : null,
   [user?.role, user?.id, user?.business_id, business?.id]);
+  const stockItems = useMemo(() => overlayStockActions(serverStockItems, localActions), [serverStockItems, localActions]);
 
   const fetchStock = useCallback(async ({page = 1, append = false} = {}) => {
     if (!userToken) return;
@@ -63,9 +68,34 @@ export const StockProvider = ({children}) => {
   }, [userToken, offlineAccount]);
 
   const hasMoreStock = pagination.currentPage < pagination.lastPage;
-  useEffect(() => subscribeStaffOffline(event => {
-    if (event === 'synced' && userToken) fetchStock();
-  }), [fetchStock, userToken]);
+  useEffect(() => {
+    if (!offlineAccount) {
+      setPendingStockAdjustments({});
+      setRejectedStockAdjustments({});
+      setLocalActions([]);
+      return undefined;
+    }
+    let active = true;
+    const refreshPending = async () => {
+      const actions = await readPendingActions(offlineAccount);
+      if (!active) return;
+      setLocalActions(actions);
+      const counts = {};
+      const rejected = {};
+      actions.filter(action => action.kind === 'stock_adjustment' && action.status === 'pending')
+        .forEach(action => {counts[action.payload.stock_id] = (counts[action.payload.stock_id] || 0) + 1;});
+      actions.filter(action => action.kind === 'stock_adjustment' && action.status === 'rejected')
+        .forEach(action => {rejected[action.payload.stock_id] = action.error || 'Server rejected this adjustment';});
+      setPendingStockAdjustments(counts);
+      setRejectedStockAdjustments(rejected);
+    };
+    refreshPending();
+    const unsubscribe = subscribeStaffOffline(event => {
+      if (event === 'queued' || event === 'synced' || event === 'rejected') refreshPending();
+      if (event === 'synced' && userToken) fetchStock();
+    });
+    return () => {active = false; unsubscribe();};
+  }, [fetchStock, offlineAccount, userToken]);
   const loadMoreStock = useCallback(() => {
     if (!isLoading && !isLoadingMore && pagination.currentPage < pagination.lastPage) {
       return fetchStock({page: pagination.currentPage + 1, append: true});
@@ -87,10 +117,31 @@ export const StockProvider = ({children}) => {
   const getStatus = (quantity, threshold) => quantity <= 0 ? 'Out' : quantity <= threshold ? 'Low' : 'OK';
 
   const adjustStock = async (id, type, quantity, reason, movementCategory = 'adjustment', clientId = null, offlineRecordedAt = null) => {
+    if (!Number.isInteger(Number(id))) throw new Error('This stock item must sync before it can be adjusted.');
     const payload = {type, quantity, reason, movement_category: movementCategory};
+    const original = serverStockItems.find(item => Number(item.id) === Number(id));
+    if (offlineAccount && (original?.revision == null || !Number.isInteger(Number(original.revision)))) {
+      throw new Error('Refresh this stock item online once before adjusting it offline.');
+    }
+    const actions = offlineAccount ? await readPendingActions(offlineAccount) : [];
+    const earlierAttempt = clientId ? actions.find(action => action.client_id === clientId && action.kind === 'stock_adjustment') : null;
+    if (earlierAttempt) {
+      const savedPayload = {...earlierAttempt.payload};
+      delete savedPayload.client_id;
+      const retry = await recordStaffAction(offlineAccount, 'stock_adjustment', savedPayload, clientId);
+      if (!retry.synced) return {...stockItems.find(item => item.id === id), offlinePending: true};
+      const updated = normalize(retry.data.item);
+      setStockItems(current => current.map(item => item.id === updated.id ? updated : item));
+      return updated;
+    }
+    // Earlier queued adjustments for this item will advance its server revision first.
+    const queuedForItem = actions.filter(action =>
+      action.kind === 'stock_adjustment' && action.status === 'pending'
+      && Number(action.payload.stock_id) === Number(id)).length;
     const response = offlineAccount
       ? await recordStaffAction(offlineAccount, 'stock_adjustment', {
-        ...payload, stock_id: id, offline_recorded_at: offlineRecordedAt || new Date().toISOString(),
+        ...payload, stock_id: id, expected_revision: Number(original.revision) + queuedForItem,
+        offline_recorded_at: offlineRecordedAt || new Date().toISOString(),
       }, clientId || undefined)
       : {synced: true, data: (await api.post(`/stock/${id}/adjust`, {...payload, ...(clientId ? {client_id: clientId} : {})})).data};
     if (!response.synced) return {...stockItems.find(item => item.id === id), offlinePending: true};
@@ -104,6 +155,16 @@ export const StockProvider = ({children}) => {
   };
 
   const createStock = async stockData => {
+    if (offlineAccount) {
+      const result = await recordStaffAction(offlineAccount, 'stock_create', {data: stockData});
+      setLocalActions(await readPendingActions(offlineAccount));
+      if (!result.synced) return normalize({...stockData, id: `local:${result.clientId}`, offlinePending: true});
+      const created = normalize(result.data.item);
+      setStockItems(current => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      if (created.active !== false && created.quantity <= 0) setOutOfStockCount(current => current + 1);
+      setPagination(current => ({...current, total: current.total + 1}));
+      return created;
+    }
     const response = await api.post('/stock', stockData);
     const created = normalize(response.data.item);
     setStockItems(current => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
@@ -115,6 +176,8 @@ export const StockProvider = ({children}) => {
   return <StockContext.Provider value={{
     stockItems,
     outOfStockCount,
+    pendingStockAdjustments,
+    rejectedStockAdjustments,
     loadError,
     stockTotal: pagination.total,
     isLoading,

@@ -26,7 +26,7 @@ import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 import {getProfilePhotoSource} from '../../utils/profilePhoto';
-import {syncStaffOfflineActions} from '../../services/staffOffline';
+import {getStaffSnapshot, saveStaffSnapshot, syncStaffOfflineActions} from '../../services/staffOffline';
 import useReduceMotion from '../../hooks/useReduceMotion';
 
 const IncomePeekCat = () => {
@@ -72,29 +72,42 @@ const DashboardScreen = ({ navigation }) => {
   const [todayIncomeCount, setTodayIncomeCount] = useState(null);
   const [incomeLoading, setIncomeLoading] = useState(true);
   const [incomeError, setIncomeError] = useState(null);
+  const [incomeFromCache, setIncomeFromCache] = useState(false);
   const incomeRequestId = React.useRef(0);
   const day = useStaffDay();
 
   const fetchDailyIncome = React.useCallback(async () => {
     const requestId = ++incomeRequestId.current;
     setIncomeLoading(true);
-    setTodayIncome(null);
-    setTodayIncomeCount(null);
     try {
       const response = await api.get('/transactions/summary', {params: {from: day, to: day}});
       if (requestId !== incomeRequestId.current) return;
-      setTodayIncome(Number(response.data?.income || 0));
-      setTodayIncomeCount(Number(response.data?.income_count || 0));
+      const summary = {day, income: Number(response.data?.income || 0), count: Number(response.data?.income_count || 0)};
+      setTodayIncome(summary.income);
+      setTodayIncomeCount(summary.count);
+      setIncomeFromCache(false);
+      if (offlineAccount) saveStaffSnapshot(offlineAccount, 'daily_income', summary).catch(() => {});
       setIncomeError(null);
     } catch (error) {
       if (requestId !== incomeRequestId.current) return;
-      setTodayIncome(null);
-      setTodayIncomeCount(null);
+      let cached = null;
+      if (offlineAccount) {
+        try {cached = await getStaffSnapshot(offlineAccount, 'daily_income');} catch {}
+      }
+      if (cached?.day === day) {
+        setTodayIncome(Number(cached.income));
+        setTodayIncomeCount(Number(cached.count));
+        setIncomeFromCache(true);
+      } else {
+        setTodayIncome(null);
+        setTodayIncomeCount(null);
+        setIncomeFromCache(false);
+      }
       setIncomeError(getApiErrorMessage(error));
     } finally {
       if (requestId === incomeRequestId.current) setIncomeLoading(false);
     }
-  }, [day]);
+  }, [day, offlineAccount]);
 
   useFocusEffect(React.useCallback(() => {
     fetchDailyIncome();
@@ -179,8 +192,9 @@ const DashboardScreen = ({ navigation }) => {
             {todayIncome !== null ? <Text style={styles.currencySymbol}>₱</Text> : null}
             <Text style={[styles.incomeAmount, todayIncome === null && styles.incomeStatus]}>{incomeLoading ? 'Loading…' : todayIncome === null ? 'Unavailable' : todayIncome.toFixed(2)}</Text>
           </View>
-          <Text style={styles.incomeDescription}>{incomeError
-            ? 'Could not load today’s income'
+          <Text style={styles.incomeDescription}>{incomeFromCache
+            ? `Last synced today · ${todayIncomeCount ?? 0} confirmed entries; offline records excluded`
+            : incomeError ? 'Could not load today’s income'
             : incomeLoading ? 'Loading today’s income records…' : `Income entries today: ${todayIncomeCount ?? 0}`}</Text>
         </View>
 

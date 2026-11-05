@@ -3,7 +3,8 @@ import api, {API_URL} from '../services/api';
 import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
 import {productPhotoUpload} from '../utils/productPhoto';
-import {getStaffSnapshot, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
+import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
+import {overlayProductActions, readPendingActions} from '../services/offlineRecords';
 
 export const ProductContext = createContext();
 
@@ -59,13 +60,18 @@ const toMultipartPayload = (product, method) => {
 };
 
 export const ProductProvider = ({ children }) => {
-  const [products, setProducts] = useState([]);
+  const [serverProducts, setProducts] = useState([]);
+  const [localActions, setLocalActions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const {userToken, user, business} = useContext(AuthContext);
   const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
     ? {userId: user.id, businessId: user.business_id || business.id} : null,
   [user?.role, user?.id, user?.business_id, business?.id]);
+  const products = useMemo(() => overlayProductActions(serverProducts, localActions), [serverProducts, localActions]);
+  const refreshLocalActions = useCallback(async () => {
+    setLocalActions(offlineAccount ? await readPendingActions(offlineAccount) : []);
+  }, [offlineAccount]);
 
   const fetchProducts = useCallback(async () => {
     if (!userToken) return;
@@ -101,11 +107,22 @@ export const ProductProvider = ({ children }) => {
   }, [userToken, fetchProducts]);
 
   useEffect(() => subscribeStaffOffline(event => {
+    if (['queued', 'synced', 'rejected'].includes(event)) refreshLocalActions();
     if (event === 'synced' && userToken) fetchProducts();
-  }), [fetchProducts, userToken]);
+  }), [fetchProducts, refreshLocalActions, userToken]);
+
+  useEffect(() => {refreshLocalActions();}, [refreshLocalActions]);
 
   const createProduct = async productData => {
     const hasImage = Boolean(productData.imageAsset?.uri);
+    if (offlineAccount && !hasImage) {
+      const result = await recordStaffAction(offlineAccount, 'product_create', {data: toApiPayload(productData)});
+      await refreshLocalActions();
+      if (!result.synced) return normalizeProduct({...productData, id: `local:${result.clientId}`, offlinePending: true});
+      const product = normalizeProduct(result.data.product);
+      setProducts(current => [...current, product]);
+      return product;
+    }
     const response = await api.post(
       '/products',
       hasImage ? toMultipartPayload(productData) : toApiPayload(productData),
@@ -118,6 +135,23 @@ export const ProductProvider = ({ children }) => {
 
   const updateProduct = async (id, productData) => {
     const hasImage = Boolean(productData.imageAsset?.uri);
+    if (offlineAccount && !hasImage) {
+      const original = serverProducts.find(item => Number(item.id) === Number(id));
+      if (!original?.updated_at || !Number.isInteger(Number(original.revision))) throw new Error('Refresh products online once before editing this product offline.');
+      if (localActions.some(action => action.status === 'pending' && ['product_update', 'product_delete'].includes(action.kind)
+        && Number(action.payload.target_id) === Number(id))) {
+        throw new Error('This product already has an edit waiting to sync.');
+      }
+      const result = await recordStaffAction(offlineAccount, 'product_update', {
+        target_id: id, expected_updated_at: original.updated_at,
+        expected_revision: Number(original.revision), data: toApiPayload(productData),
+      });
+      await refreshLocalActions();
+      if (!result.synced) return {...original, offlinePending: true};
+      const product = normalizeProduct(result.data.product);
+      setProducts(current => current.map(item => item.id === product.id ? product : item));
+      return product;
+    }
     const response = hasImage
       ? await api.post(`/products/${id}`, toMultipartPayload(productData, 'PUT'), {
         headers: {'Content-Type': 'multipart/form-data'},
@@ -130,6 +164,22 @@ export const ProductProvider = ({ children }) => {
   };
 
   const deleteProduct = async id => {
+    if (offlineAccount) {
+      const original = serverProducts.find(item => Number(item.id) === Number(id));
+      if (!original?.updated_at || !Number.isInteger(Number(original.revision))) throw new Error('Refresh products online once before deleting this product offline.');
+      if (localActions.some(action => action.status === 'pending' && ['product_update', 'product_delete'].includes(action.kind)
+        && Number(action.payload.target_id) === Number(id))) {
+        throw new Error('This product already has a change waiting to sync.');
+      }
+      const result = await recordStaffAction(offlineAccount, 'product_delete', {
+        target_id: id, expected_updated_at: original.updated_at,
+        expected_revision: Number(original.revision), data: {},
+      });
+      await refreshLocalActions();
+      if (!result.synced) return {offlinePending: true};
+      setProducts(current => current.filter(item => item.id !== id));
+      return;
+    }
     await api.delete(`/products/${id}`);
     setProducts(current => current.filter(item => item.id !== id));
   };

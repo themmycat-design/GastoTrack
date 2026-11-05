@@ -37,7 +37,11 @@ public final class StaffOfflineStore extends SQLiteOpenHelper {
 
     public void enqueue(int userId, int businessId, String clientId, String kind, String payload) {
         if (userId <= 0 || businessId <= 0 || clientId == null || clientId.isEmpty()) throw new IllegalArgumentException("Missing account or action identifier");
-        if (!kind.equals("transaction") && !kind.equals("cash_order") && !kind.equals("stock_adjustment")) throw new IllegalArgumentException("Unsupported offline action");
+        if (!kind.equals("transaction") && !kind.equals("cash_order") && !kind.equals("stock_adjustment")
+            && !kind.equals("product_create") && !kind.equals("product_update") && !kind.equals("product_delete") && !kind.equals("stock_create")
+            && !kind.equals("transaction_update") && !kind.equals("transaction_delete")) {
+            throw new IllegalArgumentException("Unsupported offline action");
+        }
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
@@ -105,7 +109,10 @@ public final class StaffOfflineStore extends SQLiteOpenHelper {
     }
 
     public void saveSnapshot(int userId, int businessId, String kind, String payload) {
-        if (!kind.equals("products") && !kind.equals("stock") && !kind.equals("transaction_options")) throw new IllegalArgumentException("Unsupported snapshot");
+        if (!kind.equals("products") && !kind.equals("stock") && !kind.equals("transaction_options")
+            && !kind.equals("transactions") && !kind.equals("orders") && !kind.equals("daily_income")) {
+            throw new IllegalArgumentException("Unsupported snapshot");
+        }
         ContentValues values = new ContentValues();
         values.put("user_id", userId);
         values.put("business_id", businessId);

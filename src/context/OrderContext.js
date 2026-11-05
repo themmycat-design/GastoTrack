@@ -9,7 +9,8 @@ import {createOrderIdempotencyKey, orderRequestSignature} from '../config/orderI
 import {getApiErrorMessage} from '../services/apiErrors';
 import {getEffectiveOrderPaymentStatus} from '../utils/orderHistoryStatus';
 import {staffDayKey, useStaffDay} from '../utils/useStaffDay';
-import {recordStaffAction, subscribeStaffOffline} from '../services/staffOffline';
+import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
+import {pendingOrders, readPendingActions} from '../services/offlineRecords';
 
 const OrderContext = createContext();
 const CART_STORAGE_PREFIX = 'gastotrack.cart.';
@@ -207,21 +208,33 @@ export const OrderProvider = ({children}) => {
       const response = await api.get('/orders', {params: {page}});
       if (requestId !== ordersRequestId.current) return {success: false, stale: true};
       const normalized = (response.data.orders || []).map(normalize);
+      if (offlineAccount && page === 1) saveStaffSnapshot(offlineAccount, 'orders', normalized).catch(() => {});
+      const pending = offlineAccount && page === 1
+        ? pendingOrders(await readPendingActions(offlineAccount)).map(normalize)
+          .filter(local => !normalized.some(remote => remote.client_id === local.client_id)) : [];
       setOrders(current => append
         ? [...current, ...normalized.filter(record => !current.some(item => item.id === record.id))]
-        : normalized,
+        : [...pending, ...normalized],
       );
       setPagination(normalizePagination(response.data?.meta, page, normalized.length));
       setLoadError(null);
       return {success: true};
     } catch (error) {
       if (requestId !== ordersRequestId.current) return {success: false, stale: true};
+      if (offlineAccount && page === 1) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'orders') || [];
+          const pending = pendingOrders(await readPendingActions(offlineAccount)).map(normalize);
+          setOrders([...pending, ...cached]);
+          setPagination(normalizePagination(null, 1, cached.length + pending.length));
+        } catch {}
+      }
       setLoadError(getApiErrorMessage(error));
       return {success: false, error};
     } finally {
       append ? setIsLoadingMore(false) : setIsLoading(false);
     }
-  }, [userToken]);
+  }, [userToken, offlineAccount]);
 
   const hasMoreOrders = pagination.currentPage < pagination.lastPage;
   const loadMoreOrders = useCallback(() => {
@@ -238,7 +251,7 @@ export const OrderProvider = ({children}) => {
   }, [fetchOrders, userToken]);
 
   useEffect(() => subscribeStaffOffline(event => {
-    if (event === 'synced' && userToken) fetchOrders();
+    if (['queued', 'synced', 'rejected'].includes(event) && userToken) fetchOrders();
   }), [fetchOrders, userToken]);
 
   const mergeOrder = useCallback(orderValue => {
@@ -350,6 +363,7 @@ export const OrderProvider = ({children}) => {
         setCartState([]);
         await AsyncStorage.setItem(cartStorageKey, JSON.stringify({day: staffDayKey(), items: []}));
         await AsyncStorage.removeItem(attemptStorageKey);
+        fetchOrders();
         return {offlinePending: true, clientId, paymentStatus: 'offline_pending', status: 'queued'};
       }
       const response = {data: submitted.data};
@@ -387,7 +401,7 @@ export const OrderProvider = ({children}) => {
     } finally {
       if (activeSubmission.current?.promise === promise) activeSubmission.current = null;
     }
-  }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData, offlineAccount]);
+  }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData, offlineAccount, fetchOrders]);
 
   const postOrderAction = useCallback(async (orderId, path, body = {}, options = {}) => {
     const response = await api.post(`/orders/${orderId}/${path}`, body);

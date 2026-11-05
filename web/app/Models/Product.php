@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Product extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::updating(fn (self $product) => $product->revision = (int) $product->revision + 1);
+    }
     protected $fillable = [
         'business_id', 'name', 'description', 'category',
         'price', 'cost', 'emoji', 'image', 'active', 'is_available', 'display_order', 'prep_time'
@@ -18,6 +23,7 @@ class Product extends Model
         'cost'         => 'decimal:2',
         'active'       => 'boolean',
         'is_available' => 'boolean',
+        'revision' => 'integer',
     ];
 
     public function ingredients()

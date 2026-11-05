@@ -7,6 +7,7 @@ use App\Http\Controllers\API\BugReportController as ApiBugReportController;
 use App\Http\Controllers\API\BusinessController;
 use App\Http\Controllers\API\GoalController;
 use App\Http\Controllers\API\NotificationController;
+use App\Http\Controllers\API\OfflineMutationController;
 use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\StaffController;
@@ -86,6 +87,7 @@ $registerProtectedRoutes = function (): void {
         Route::get('/trends', [AnalyticsController::class, 'trends']);
     });
     Route::post('/sync', [SyncController::class, 'sync'])->middleware('throttle:10,1,api-sync');
+    Route::post('/offline/mutations', [OfflineMutationController::class, 'store']);
     Route::post('/ai/chat', [AiAssistantController::class, 'chat'])->middleware('throttle:20,1,ai-chat');
     Route::post('/ai/transaction-category', [AiAssistantController::class, 'suggestTransactionCategory'])->middleware('throttle:20,1,ai-category');
     Route::get('/ai/stock-alternatives', [AiAssistantController::class, 'stockAlternatives'])->middleware('throttle:10,1,ai-stock');

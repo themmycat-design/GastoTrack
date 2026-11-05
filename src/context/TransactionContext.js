@@ -4,6 +4,7 @@ import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
 import {productCategoriesFromOptions} from '../constants/productCategories';
 import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
+import {filterCachedTransactions, overlayTransactionMutations, pendingTransactions, readPendingActions} from '../services/offlineRecords';
 
 export const TransactionContext = createContext();
 
@@ -157,23 +158,37 @@ export const TransactionProvider = ({ children }) => {
       const response = await api.get('/transactions', {params: {page}});
       const records = response.data?.transactions || (Array.isArray(response.data) ? response.data : []);
       const normalized = records.map(normalizeTransaction);
+      if (offlineAccount && page === 1) saveStaffSnapshot(offlineAccount, 'transactions', normalized).catch(() => {});
+      const actions = offlineAccount && page === 1 ? await readPendingActions(offlineAccount) : [];
+      const pending = offlineAccount && page === 1
+        ? pendingTransactions(actions).map(normalizeTransaction)
+          .filter(local => !normalized.some(remote => remote.client_id === local.client_id)) : [];
       setTransactions(current => append
         ? [...current, ...normalized.filter(record => !current.some(item => item.id === record.id))]
-        : normalized,
+        : [...pending, ...overlayTransactionMutations(normalized, actions)],
       );
       setPagination(normalizePagination(response.data?.meta, page, normalized.length));
       setLoadError(null);
       return {success: true};
     } catch (error) {
+      if (offlineAccount && page === 1) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'transactions') || [];
+          const actions = await readPendingActions(offlineAccount);
+          const pending = pendingTransactions(actions).map(normalizeTransaction);
+          setTransactions([...pending, ...overlayTransactionMutations(cached, actions)]);
+          setPagination(normalizePagination(null, 1, cached.length + pending.length));
+        } catch {}
+      }
       setLoadError(getApiErrorMessage(error));
       return {success: false, error};
     } finally {
       append ? setIsLoadingMore(false) : setIsLoading(false);
     }
-  }, [userToken]);
+  }, [userToken, offlineAccount]);
 
   useEffect(() => subscribeStaffOffline(event => {
-    if (event === 'synced' && userToken) fetchTransactions();
+    if (['queued', 'synced', 'rejected'].includes(event) && userToken) fetchTransactions();
   }), [fetchTransactions, userToken]);
 
   const queryTransactions = useCallback(async ({page = 1, search, source, category, from, to} = {}) => {
@@ -187,15 +202,33 @@ export const TransactionProvider = ({ children }) => {
     try {
       const response = await api.get('/transactions', {params});
       const records = response.data?.transactions || (Array.isArray(response.data) ? response.data : []);
+      const normalized = records.map(normalizeTransaction);
+      const actions = offlineAccount && page === 1 ? await readPendingActions(offlineAccount) : [];
+      const pending = offlineAccount && page === 1
+        ? filterCachedTransactions(pendingTransactions(actions), {search, source, category, from, to})
+          .map(normalizeTransaction).filter(local => !normalized.some(remote => remote.client_id === local.client_id)) : [];
       return {
         success: true,
-        transactions: records.map(normalizeTransaction),
+        transactions: [...pending, ...overlayTransactionMutations(normalized, actions)],
         pagination: normalizePagination(response.data?.meta, page, records.length),
       };
     } catch (error) {
+      if (offlineAccount) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'transactions') || [];
+          const actions = await readPendingActions(offlineAccount);
+          const pending = pendingTransactions(actions);
+          const filtered = filterCachedTransactions([...pending, ...cached], {search, source, category, from, to});
+          return {
+            success: true, offline: true,
+            transactions: overlayTransactionMutations(filtered.map(normalizeTransaction), actions),
+            pagination: normalizePagination(null, 1, filtered.length),
+          };
+        } catch {}
+      }
       return {success: false, error};
     }
-  }, []);
+  }, [offlineAccount]);
 
   const fetchTransactionCategories = useCallback(async source => {
     try {
@@ -204,9 +237,17 @@ export const TransactionProvider = ({ children }) => {
       });
       return {success: true, categories: response.data?.categories || []};
     } catch (error) {
+      if (offlineAccount) {
+        try {
+          const cached = await getStaffSnapshot(offlineAccount, 'transactions') || [];
+          const categories = [...new Set(cached.filter(item => !source || source === 'All' || item.source === source)
+            .map(item => item.category).filter(Boolean))].sort();
+          return {success: true, categories};
+        } catch {}
+      }
       return {success: false, error};
     }
-  }, []);
+  }, [offlineAccount]);
 
   const hasMoreTransactions = pagination.currentPage < pagination.lastPage;
   const loadMoreTransactions = useCallback(() => {
@@ -219,7 +260,8 @@ export const TransactionProvider = ({ children }) => {
   // Mag-save ng bagong transaction
   const addTransaction = async (transactionData) => {
     try {
-      const response = offlineAccount && String(transactionData.entryMethod || 'manual').toLowerCase() === 'manual'
+      const recordMethod = String(transactionData.entryMethod || 'manual').toLowerCase();
+      const response = offlineAccount && ['manual', 'ocr'].includes(recordMethod)
         ? await recordStaffAction(offlineAccount, 'transaction', toApiPayload(transactionData), transactionData.clientId || transactionData.client_id)
         : {synced: true, data: (await api.post('/transactions', toApiPayload(transactionData))).data};
       if (!response.synced) return {success: true, queued: true, clientId: response.clientId};
@@ -234,6 +276,23 @@ export const TransactionProvider = ({ children }) => {
 
   const updateTransaction = async transactionData => {
     try {
+      if (offlineAccount) {
+        if (!transactionData.updated_at || !Number.isInteger(Number(transactionData.revision))) throw new Error('Refresh this transaction online once before editing it offline.');
+        const actions = await readPendingActions(offlineAccount);
+        if (actions.some(action => action.status === 'pending' && ['transaction_update', 'transaction_delete'].includes(action.kind)
+          && Number(action.payload.target_id) === Number(transactionData.id))) {
+          throw new Error('This transaction already has a change waiting to sync.');
+        }
+        const result = await recordStaffAction(offlineAccount, 'transaction_update', {
+          target_id: transactionData.id, expected_updated_at: transactionData.updated_at,
+          expected_revision: Number(transactionData.revision),
+          data: toApiPayload(transactionData),
+        });
+        if (!result.synced) return {success: true, queued: true, transaction: {...transactionData, offlinePending: true}};
+        const transaction = normalizeTransaction(result.data.transaction);
+        setTransactions(current => current.map(item => item.id === transaction.id ? transaction : item));
+        return {success: true, transaction};
+      }
       const response = await api.put(
         `/transactions/${transactionData.id}`,
         toApiPayload(transactionData),
@@ -246,8 +305,25 @@ export const TransactionProvider = ({ children }) => {
     }
   };
 
-  const deleteTransaction = async transactionId => {
+  const deleteTransaction = async (transactionId, record = null) => {
     try {
+      if (offlineAccount) {
+        const original = record || transactions.find(item => item.id === transactionId);
+        if (!original?.updated_at || !Number.isInteger(Number(original.revision))) throw new Error('Refresh this transaction online once before deleting it offline.');
+        const actions = await readPendingActions(offlineAccount);
+        if (actions.some(action => action.status === 'pending' && ['transaction_update', 'transaction_delete'].includes(action.kind)
+          && Number(action.payload.target_id) === Number(transactionId))) {
+          throw new Error('This transaction already has a change waiting to sync.');
+        }
+        const result = await recordStaffAction(offlineAccount, 'transaction_delete', {
+          target_id: transactionId, expected_updated_at: original.updated_at,
+          expected_revision: Number(original.revision), data: {},
+        });
+        if (!result.synced) return {success: true, queued: true};
+        setTransactions(current => current.filter(item => item.id !== transactionId));
+        setPagination(current => ({...current, total: Math.max(0, current.total - 1)}));
+        return {success: true};
+      }
       await api.delete(`/transactions/${transactionId}`);
       setTransactions(current => current.filter(item => item.id !== transactionId));
       setPagination(current => ({...current, total: Math.max(0, current.total - 1)}));

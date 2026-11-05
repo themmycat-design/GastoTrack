@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class StockItem extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::updating(fn (self $item) => $item->revision = (int) $item->revision + 1);
+    }
+
     protected $fillable = [
         'business_id', 'name', 'unit', 'current_quantity',
         'minimum_quantity', 'unit_cost', 'active', 'client_id'
@@ -18,6 +24,7 @@ class StockItem extends Model
         'minimum_quantity' => 'decimal:4',
         'unit_cost' => 'decimal:4',
         'active' => 'boolean',
+        'revision' => 'integer',
     ];
 
     public function business()

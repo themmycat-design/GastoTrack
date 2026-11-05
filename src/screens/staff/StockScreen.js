@@ -44,7 +44,7 @@ const productToForm = product => ({
 
 const StockScreen = () => {
   const {
-    stockItems, isLoading, isLoadingMore, hasMoreStock, loadError: stockError,
+    stockItems, pendingStockAdjustments, rejectedStockAdjustments, isLoading, isLoadingMore, hasMoreStock, loadError: stockError,
     fetchStock, loadMoreStock, getStatus, adjustStock, createStock,
   } = useStock();
   const {
@@ -83,7 +83,7 @@ const StockScreen = () => {
   }, [activeTab, products, search, stockItems]);
   const listLoading = activeTab === 'stock' ? isLoading : productsLoading;
 
-  const statusCounts = useMemo(() => stockItems.reduce((counts, item) => {
+  const statusCounts = useMemo(() => stockItems.filter(item => !item.offlinePending && !item.offlineRejected).reduce((counts, item) => {
     counts[getStatus(item.quantity, item.threshold)] += 1;
     return counts;
   }, {OK: 0, Low: 0, Out: 0}), [getStatus, stockItems]);
@@ -159,7 +159,7 @@ const StockScreen = () => {
     }
     setIsSavingStock(true);
     try {
-      await createStock({
+      const created = await createStock({
         name: stockForm.name.trim(),
         unit: stockForm.unit.trim(),
         current_quantity: quantity,
@@ -168,7 +168,8 @@ const StockScreen = () => {
       });
       setStockEditorVisible(false);
       setStockForm(emptyStockForm);
-      Alert.alert('Stock item added', 'The new stock item is ready to use.');
+      Alert.alert(created.offlinePending ? 'Saved on this device' : 'Stock item added', created.offlinePending
+        ? 'The stock item will be available after the server accepts it.' : 'The new stock item is ready to use.');
     } catch (error) {
       Alert.alert('Could not add stock item', apiErrorMessage(error));
     } finally {
@@ -310,7 +311,8 @@ const StockScreen = () => {
       setProductEditorVisible(false);
       setEditingProduct(null);
       setSelectedProduct(saved);
-      Alert.alert('Product saved', `${saved.name} is ready in the product list.`);
+      Alert.alert(saved.offlinePending ? 'Saved on this device' : 'Product saved', saved.offlinePending
+        ? `${saved.name} is waiting to sync before it can be used in orders.` : `${saved.name} is ready in the product list.`);
     } catch (error) {
       Alert.alert('Could not save product', apiErrorMessage(error));
     } finally {
@@ -365,6 +367,10 @@ const StockScreen = () => {
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle}>{item.name}</Text>
           <Text style={styles.cardSubtitle}>{item.quantity} {item.unit} remaining</Text>
+          {item.offlineRejected ? <Text style={styles.stockAlertText}>Not saved: {item.offlineError || 'Review this stock item'}</Text>
+            : item.offlinePending ? <Text style={styles.cardSubtitle}>Pending sync · quantity not confirmed</Text> : null}
+          {pendingStockAdjustments?.[item.id] ? <Text style={styles.cardSubtitle}>{pendingStockAdjustments[item.id]} adjustment(s) pending sync</Text> : null}
+          {rejectedStockAdjustments?.[item.id] ? <Text style={styles.stockAlertText}>Adjustment rejected: {rejectedStockAdjustments[item.id]}</Text> : null}
         </View>
         <View style={[styles.badge, badge]}><Text style={[styles.badgeText, badgeText]}>{status}</Text></View>
       </TouchableOpacity>
@@ -385,6 +391,8 @@ const StockScreen = () => {
           <Text style={styles.cardTitle}>{item.name}</Text>
           <Text style={styles.cardSubtitle}>{item.category || 'Uncategorized'} · ₱{Number(item.price || 0).toFixed(2)}</Text>
           {hasMissingIngredient ? <Text style={styles.stockAlertText}>Ingredient out of stock</Text> : null}
+          {item.offlineRejected ? <Text style={styles.stockAlertText}>{item.offlineAction || 'Create'} rejected: {item.offlineError || 'Review this product'}</Text>
+            : item.offlinePending ? <Text style={styles.cardSubtitle}>{item.offlineAction || 'Create'} pending sync</Text> : null}
         </View>
         <View style={[styles.badge, available ? styles.badgeOk : styles.badgeOut]}>
           <Text style={[styles.badgeText, available ? styles.badgeOkText : styles.badgeOutText]}>{available ? 'Available' : 'Unavailable'}</Text>

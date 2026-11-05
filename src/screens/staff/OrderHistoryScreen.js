@@ -209,6 +209,8 @@ const OrderHistoryScreen = ({navigation}) => {
           <Text style={[styles.status, {color: statusColor}]}>{status}</Text>
         </View>
         <Text style={styles.paymentStatus}>Payment: {paymentStatus}</Text>
+        {item.offlineRejected ? <Text style={styles.paymentStatus}>Not saved on server: {item.offlineError || 'Review this order'}</Text>
+          : item.offlinePending ? <Text style={styles.paymentStatus}>Saved on this phone. Sale and stock will update after the server accepts it.</Text> : null}
         {canCancel || needsPaymentReview || canRequestRefund || canConfirmRefund || canRetryPayment ? (
           <View style={styles.actionRow}>
             {canCancel ? (

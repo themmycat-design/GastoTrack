@@ -132,6 +132,10 @@ class ProductController extends Controller
                             'quantity' => $ingredient['quantity'],
                         ]);
                     }
+                    // A recipe-only edit must invalidate older offline product edits.
+                    if (! $product->wasChanged()) {
+                        $product->touch();
+                    }
                 }
             });
         } catch (Throwable $exception) {
@@ -158,11 +162,14 @@ class ProductController extends Controller
         $product = Product::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
-        $product->productIngredients()->delete();
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
-        }
-        $product->delete();
+        DB::transaction(function () use ($product): void {
+            $product->productIngredients()->delete();
+            $imagePath = $product->image;
+            $product->delete();
+            if ($imagePath) {
+                DB::afterCommit(fn () => Storage::disk('public')->delete($imagePath));
+            }
+        });
 
         return response()->json(['message' => 'Product deleted']);
     }

@@ -78,4 +78,17 @@ describe('staff SQLite outbox', () => {
     expect(rows[0].status).toBe('pending');
     expect(NativeModules.NotificationModule.markStaffActionRejected).not.toHaveBeenCalled();
   });
+
+  it('replays a queued product edit through the conflict-aware endpoint', async () => {
+    api.post.mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({data: {product: {id: 21, price: 95}}});
+    const payload = {target_id: 21, expected_updated_at: '2026-11-05T00:00:00Z', data: {price: 95}};
+    const result = await recordStaffAction(account, 'product_update', payload, 'product-edit');
+    expect(result.synced).toBe(false);
+    await syncStaffOfflineActions(account);
+    expect(api.post).toHaveBeenNthCalledWith(2, '/offline/mutations', expect.objectContaining({
+      kind: 'product_update', client_id: 'product-edit', ...payload,
+    }));
+    expect(rows).toHaveLength(0);
+  });
 });

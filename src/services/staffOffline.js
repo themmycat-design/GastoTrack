@@ -53,6 +53,12 @@ const endpoints = {
   transaction: action => ['/transactions', action.payload],
   cash_order: action => ['/orders', action.payload],
   stock_adjustment: action => [`/stock/${action.payload.stock_id}/adjust`, action.payload],
+  product_create: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
+  product_update: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
+  product_delete: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
+  stock_create: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
+  transaction_update: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
+  transaction_delete: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
 };
 
 const inFlight = new Map();
@@ -80,9 +86,14 @@ export const syncStaffOfflineActions = async account => {
       try {
         const [path, payload] = endpoint(action);
         const response = await api.post(path, payload);
-        const saved = action.kind === 'transaction' ? response.data?.transaction
-          : action.kind === 'cash_order' ? response.data?.order : response.data?.item;
-        if (!saved?.id) throw new Error('The server did not confirm the saved record.');
+        const saved = action.kind === 'transaction' || action.kind === 'transaction_update'
+          ? response.data?.transaction
+          : action.kind === 'cash_order' ? response.data?.order
+            : action.kind.startsWith('product_') ? response.data?.product : response.data?.item;
+        if (action.kind === 'transaction_delete' || action.kind === 'product_delete'
+          ? response.data?.message !== (action.kind === 'product_delete' ? 'Product deleted' : 'Transaction deleted') : !saved?.id) {
+          throw new Error('The server did not confirm the saved record.');
+        }
         await nativeStore().markStaffActionSynced(userId, businessId, action.client_id);
         results.push({clientId: action.client_id, status: 'synced', data: response.data});
         notify('synced');

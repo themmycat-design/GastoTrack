@@ -9,6 +9,11 @@ class Transaction extends Model
 {
     use SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::updating(fn (self $transaction) => $transaction->revision = (int) $transaction->revision + 1);
+    }
+
     protected $fillable = [
         'business_id', 'user_id', 'amount', 'type',
         'source', 'category', 'transaction_date', 'description', 'receipt_image',
@@ -20,6 +25,7 @@ class Transaction extends Model
         'transaction_date' => 'date:Y-m-d',
         'metadata' => 'array',
         'synced' => 'boolean',
+        'revision' => 'integer',
     ];
 
     public function business()

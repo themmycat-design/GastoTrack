@@ -127,6 +127,7 @@ class StockController extends Controller
             'movement_category' => 'nullable|in:adjustment,waste',
             'client_id' => 'nullable|uuid',
             'offline_recorded_at' => 'nullable|date',
+            'expected_revision' => 'nullable|integer|min:0',
         ]);
 
         $offlineRecordedAt = $request->filled('offline_recorded_at')
@@ -165,6 +166,9 @@ class StockController extends Controller
                     return [$item, false];
                 }
             }
+            abort_if($request->has('expected_revision')
+                && (int) $request->input('expected_revision') !== (int) $item->revision,
+                409, 'This stock item changed on the server while your phone was offline. Refresh it and review your adjustment.');
             $before = (float) $item->current_quantity;
             $quantity = (float) $request->quantity;
 

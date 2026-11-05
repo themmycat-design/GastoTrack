@@ -341,6 +341,7 @@ const TransactionsScreen = ({route}) => {
   }, []);
 
   const canEdit = transaction => transaction
+    && !transaction.offlinePending
     && transaction.entryMethod !== 'order_system'
     && Number(transaction.user_id) === Number(user?.id);
 
@@ -373,7 +374,7 @@ const TransactionsScreen = ({route}) => {
           style: 'destructive',
           onPress: async () => {
             setDeleting(true);
-            const result = await deleteTransaction(transaction.id);
+            const result = await deleteTransaction(transaction.id, transaction);
             setDeleting(false);
             if (!result.success) {
               Alert.alert('Could not delete transaction', getErrorMessage(result));
@@ -454,7 +455,7 @@ const TransactionsScreen = ({route}) => {
         Alert.alert('Could not save transaction', getErrorMessage(result));
         return;
       }
-      if (result.queued) Alert.alert('Saved on this device', 'This transaction is waiting to sync. It will appear in Transactions after the server accepts it.');
+      if (result.queued) Alert.alert('Saved on this device', 'This transaction is shown as pending until the server accepts it.');
       setEditorVisible(false);
       setEditingTransaction(null);
       setForm(emptyForm(form.type));
@@ -563,7 +564,7 @@ const TransactionsScreen = ({route}) => {
             <Icon name={transactionTypeIcon(item.type)} size={13} color={income ? COLORS.success : COLORS.danger} />
             <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
           </View>
-          <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
+          <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}{item.offlineRejected ? ` · ${item.offlineAction || 'Save'} rejected: ${item.offlineError || 'Check this record'}` : item.offlinePending ? ` · ${item.offlineAction || 'Save'} pending sync` : ''}</Text>
         </View>
         <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
           {income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
@@ -650,10 +651,15 @@ const TransactionsScreen = ({route}) => {
 
               <Text style={styles.label}>Category</Text>
               {useAutomaticCategory ? (
-                <View style={styles.suggestionButton}>
-                  <Icon name="creation" size={17} color={COLORS.accentDark} />
-                  <Text style={styles.suggestionText}>{categorizing ? 'Choosing a category...' : form.category ? `Category: ${form.category}` : 'Gasto AI will choose a category when you save.'}</Text>
-                </View>
+                <>
+                  <View style={styles.suggestionButton}>
+                    <Icon name="creation" size={17} color={COLORS.accentDark} />
+                    <Text style={styles.suggestionText}>{categorizing ? 'Choosing a category...' : form.category ? `Category: ${form.category}` : 'Gasto AI will choose a category when you save.'}</Text>
+                  </View>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choose category manually" onPress={() => setManualCategoryFallback(true)}>
+                    <Text style={styles.suggestionText}>Choose category manually</Text>
+                  </TouchableOpacity>
+                </>
               ) : renderChips(categories, form.category, selectCategory, transactionCategoryIcon)}
               {!form.source ? <View style={styles.sourceHint}>
                 <Icon name="information-outline" size={17} color={COLORS.accentDark} />
