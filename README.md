@@ -128,9 +128,9 @@ The earlier GitHub Actions/Firebase App Distribution workflow remains in `.githu
 
 ### Show an APK download on the landing page
 
-The landing page offers a tester-access request until a public APK URL is configured. Share an EAS build link directly with testers or provide a stable HTTPS download URL as described below.
+The landing page's **Download APK** button opens a public installation guide. Until a public APK URL is configured, the guide tells testers how to request the current EAS build link. You can also share an EAS build link directly.
 
-To show a direct **Download for Android** button, place a signed release APK on a public HTTPS file host that you control, then set `GASTOTRACK_APK_DOWNLOAD_URL` in `web/.env` on the web host to that exact APK URL. Reload Laravel configuration if it is cached (`php artisan config:cache`). The site displays the direct button only for a valid HTTPS URL; setting the variable does not upload or publish the APK. Replace the URL when you release a newer build.
+To show a direct **Download APK** button on the guide, place a signed release APK on a public HTTPS file host that you control, then set `GASTOTRACK_APK_DOWNLOAD_URL` in `web/.env` on the web host to that exact APK URL. Reload Laravel configuration if it is cached (`php artisan config:cache`). The guide displays the direct button only for a valid HTTPS URL; setting the variable does not upload or publish the APK. Replace the URL when you release a newer build.
 
 If the phone currently has a debug-signed development app, Android will not update it in place with the release-signed APK. Sync pending notification captures first; uninstalling the debug app clears device-local data, while server-saved business records remain on the server.
 

@@ -11,7 +11,8 @@ class PublicAccessTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('Ready for a smoother shop day?')
-            ->assertSee('The project team shares EAS-built APKs')
+            ->assertSee('Download APK')
+            ->assertSee(route('download-app'))
             ->assertSee(route('contact'))
             ->assertSee(route('terms'))
             ->assertSee(route('privacy'));
@@ -21,11 +22,22 @@ class PublicAccessTest extends TestCase
     {
         config()->set('services.gastotrack.android_apk_url', 'https://downloads.example.test/gastotrack.apk');
 
-        $this->get('/')
+        $this->get(route('download-app'))
             ->assertOk()
-            ->assertSee('Download for Android')
+            ->assertSee('Download APK')
             ->assertSee('https://downloads.example.test/gastotrack.apk')
-            ->assertDontSee('The project team shares EAS-built APKs');
+            ->assertDontSee('The APK download link is not available here yet.');
+    }
+
+    public function test_download_guide_explains_how_to_get_the_apk_when_no_link_is_configured(): void
+    {
+        config()->set('services.gastotrack.android_apk_url', null);
+
+        $this->get(route('download-app'))
+            ->assertOk()
+            ->assertSee('The APK download link is not available here yet.')
+            ->assertSee('Install on your phone')
+            ->assertSee(route('contact'));
     }
 
     public function test_public_information_pages_are_available_to_visitors(): void

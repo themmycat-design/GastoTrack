@@ -34,6 +34,7 @@ Route::view('/contact', 'public.contact')->name('contact');
 Route::post('/contact', PublicContactController::class)->middleware('throttle:3,1')->name('contact.send');
 Route::view('/terms', 'public.terms')->name('terms');
 Route::view('/privacy', 'public.privacy')->name('privacy');
+Route::view('/download-app', 'public.download-app')->name('download-app');
 
 Route::get('/dashboard', OwnerDashboardController::class)
     ->middleware(['auth', 'verified', 'owner', 'owner.security'])

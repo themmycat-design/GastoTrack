@@ -196,11 +196,6 @@
                 </div>
             </div>
         </section>
-        @php
-            $apkDownloadUrl = trim((string) config('services.gastotrack.android_apk_url'));
-            $hasApkDownload = filter_var($apkDownloadUrl, FILTER_VALIDATE_URL)
-                && parse_url($apkDownloadUrl, PHP_URL_SCHEME) === 'https';
-        @endphp
         <section id="download" class="scroll-mt-24 border-t border-[#DDE9E5] bg-white py-12 sm:py-16 lg:py-20" aria-labelledby="download-title">
             <div class="gt-welcome-frame grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:gap-20">
                 <div class="gt-scroll-reveal max-w-2xl">
@@ -223,18 +218,12 @@
                         </div>
                     </div>
                     <div class="mt-8 space-y-3">
-                        @if($hasApkDownload)
-                            <a href="{{ $apkDownloadUrl }}" class="gt-focus flex min-h-14 items-center justify-between gap-3 rounded-xl bg-[#0A2E2A] px-5 text-sm font-bold text-white transition hover:bg-[#08745D]">
-                                Download for Android
-                                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>
-                            </a>
-                        @endif
-                        <a href="{{ route('contact') }}" class="gt-focus flex min-h-14 items-center justify-between gap-3 rounded-xl px-5 text-sm font-bold transition {{ $hasApkDownload ? 'border border-[#DDE9E5] text-[#0A2E2A] hover:bg-[#F4F8F7]' : 'bg-[#0A2E2A] text-white hover:bg-[#08745D]' }}">
-                            Request tester access
+                        <a href="{{ route('download-app') }}" class="gt-focus flex min-h-14 items-center justify-between gap-3 rounded-xl bg-[#0A2E2A] px-5 text-sm font-bold text-white transition hover:bg-[#08745D]">
+                            Download APK
                             <span aria-hidden="true">&#8594;</span>
                         </a>
                     </div>
-                    <p class="mt-6 text-xs leading-5 text-slate-500">@if($hasApkDownload) Install only the release provided by the GastoTrack team. @else The project team shares EAS-built APKs with approved testers. @endif Read the <a href="{{ route('terms') }}" class="gt-focus underline underline-offset-2 hover:text-[#08745D]">Terms</a> and <a href="{{ route('privacy') }}" class="gt-focus underline underline-offset-2 hover:text-[#08745D]">Privacy Policy</a>.</p>
+                    <p class="mt-6 text-xs leading-5 text-slate-500">Follow the download and installation steps for testers. Read the <a href="{{ route('terms') }}" class="gt-focus underline underline-offset-2 hover:text-[#08745D]">Terms</a> and <a href="{{ route('privacy') }}" class="gt-focus underline underline-offset-2 hover:text-[#08745D]">Privacy Policy</a>.</p>
                 </div>
             </div>
         </section>
