@@ -128,9 +128,9 @@ The earlier GitHub Actions/Firebase App Distribution workflow remains in `.githu
 
 ### Show an APK download on the landing page
 
-The landing page's **Download APK** button opens a public installation guide. Until a public APK URL is configured, the guide tells testers how to request the current EAS build link. You can also share an EAS build link directly.
+The landing page's **Download APK** button opens a public installation guide. Until a public APK URL is configured, the guide says that installation is not available yet. You can also share an EAS build link directly.
 
-The guide explains a likely cause of the Play Protect block: this browser-downloaded APK declares a notification listener for GCash and Maya. Google [documents this warning for Internet-sideloaded apps requesting notification listener access](https://developers.google.com/android/play-protect/warning-dev-guidance). Changing the browser's install permission or the APK download URL will not resolve it. Keep Play Protect enabled. Review whether every requested permission is needed, and [request a Google review](https://support.google.com/googleplay/android-developer/answer/2992033) if the classification is incorrect.
+The guide explains a likely cause of the Play Protect block: this browser-downloaded APK declares a notification listener for GCash and Maya. Google [documents this warning for Internet-sideloaded apps requesting notification listener access](https://developers.google.com/android/play-protect/warning-dev-guidance). For a controlled capstone test, the guide now explains how a tester can temporarily disable **Scan apps with Play Protect**, install the official APK, and re-enable scanning. This reduces protection for all apps while disabled and may still result in a warning or disabled app after scanning resumes; it is not a permanent fix. Review whether every requested permission is needed, and [request a Google review](https://support.google.com/googleplay/android-developer/answer/2992033) if the classification is incorrect.
 
 ### Distribute to blocked testers through Google Play
 

@@ -43,8 +43,10 @@ class PublicAccessTest extends TestCase
             ->assertSee('Blocked by Google Play Protect?')
             ->assertSee('notification access to detect GCash and Maya')
             ->assertSee('downloaded through a browser can be blocked')
-            ->assertSee('Request the Play testing link')
-            ->assertSee('Keep Play Protect enabled')
+            ->assertSee('Scan apps with Play Protect')
+            ->assertSee('Turn off')
+            ->assertSee('turn <strong>Scan apps with Play Protect</strong> back on', false)
+            ->assertDontSee('Request the Play testing link')
             ->assertSee(route('contact'));
     }
 

@@ -28,7 +28,7 @@
                 </figure>
             </div>
         @else
-            <p class="mt-2 text-sm leading-7 text-slate-600">The APK download link is not available here yet. Ask the GastoTrack team for the current EAS tester build link. The button will appear here when a direct download is published.</p>
+            <p class="mt-2 text-sm leading-7 text-slate-600">The APK download link is not available here yet. Installation can begin when the GastoTrack team publishes the official APK on this page.</p>
             <a href="{{ route('contact') }}" class="gt-focus mt-5 inline-flex min-h-12 items-center justify-center rounded-xl border border-[#B7DAD0] px-5 py-3 text-sm font-extrabold text-[#08745D] transition hover:bg-[#EAF8F2]">Contact the team</a>
         @endif
     </section>
@@ -43,16 +43,17 @@
     </section>
     <section class="border-t border-[#DDE9E5] pt-7" aria-labelledby="play-protect-help">
         <h2 id="play-protect-help" class="text-xl font-extrabold">Blocked by Google Play Protect?</h2>
-        <p class="mt-2 text-sm leading-7 text-slate-600"><strong>Why it happens:</strong> GastoTrack uses notification access to detect GCash and Maya payment alerts. Google documents that an app downloaded through a browser can be blocked when it requests this access. This matches the <strong>“App blocked to protect your device”</strong> warning; the team must review the build and its permissions. Allowing browser installs will not remove this block.</p>
+        <p class="mt-2 text-sm leading-7 text-slate-600"><strong>Why it happens:</strong> GastoTrack uses notification access to detect GCash and Maya payment alerts. Google may block a browser-downloaded APK that requests this access. If you choose to install this project build for testing, you can temporarily turn off Play Protect scanning on your own phone:</p>
         <ol class="mt-4 space-y-4 text-sm leading-7 text-slate-600">
-            <li><span class="font-extrabold text-[#08745D]">1.</span> <a href="{{ route('contact') }}" class="gt-focus font-bold text-[#08745D] underline underline-offset-2">Request the Play testing link</a> from the GastoTrack team. Include a screenshot of the warning and your phone model; do not send passwords or payment details.</li>
-            <li><span class="font-extrabold text-[#08745D]">2.</span> When the team adds your Google account as a tester, open their invitation, join the test, and install GastoTrack through its Play Store link instead of the browser-downloaded APK.</li>
-            <li><span class="font-extrabold text-[#08745D]">3.</span> If there is no Play testing link yet, the team must prepare that release, review the permissions, or request a Google review of an incorrect block. There is no setting on this page that can clear the warning.</li>
+            <li><span class="font-extrabold text-[#08745D]">1.</span> Open <strong>Google Play Store</strong>. Tap your profile picture, then <strong>Play Protect</strong>, then the <strong>Settings</strong> gear.</li>
+            <li><span class="font-extrabold text-[#08745D]">2.</span> Turn off <strong>Scan apps with Play Protect</strong> and confirm the prompt. This temporarily stops Play Protect scanning apps on your phone, not just GastoTrack.</li>
+            <li><span class="font-extrabold text-[#08745D]">3.</span> Download GastoTrack only from the APK link or QR code on this page. Open the APK from Downloads, allow installation from your browser or file manager if Android asks, then install it.</li>
+            <li><span class="font-extrabold text-[#08745D]">4.</span> Return to <strong>Google Play Store → Play Protect → Settings</strong> and turn <strong>Scan apps with Play Protect</strong> back on.</li>
         </ol>
-        <p class="mt-5 rounded-xl border border-[#B7DAD0] bg-[#EAF8F2] px-4 py-3 text-sm leading-6 text-[#065A49]"><strong>Note:</strong> Keep Play Protect enabled. Turning it back on may warn about or disable a flagged app. Play testing also requires the team's release to be accepted by Google; the invitation is available only after the team sets it up.</p>
+        <p class="mt-5 rounded-xl border border-[#B7DAD0] bg-[#EAF8F2] px-4 py-3 text-sm leading-6 text-[#065A49]"><strong>Warning:</strong> Disabling Play Protect reduces protection for all apps while it is off. Turning it back on may warn about or disable GastoTrack again. If installation is still blocked, stop and <a href="{{ route('contact') }}" class="gt-focus font-bold underline underline-offset-2">contact the GastoTrack team</a>; this workaround is not guaranteed. <a href="https://support.google.com/googleplay/answer/2812853" target="_blank" rel="noopener noreferrer" class="gt-focus font-bold underline underline-offset-2">Google's Play Protect instructions</a>.</p>
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">
         <h2 class="text-xl font-extrabold">Need help?</h2>
-        <p class="mt-2 text-sm leading-7 text-slate-600">If the download link is missing or installation is blocked, <a href="{{ route('contact') }}" class="gt-focus font-bold text-[#08745D] underline underline-offset-2">contact the GastoTrack team</a> for the current tester build and assistance.</p>
+        <p class="mt-2 text-sm leading-7 text-slate-600">If the download link is missing or installation is still blocked, <a href="{{ route('contact') }}" class="gt-focus font-bold text-[#08745D] underline underline-offset-2">contact the GastoTrack team</a> for assistance.</p>
     </section>
 </x-layouts.public-info>
