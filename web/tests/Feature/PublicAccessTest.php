@@ -26,6 +26,8 @@ class PublicAccessTest extends TestCase
             ->assertOk()
             ->assertSee('Download APK')
             ->assertSee('https://downloads.example.test/gastotrack.apk')
+            ->assertSee('QR code for the GastoTrack Staff APK download')
+            ->assertSee('data:image/svg+xml;base64,')
             ->assertDontSee('The APK download link is not available here yet.');
     }
 
@@ -37,6 +39,7 @@ class PublicAccessTest extends TestCase
             ->assertOk()
             ->assertSee('The APK download link is not available here yet.')
             ->assertSee('Install on your phone')
+            ->assertDontSee('data:image/svg+xml;base64,')
             ->assertSee('Blocked by Google Play Protect?')
             ->assertSee('Turning Play Protect back on can trigger another warning')
             ->assertSee('Keep Play Protect enabled')

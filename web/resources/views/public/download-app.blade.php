@@ -2,15 +2,31 @@
     $apkDownloadUrl = trim((string) config('services.gastotrack.android_apk_url'));
     $hasApkDownload = filter_var($apkDownloadUrl, FILTER_VALIDATE_URL)
         && parse_url($apkDownloadUrl, PHP_URL_SCHEME) === 'https';
+    $apkQrDataUri = null;
+    if ($hasApkDownload) {
+        $qrWriter = new \BaconQrCode\Writer(new \BaconQrCode\Renderer\ImageRenderer(
+            new \BaconQrCode\Renderer\RendererStyle\RendererStyle(240, 4),
+            new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+        ));
+        $apkQrDataUri = 'data:image/svg+xml;base64,'.base64_encode($qrWriter->writeString($apkDownloadUrl));
+    }
 @endphp
 <x-layouts.public-info title="Download GastoTrack Staff" intro="Follow these steps to install the staff Android app for the GastoTrack demonstration." description="Download and install the GastoTrack Staff Android APK.">
     <section>
         <h2 class="text-xl font-extrabold">Get the APK</h2>
         @if($hasApkDownload)
-            <p class="mt-2 text-sm leading-7 text-slate-600">Open this page on your Android phone, then tap the button below to download the tester APK.</p>
-            <a href="{{ $apkDownloadUrl }}" class="gt-focus mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#08745D] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#065A49]">
-                Download APK <span aria-hidden="true">&#8595;</span>
-            </a>
+            <div class="mt-4 flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+                <div class="max-w-sm">
+                    <p class="text-sm leading-7 text-slate-600">Open this page on your Android phone and tap the button, or scan the QR code with your phone's camera to open the same download link.</p>
+                    <a href="{{ $apkDownloadUrl }}" class="gt-focus mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#08745D] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#065A49]">
+                        Download APK <span aria-hidden="true">&#8595;</span>
+                    </a>
+                </div>
+                <figure class="rounded-2xl border border-[#DDE9E5] bg-white p-3 text-center shadow-sm">
+                    <img src="{{ $apkQrDataUri }}" alt="QR code for the GastoTrack Staff APK download" width="240" height="240" class="h-48 w-48 sm:h-52 sm:w-52">
+                    <figcaption class="mt-2 text-xs font-semibold text-slate-600">Scan to download</figcaption>
+                </figure>
+            </div>
         @else
             <p class="mt-2 text-sm leading-7 text-slate-600">The APK download link is not available here yet. Ask the GastoTrack team for the current EAS tester build link. The button will appear here when a direct download is published.</p>
             <a href="{{ route('contact') }}" class="gt-focus mt-5 inline-flex min-h-12 items-center justify-center rounded-xl border border-[#B7DAD0] px-5 py-3 text-sm font-extrabold text-[#08745D] transition hover:bg-[#EAF8F2]">Contact the team</a>
