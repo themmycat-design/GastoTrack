@@ -33,7 +33,7 @@
             <li><span class="font-extrabold text-[#08745D]">2.</span> If the team provides a Google Play internal testing invitation, open its opt-in link with the Google account added as a tester. Join the test, then install GastoTrack from its Play Store link.</li>
             <li><span class="font-extrabold text-[#08745D]">3.</span> If no Play testing link is available, wait for the team to review the blocked build and provide another approved way to install it.</li>
         </ol>
-        <p class="mt-5 rounded-xl border border-[#B7DAD0] bg-[#EAF8F2] px-4 py-3 text-sm leading-6 text-[#065A49]">Keep Play Protect enabled. The project team can review the app's permissions and request a Google review if the block is incorrect.</p>
+        <p class="mt-5 rounded-xl border border-[#B7DAD0] bg-[#EAF8F2] px-4 py-3 text-sm leading-6 text-[#065A49]">Turning Play Protect back on can trigger another warning or disable an app it flags. Keep Play Protect enabled and ask the project team for a Play testing link. The team can review the app's permissions and request a Google review if the block is incorrect.</p>
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">
         <h2 class="text-xl font-extrabold">Need help?</h2>
