@@ -9,4 +9,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::call(fn () => app(NotificationService::class)->notifyGoalDeadlines())->dailyAt('08:00');
+Schedule::call(fn () => app(NotificationService::class)->notifyGoalDeadlines())
+    ->dailyAt('08:00')
+    ->timezone(config('business.timezone'));

@@ -91,6 +91,7 @@ class AiAssistantController extends Controller
         }
         try {
             $response = Http::asJson()->withHeaders(['x-goog-api-key' => $apiKey])
+                ->retry(2, 250, fn ($exception) => $exception instanceof RequestException && $exception->response->status() === 503, false)
                 ->connectTimeout(5)
                 ->timeout(10)
                 ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
@@ -346,6 +347,7 @@ class AiAssistantController extends Controller
         try {
             $response = Http::asJson()
                 ->withHeaders(['x-goog-api-key' => $apiKey])
+                ->retry(2, 250, fn ($exception) => $exception instanceof RequestException && $exception->response->status() === 503, false)
                 ->connectTimeout(5)
                 ->timeout(12)
                 ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
@@ -369,6 +371,9 @@ class AiAssistantController extends Controller
             // status code; never expose or persist raw provider error content.
             Log::warning('Gemini provider request failed.', ['status' => $response->status()]);
             if ($response->status() === 429) {
+                abort(503, 'The AI service is busy. Please wait a moment and try again.');
+            }
+            if ($response->status() === 503) {
                 abort(503, 'The AI service is busy. Please wait a moment and try again.');
             }
             if ($response->status() === 404) {

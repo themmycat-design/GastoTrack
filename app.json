@@ -1,4 +1,9 @@
 {
   "name": "GastoTrack",
-  "displayName": "GastoTrack"
+  "displayName": "GastoTrack",
+  "extra": {
+    "eas": {
+      "projectId": "025102ea-ec6d-47ce-b545-9ece7f42030c"
+    }
+  }
 }

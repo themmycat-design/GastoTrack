@@ -360,6 +360,45 @@ class AiAssistantTest extends TestCase
             ->assertDontSee('server-only-test-credential');
     }
 
+    public function test_chat_retries_once_after_gemini_is_temporarily_unavailable(): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(['error' => ['message' => 'Temporarily unavailable']], 503)
+                ->push(['candidates' => [['content' => ['parts' => [['text' => json_encode([
+                    'in_scope' => true, 'answer' => 'Your shop records are available.',
+                ])]]]]]], 200),
+        ]);
+        $business = Business::create(['name' => 'Retry Cafe', 'status' => 'active', 'active' => true]);
+        Sanctum::actingAs(User::factory()->staff()->create(['business_id' => $business->id]));
+
+        $this->postJson('/api/v1/ai/chat', [
+            'messages' => [['role' => 'user', 'text' => 'What shop records are available?']],
+        ])->assertOk()->assertJsonPath('reply', 'Your shop records are available.');
+
+        Http::assertSentCount(2);
+    }
+
+    public function test_chat_reports_gemini_503_without_exposing_provider_details(): void
+    {
+        config(['services.gemini.key' => 'server-only-test-credential']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'error' => ['message' => 'provider-internal-secret-detail'],
+        ], 503)]);
+        $business = Business::create(['name' => 'Retry Cafe', 'status' => 'active', 'active' => true]);
+        Sanctum::actingAs(User::factory()->staff()->create(['business_id' => $business->id]));
+
+        $this->postJson('/api/v1/ai/chat', [
+            'messages' => [['role' => 'user', 'text' => 'Summarize today.']],
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'The AI service is busy. Please wait a moment and try again.')
+            ->assertDontSee('provider-internal-secret-detail')
+            ->assertDontSee('server-only-test-credential');
+
+        Http::assertSentCount(2);
+    }
+
     public function test_unavailable_provider_model_returns_safe_configuration_guidance(): void
     {
         config(['services.gemini.key' => 'server-only-test-credential']);
