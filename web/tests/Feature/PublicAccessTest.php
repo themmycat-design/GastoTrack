@@ -41,7 +41,9 @@ class PublicAccessTest extends TestCase
             ->assertSee('Install on your phone')
             ->assertDontSee('data:image/svg+xml;base64,')
             ->assertSee('Blocked by Google Play Protect?')
-            ->assertSee('Turning Play Protect back on can trigger another warning')
+            ->assertSee('notification access to detect GCash and Maya')
+            ->assertSee('downloaded through a browser can be blocked')
+            ->assertSee('Request the Play testing link')
             ->assertSee('Keep Play Protect enabled')
             ->assertSee(route('contact'));
     }

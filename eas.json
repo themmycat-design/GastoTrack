@@ -11,6 +11,14 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "play-test": {
+      "distribution": "store",
+      "environment": "production",
+      "credentialsSource": "remote",
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   }
 }

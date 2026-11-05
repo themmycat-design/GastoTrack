@@ -130,7 +130,17 @@ The earlier GitHub Actions/Firebase App Distribution workflow remains in `.githu
 
 The landing page's **Download APK** button opens a public installation guide. Until a public APK URL is configured, the guide tells testers how to request the current EAS build link. You can also share an EAS build link directly.
 
-The guide includes steps for testers whose phone blocks a sideloaded APK through Google Play Protect. Keep Play Protect enabled; a blocked tester should contact the project team and use a Google Play internal testing invitation if one is available. The team should review the app's permissions and appeal an incorrect block rather than asking testers to disable protection.
+The guide explains a likely cause of the Play Protect block: this browser-downloaded APK declares a notification listener for GCash and Maya. Google [documents this warning for Internet-sideloaded apps requesting notification listener access](https://developers.google.com/android/play-protect/warning-dev-guidance). Changing the browser's install permission or the APK download URL will not resolve it. Keep Play Protect enabled. Review whether every requested permission is needed, and [request a Google review](https://support.google.com/googleplay/android-developer/answer/2992033) if the classification is incorrect.
+
+### Distribute to blocked testers through Google Play
+
+The `play-test` EAS profile builds an Android App Bundle (`.aab`) using the same remote signing credentials as the APK profile. First, ensure the EAS production `MOBILE_API_URL` points to the hosted HTTPS API and increment `ANDROID_VERSION_CODE`. Then build from the repository root:
+
+```powershell
+npx.cmd eas-cli@latest build --platform android --profile play-test
+```
+
+In Google Play Console, create the `com.gastotrack` app, open **Testing > Internal testing**, add tester Google accounts, and upload the `.aab` from EAS. When Google makes the test available, share its opt-in link and Play Store install link with testers. Follow [Google's internal testing setup](https://support.google.com/googleplay/android-developer/answer/9845334). The `.aab` is for Play Console; keep using the `demo` profile when an APK file is needed. A Play release requires Google Play Console access and review; building an AAB alone does not guarantee approval or remove an existing Play Protect warning.
 
 To show a direct **Download APK** button and matching scan-to-download QR code on the guide, place a signed release APK on a public HTTPS file host that you control, then set `GASTOTRACK_APK_DOWNLOAD_URL` in `web/.env` on the web host to that exact APK URL. Reload Laravel configuration if it is cached (`php artisan config:cache`). The guide displays the button and QR code only for a valid HTTPS URL; setting the variable does not upload or publish the APK. Replace the URL when you release a newer build.
 
