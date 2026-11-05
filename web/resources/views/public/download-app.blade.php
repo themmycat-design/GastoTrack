@@ -20,10 +20,20 @@
         <h2 class="text-xl font-extrabold">Install on your phone</h2>
         <ol class="mt-4 space-y-4 text-sm leading-7 text-slate-600">
             <li><span class="font-extrabold text-[#08745D]">1.</span> Open the downloaded APK from your phone's Downloads folder.</li>
-            <li><span class="font-extrabold text-[#08745D]">2.</span> Follow Android's installation prompts. If Android asks, allow installation from the browser or file manager you used for this download.</li>
+            <li><span class="font-extrabold text-[#08745D]">2.</span> Follow Android's installation prompts. Android may ask to allow installs from the browser or file manager you used. A Play Protect block is different; follow the steps below if that appears.</li>
             <li><span class="font-extrabold text-[#08745D]">3.</span> Open GastoTrack and sign in with the staff account created by your business owner.</li>
         </ol>
         <p class="mt-5 rounded-xl border border-[#DDE9E5] bg-[#F4F8F7] px-4 py-3 text-sm leading-6 text-slate-600">If GastoTrack is already installed, install the new APK as an update. Sync any unsent offline records before uninstalling an older copy of the app.</p>
+    </section>
+    <section class="border-t border-[#DDE9E5] pt-7" aria-labelledby="play-protect-help">
+        <h2 id="play-protect-help" class="text-xl font-extrabold">Blocked by Google Play Protect?</h2>
+        <p class="mt-2 text-sm leading-7 text-slate-600">If your phone says <strong>“App blocked to protect your device”</strong>, stop the APK installation. Changing the browser's install permission will not resolve this warning.</p>
+        <ol class="mt-4 space-y-4 text-sm leading-7 text-slate-600">
+            <li><span class="font-extrabold text-[#08745D]">1.</span> Take a screenshot of the warning and <a href="{{ route('contact') }}" class="gt-focus font-bold text-[#08745D] underline underline-offset-2">contact the GastoTrack team</a>. Include your phone model and Android version; do not send passwords or payment details.</li>
+            <li><span class="font-extrabold text-[#08745D]">2.</span> If the team provides a Google Play internal testing invitation, open its opt-in link with the Google account added as a tester. Join the test, then install GastoTrack from its Play Store link.</li>
+            <li><span class="font-extrabold text-[#08745D]">3.</span> If no Play testing link is available, wait for the team to review the blocked build and provide another approved way to install it.</li>
+        </ol>
+        <p class="mt-5 rounded-xl border border-[#B7DAD0] bg-[#EAF8F2] px-4 py-3 text-sm leading-6 text-[#065A49]">Keep Play Protect enabled. The project team can review the app's permissions and request a Google review if the block is incorrect.</p>
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">
         <h2 class="text-xl font-extrabold">Need help?</h2>

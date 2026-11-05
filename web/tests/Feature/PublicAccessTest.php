@@ -37,6 +37,8 @@ class PublicAccessTest extends TestCase
             ->assertOk()
             ->assertSee('The APK download link is not available here yet.')
             ->assertSee('Install on your phone')
+            ->assertSee('Blocked by Google Play Protect?')
+            ->assertSee('Keep Play Protect enabled.')
             ->assertSee(route('contact'));
     }
 
