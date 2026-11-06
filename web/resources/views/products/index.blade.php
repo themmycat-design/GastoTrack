@@ -153,7 +153,22 @@
                     <div class="mb-4 rounded-xl bg-[#F7FAF9] px-3.5 py-3">
                         <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Recipe ingredients</p>
                         @forelse($product->productIngredients as $ingredient)
-                            <p class="mt-1 text-sm text-[#173F39]">{{ $ingredient->stockItem?->name ?? 'Stock item' }} <span class="text-slate-500">· {{ number_format((float) $ingredient->quantity, 2) }} {{ $ingredient->stockItem?->unit ?? '' }}</span></p>
+                            @php
+                                $recipeUnit = $ingredient->stockItem?->unit ?? '';
+                                $recipeQuantity = (float) $ingredient->quantity;
+                                if ($recipeQuantity > 0 && $recipeQuantity < 1) {
+                                    $smallerUnit = match (strtolower(trim($recipeUnit))) {
+                                        'l', 'liter', 'liters', 'litre', 'litres' => 'ml',
+                                        'kg', 'kilogram', 'kilograms' => 'g',
+                                        default => null,
+                                    };
+                                    if ($smallerUnit) {
+                                        $recipeQuantity *= 1000;
+                                        $recipeUnit = $smallerUnit;
+                                    }
+                                }
+                            @endphp
+                            <p class="mt-1 text-sm text-[#173F39]">{{ $ingredient->stockItem?->name ?? 'Stock item' }} <span class="text-slate-500">· {{ rtrim(rtrim(number_format($recipeQuantity, 4, '.', ''), '0'), '.') }} {{ $recipeUnit }} per product</span></p>
                         @empty
                             <p class="mt-1 text-sm text-slate-500">No recipe ingredients configured.</p>
                         @endforelse
@@ -297,21 +312,26 @@
                     <div class="sm:col-span-2">
                         <div class="mb-3">
                             <label class="gt-label mb-1">Recipe ingredients</label>
-                            <p class="text-xs leading-5 text-slate-500">Choose the stock used for one product and enter its quantity. This recipe drives automatic stock deduction.</p>
+                            <p class="text-xs leading-5 text-slate-500">Choose each ingredient and the amount used by one product. Selling two products deducts twice each amount. For example, choose 10 ml of water and 10 g of sugar per drink.</p>
                         </div>
                         <input type="hidden" name="replace_ingredients" value="1">
                         @if($stockItems->isEmpty())
-                            <p class="rounded-xl bg-[#F7FAF9] px-4 py-3 text-sm text-slate-500">No active stock items yet. Add stock in Inventory to configure a recipe.</p>
+                            <p class="rounded-xl bg-[#F7FAF9] px-4 py-3 text-sm text-slate-500">No stock items yet. <a href="{{ route('stock.index') }}" class="font-bold text-[#08745D] underline">Add ingredients in Inventory</a>, then return to set this recipe.</p>
                         @else
                             <div class="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-[#DDE9E5] p-3">
                                 @foreach($stockItems as $stockItem)
-                                    <div class="recipe-row flex flex-wrap items-center gap-3 rounded-lg bg-[#F8FCFA] px-3 py-2.5" data-stock-id="{{ $stockItem->id }}">
+                                    <div class="recipe-row flex flex-wrap items-center gap-3 rounded-lg bg-[#F8FCFA] px-3 py-2.5" data-stock-id="{{ $stockItem->id }}" data-stock-unit="{{ $stockItem->unit }}">
                                         <input type="checkbox" class="recipe-checkbox h-4 w-4 accent-[#08745D]" aria-label="Use {{ $stockItem->name }} in recipe">
                                         <span class="min-w-0 flex-1 text-sm font-semibold text-[#173F39]">{{ $stockItem->name }} <span class="font-normal text-slate-500">({{ $stockItem->unit }})</span> @unless($stockItem->active)<span class="text-xs font-semibold text-amber-700">Inactive</span>@endunless</span>
                                         <input type="hidden" class="recipe-stock-id" name="ingredients[{{ $stockItem->id }}][stock_id]" value="{{ $stockItem->id }}" disabled>
                                         <label class="flex items-center gap-2 text-xs text-slate-500">Per product
-                                            <input type="number" class="recipe-quantity gt-field w-24 !px-2 !py-1.5" name="ingredients[{{ $stockItem->id }}][quantity]" min="0.0001" step="0.01" placeholder="0" disabled>
+                                            <input type="number" class="recipe-quantity gt-field w-24 !px-2 !py-1.5" name="ingredients[{{ $stockItem->id }}][quantity]" min="0.0001" step="any" placeholder="0" disabled>
                                         </label>
+                                        <select class="recipe-unit gt-field w-24 !px-2 !py-1.5 text-sm" name="ingredients[{{ $stockItem->id }}][unit]" aria-label="Unit for {{ $stockItem->name }}" disabled>
+                                            <option value="{{ $stockItem->unit }}">{{ $stockItem->unit }}</option>
+                                            @if(in_array(strtolower(trim($stockItem->unit)), ['l', 'liter', 'liters', 'litre', 'litres'], true))<option value="ml">ml</option>@endif
+                                            @if(in_array(strtolower(trim($stockItem->unit)), ['kg', 'kilogram', 'kilograms'], true))<option value="g">g</option>@endif
+                                        </select>
                                     </div>
                                 @endforeach
                             </div>
@@ -373,10 +393,20 @@
                 const checkbox = row.querySelector('.recipe-checkbox');
                 const stockId = row.querySelector('.recipe-stock-id');
                 const quantity = row.querySelector('.recipe-quantity');
+                const unit = row.querySelector('.recipe-unit');
                 checkbox.checked = isSelected;
                 stockId.disabled = !isSelected;
                 quantity.disabled = !isSelected;
-                quantity.value = isSelected ? selected.get(row.dataset.stockId) : '';
+                unit.disabled = !isSelected;
+                const stockQuantity = Number(selected.get(row.dataset.stockId));
+                const smallerUnit = unit.options.length > 1 ? unit.options[1].value : null;
+                if (isSelected && smallerUnit && stockQuantity > 0 && stockQuantity < 1) {
+                    unit.value = smallerUnit;
+                    quantity.value = String(Number((stockQuantity * 1000).toFixed(4)));
+                } else {
+                    unit.value = row.dataset.stockUnit;
+                    quantity.value = isSelected ? selected.get(row.dataset.stockId) : '';
+                }
             });
         }
 
@@ -384,12 +414,35 @@
             const checkbox = row.querySelector('.recipe-checkbox');
             const stockId = row.querySelector('.recipe-stock-id');
             const quantity = row.querySelector('.recipe-quantity');
+            const unit = row.querySelector('.recipe-unit');
+            quantity.addEventListener('input', () => quantity.setCustomValidity(''));
+            unit.addEventListener('change', () => { quantity.value = ''; quantity.setCustomValidity(''); quantity.focus(); });
             checkbox.addEventListener('change', () => {
                 stockId.disabled = !checkbox.checked;
                 quantity.disabled = !checkbox.checked;
+                unit.disabled = !checkbox.checked;
                 if (checkbox.checked && !quantity.value) quantity.focus();
                 if (!checkbox.checked) quantity.value = '';
             });
+        });
+
+        document.getElementById('productForm').addEventListener('submit', event => {
+            for (const row of document.querySelectorAll('.recipe-row')) {
+                if (!row.querySelector('.recipe-checkbox').checked) continue;
+                const quantity = row.querySelector('.recipe-quantity');
+                const unit = row.querySelector('.recipe-unit');
+                const entered = Number(quantity.value);
+                const normalized = unit.value === row.dataset.stockUnit ? entered : entered / 1000;
+                const rounded = Number(normalized.toFixed(4));
+                if (!Number.isFinite(normalized) || normalized <= 0 || normalized > 99999999.9999 ||
+                    Math.abs(normalized - rounded) >= 0.0000001 || rounded < 0.0001) {
+                    event.preventDefault();
+                    quantity.setCustomValidity('Enter an amount that is at least 0.0001 of the stock unit and uses at most four decimal places.');
+                    quantity.reportValidity();
+                    return;
+                }
+                quantity.setCustomValidity('');
+            }
         });
 
         function openAddModal() {

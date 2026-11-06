@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductIngredient;
+use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -28,10 +29,10 @@ class ProductController extends Controller
     }
 
     // POST /api/products
-    public function store(Request $request)
+    public function store(Request $request, RecipeIngredientNormalizer $normalizer)
     {
         $this->ensureCanManageProducts($request);
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'category' => 'required|string',
             'price' => 'required|numeric|min:0',
@@ -42,11 +43,14 @@ class ProductController extends Controller
             'ingredients' => 'nullable|array',
             'ingredients.*.stock_id' => ['required', Rule::exists('stock_items', 'id')->where('business_id', $request->user()->business_id)],
             'ingredients.*.quantity' => 'required|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
+            'ingredients.*.unit' => 'sometimes|string|max:20',
         ]);
+
+        $ingredients = $normalizer->normalize($validated['ingredients'] ?? [], (int) $request->user()->business_id);
 
         $imagePath = $this->storePhoto($request);
         try {
-            return DB::transaction(function () use ($request, $imagePath) {
+            return DB::transaction(function () use ($request, $imagePath, $ingredients) {
                 $product = Product::create([
                     'business_id' => $request->user()->business_id,
                     'name' => $request->name,
@@ -59,8 +63,8 @@ class ProductController extends Controller
                 ]);
 
                 // Save ingredients
-                if ($request->has('ingredients')) {
-                    foreach ($request->ingredients as $ingredient) {
+                if ($ingredients) {
+                    foreach ($ingredients as $ingredient) {
                         ProductIngredient::create([
                             'product_id' => $product->id,
                             'stock_item_id' => $ingredient['stock_id'],
@@ -93,10 +97,10 @@ class ProductController extends Controller
     }
 
     // PUT /api/products/{id}
-    public function update(Request $request, $id)
+    public function update(Request $request, $id, RecipeIngredientNormalizer $normalizer)
     {
         $this->ensureCanManageProducts($request);
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'sometimes|string|max:255', 'category' => 'sometimes|string|max:100',
             'price' => 'sometimes|numeric|min:0', 'description' => 'nullable|string|max:1000',
             'emoji' => 'nullable|string|max:10', 'is_available' => 'sometimes|boolean',
@@ -105,14 +109,16 @@ class ProductController extends Controller
             'replace_ingredients' => 'sometimes|boolean',
             'ingredients.*.stock_id' => ['required', Rule::exists('stock_items', 'id')->where('business_id', $request->user()->business_id)],
             'ingredients.*.quantity' => 'required|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
+            'ingredients.*.unit' => 'sometimes|string|max:20',
         ]);
+        $ingredients = $normalizer->normalize($validated['ingredients'] ?? [], (int) $request->user()->business_id);
         $product = Product::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
         $imagePath = $this->storePhoto($request);
         $oldImage = $product->image;
         try {
-            DB::transaction(function () use ($request, $product, $imagePath) {
+            DB::transaction(function () use ($request, $product, $imagePath, $ingredients) {
                 $product->update($request->only([
                     'name', 'category', 'price', 'description',
                     'emoji', 'is_available', 'display_order',
@@ -125,7 +131,7 @@ class ProductController extends Controller
                 // Update ingredients if provided
                 if ($request->has('ingredients') || $request->boolean('replace_ingredients')) {
                     $product->productIngredients()->delete();
-                    foreach ($request->input('ingredients', []) as $ingredient) {
+                    foreach ($ingredients as $ingredient) {
                         ProductIngredient::create([
                             'product_id' => $product->id,
                             'stock_item_id' => $ingredient['stock_id'],

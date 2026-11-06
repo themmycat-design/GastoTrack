@@ -202,6 +202,37 @@ class OwnerProductsTest extends TestCase
             ->assertSessionHasErrors('ingredients.0.stock_id');
     }
 
+    public function test_owner_recipe_converts_milliliters_to_liters_and_rejects_wrong_units(): void
+    {
+        $business = $this->business('Unit Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $water = StockItem::create([
+            'business_id' => $business->id, 'name' => 'Water', 'unit' => 'L',
+            'current_quantity' => 1, 'minimum_quantity' => 0, 'unit_cost' => 10, 'active' => true,
+        ]);
+        $product = [
+            'name' => 'Mountain Dew', 'category' => 'Drinks', 'price' => 85,
+            'ingredients' => [['stock_id' => $water->id, 'quantity' => 10, 'unit' => 'ml']],
+        ];
+
+        $this->actingAs($owner)->post(route('products.store'), $product)
+            ->assertRedirect(route('products.index'));
+        $this->assertDatabaseHas('product_ingredients', [
+            'stock_item_id' => $water->id, 'quantity' => 0.01,
+        ]);
+
+        $this->actingAs($owner)->put(route('stock.update', $water), [
+            'name' => 'Water', 'unit' => 'ml', 'minimum_quantity' => 0,
+            'unit_cost' => 10, 'active' => 1,
+        ])->assertSessionHasErrors('unit');
+        $this->assertSame('L', $water->fresh()->unit);
+
+        $product['ingredients'][0]['unit'] = 'g';
+        $this->actingAs($owner)->post(route('products.store'), $product)
+            ->assertSessionHasErrors('ingredients.0.unit');
+        $this->assertDatabaseCount('products', 1);
+    }
+
     private function business(string $name): Business
     {
         return Business::create(['name' => $name, 'status' => 'active', 'active' => true]);

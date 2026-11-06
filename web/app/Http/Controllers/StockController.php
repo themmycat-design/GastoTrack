@@ -153,6 +153,11 @@ class StockController extends Controller
             'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
+        if ($validated['unit'] !== $stock->unit && $stock->ingredients()->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'unit' => 'This stock item is used in a product recipe. Keep its unit so existing recipe quantities stay correct.',
+            ]);
+        }
         
         $stock->update([
             'name' => $validated['name'],

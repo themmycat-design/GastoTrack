@@ -19,6 +19,7 @@ import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
 import {needsStockAlternativeCheck} from '../../utils/stockAlternatives';
 import {createIdempotencyKey} from '../../config/orderIdempotency';
+import {recipeQuantityForDisplay, recipeUnitOptions, toStockQuantity} from '../../utils/recipeUnits';
 
 const emptyProductForm = {
   name: '', category: 'Coffee', price: '', emoji: '☕', description: '',
@@ -38,9 +39,15 @@ const productToForm = product => ({
   imageAsset: null,
   ingredients: (product.ingredients || []).map(ingredient => ({
     stockId: Number(ingredient.stockId),
-    quantity: String(ingredient.quantity ?? ''),
+    stockUnit: ingredient.unit,
+    ...recipeQuantityForDisplay(ingredient.quantity, ingredient.unit),
   })),
 });
+
+const ingredientAmountLabel = ingredient => {
+  const {quantity, unit} = recipeQuantityForDisplay(ingredient.quantity, ingredient.unit);
+  return `${quantity} ${unit || ''}`.trim();
+};
 
 const StockScreen = () => {
   const {
@@ -267,7 +274,7 @@ const StockScreen = () => {
         ...current,
         ingredients: selected
           ? current.ingredients.filter(item => item.stockId !== stockId)
-          : [...current.ingredients, {stockId, quantity: '1'}],
+          : [...current.ingredients, {stockId, quantity: '1', unit: stockItems.find(item => Number(item.id) === stockId)?.unit}],
       };
     });
   };
@@ -276,6 +283,13 @@ const StockScreen = () => {
     setProductForm(current => ({
       ...current,
       ingredients: current.ingredients.map(item => item.stockId === stockId ? {...item, quantity} : item),
+    }));
+  };
+
+  const setIngredientUnit = (stockId, unit) => {
+    setProductForm(current => ({
+      ...current,
+      ingredients: current.ingredients.map(item => item.stockId === stockId ? {...item, unit, quantity: ''} : item),
     }));
   };
 
@@ -298,16 +312,24 @@ const StockScreen = () => {
       Alert.alert('Category unavailable', 'Choose a current product category before saving.');
       return;
     }
-    if (productForm.ingredients.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {
-      Alert.alert('Check recipe', 'Every selected ingredient needs a quantity greater than zero.');
+    const normalizedIngredients = productForm.ingredients.map(item => {
+      const stock = stockItems.find(candidate => Number(candidate.id) === item.stockId);
+      const stockUnit = stock?.unit || item.stockUnit;
+      return stockUnit && {
+        stockId: item.stockId,
+        quantity: toStockQuantity(item.quantity, item.unit || stockUnit, stockUnit),
+      };
+    });
+    if (normalizedIngredients.some(item => !item || item.quantity === null)) {
+      Alert.alert('Check recipe', 'Enter a valid amount for each ingredient. Use at least 0.0001 of its stock unit.');
       return;
     }
 
     setIsSavingProduct(true);
     try {
       const saved = editingProduct
-        ? await updateProduct(editingProduct.id, productForm)
-        : await createProduct(productForm);
+        ? await updateProduct(editingProduct.id, {...productForm, ingredients: normalizedIngredients})
+        : await createProduct({...productForm, ingredients: normalizedIngredients});
       setProductEditorVisible(false);
       setEditingProduct(null);
       setSelectedProduct(saved);
@@ -586,7 +608,7 @@ const StockScreen = () => {
             <Text style={styles.fieldLabel}>Recipe ingredients</Text>
             {(selectedProduct.ingredients || []).length ? selectedProduct.ingredients.map((ingredient, index) => (
               <View key={`${ingredient.stockId}-${index}`} style={styles.ingredientRow}>
-                <Text style={styles.ingredientName}>{ingredient.name || 'Stock item'}</Text><Text style={styles.ingredientQuantity}>{ingredient.quantity}</Text>
+                <Text style={styles.ingredientName}>{ingredient.name || 'Stock item'}</Text><Text style={styles.ingredientQuantity}>{ingredientAmountLabel(ingredient)} per product</Text>
               </View>
             )) : <Text style={styles.ownerNote}>No recipe ingredients configured.</Text>}
             {alternativeItems.filter(shortage => shortage.products.some(product => Number(product.id) === Number(selectedProduct.id))).map(shortage => (
@@ -664,16 +686,21 @@ const StockScreen = () => {
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>Recipe ingredients</Text>
-            <Text style={styles.recipeHint}>Choose the stock used for one order and enter its quantity.</Text>
+            <Text style={styles.recipeHint}>Choose each ingredient and the amount used by one product. Two products deduct twice this amount.</Text>
             {stockItems.length ? stockItems.map(stock => {
               const ingredient = productForm.ingredients.find(item => item.stockId === Number(stock.id));
               return (
                 <View key={stock.id} style={[styles.recipeRow, ingredient && styles.recipeRowSelected]}>
                   <TouchableOpacity style={styles.recipeSelector} onPress={() => toggleIngredient(Number(stock.id))}>
                     <Icon name={ingredient ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} color={ingredient ? COLORS.accent : COLORS.textGray} />
-                    <View style={styles.recipeNameWrap}><Text style={styles.recipeName}>{stock.name}</Text><Text style={styles.recipeUnit}>per order ({stock.unit})</Text></View>
+                    <View style={styles.recipeNameWrap}><Text style={styles.recipeName}>{stock.name}</Text><Text style={styles.recipeUnit}>Stock measured in {stock.unit}</Text></View>
                   </TouchableOpacity>
-                  {ingredient ? <TextInput style={styles.recipeQuantity} value={ingredient.quantity} onChangeText={value => setIngredientQuantity(Number(stock.id), value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} /> : null}
+                  {ingredient ? <View style={styles.recipeAmountRow}>
+                    <TextInput style={styles.recipeQuantity} value={ingredient.quantity} onChangeText={value => setIngredientQuantity(Number(stock.id), value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} accessibilityLabel={`Amount of ${stock.name} per product`} />
+                    {recipeUnitOptions(stock.unit).map(unit => <TouchableOpacity key={unit} style={[styles.recipeUnitChoice, (ingredient.unit || stock.unit) === unit && styles.recipeUnitChoiceActive]} onPress={() => setIngredientUnit(Number(stock.id), unit)} accessibilityRole="button" accessibilityLabel={`Use ${unit} for ${stock.name}`}>
+                      <Text style={[styles.recipeUnitChoiceText, (ingredient.unit || stock.unit) === unit && styles.recipeUnitChoiceTextActive]}>{unit}</Text>
+                    </TouchableOpacity>)}
+                  </View> : null}
                 </View>
               );
             }) : <Text style={styles.ownerNote}>No stock items are available for a recipe yet.</Text>}
@@ -757,7 +784,7 @@ const styles = StyleSheet.create({
   categoryOptions: {flexDirection: 'row', flexWrap: 'wrap', gap: 8}, categoryOption: {minHeight: 48, justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, categoryOptionActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, categoryOptionText: {fontSize: 12, fontWeight: '600', color: COLORS.textGray}, categoryOptionTextActive: {color: '#FFFFFF'},
   descriptionInput: {minHeight: 76, textAlignVertical: 'top'},
   availabilityRow: {marginTop: 16, padding: 13, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}, availabilityTitle: {fontSize: 14, fontWeight: '700', color: COLORS.textDark}, availabilityHint: {fontSize: 11, color: COLORS.textGray, marginTop: 3, maxWidth: 245},
-  recipeHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 9}, recipeRow: {minHeight: 52, borderRadius: 11, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, paddingHorizontal: 11, paddingVertical: 7, marginBottom: 8, flexDirection: 'row', alignItems: 'center'}, recipeRowSelected: {backgroundColor: COLORS.surfaceMuted, borderColor: COLORS.accent}, recipeSelector: {flex: 1, flexDirection: 'row', alignItems: 'center'}, recipeNameWrap: {marginLeft: 9}, recipeName: {fontSize: 13, fontWeight: '600', color: COLORS.textDark}, recipeUnit: {fontSize: 10, color: COLORS.textGray, marginTop: 2}, recipeQuantity: {width: 72, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.textDark, textAlign: 'center', paddingVertical: 7, paddingHorizontal: 6},
+  recipeHint: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginBottom: 9}, recipeRow: {minHeight: 52, borderRadius: 11, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, paddingHorizontal: 11, paddingVertical: 7, marginBottom: 8}, recipeRowSelected: {backgroundColor: COLORS.surfaceMuted, borderColor: COLORS.accent}, recipeSelector: {minHeight: 38, flexDirection: 'row', alignItems: 'center'}, recipeNameWrap: {marginLeft: 9}, recipeName: {fontSize: 13, fontWeight: '600', color: COLORS.textDark}, recipeUnit: {fontSize: 10, color: COLORS.textGray, marginTop: 2}, recipeAmountRow: {flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6, marginLeft: 31}, recipeQuantity: {width: 86, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.textDark, textAlign: 'center', paddingVertical: 7, paddingHorizontal: 6}, recipeUnitChoice: {minWidth: 38, paddingHorizontal: 8, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border}, recipeUnitChoiceActive: {borderColor: COLORS.accent, backgroundColor: COLORS.surfaceMuted}, recipeUnitChoiceText: {fontSize: 12, color: COLORS.textGray}, recipeUnitChoiceTextActive: {color: COLORS.accentDark, fontWeight: '700'},
 });
 
 export default StockScreen;

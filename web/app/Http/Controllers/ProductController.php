@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\StockItem;
+use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -72,10 +73,11 @@ class ProductController extends Controller
         ));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, RecipeIngredientNormalizer $normalizer)
     {
         $businessId = (int) $request->user()->business_id;
         $validated = $request->validate($this->productRules($businessId));
+        $validated['ingredients'] = $normalizer->normalize($validated['ingredients'] ?? [], $businessId);
         $maxOrder = Product::query()->where('business_id', $businessId)->max('display_order');
         $attributes = $this->productAttributes($validated);
         $attributes['business_id'] = $businessId;
@@ -100,10 +102,11 @@ class ProductController extends Controller
         return redirect()->route('products.index')->with('success', 'Product created successfully.');
     }
 
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $product, RecipeIngredientNormalizer $normalizer)
     {
         $this->ensureBusinessOwns($request, $product);
         $validated = $request->validate($this->productRules((int) $request->user()->business_id));
+        $validated['ingredients'] = $normalizer->normalize($validated['ingredients'] ?? [], (int) $request->user()->business_id);
         $attributes = $this->productAttributes($validated);
         $attributes['is_available'] = $validated['is_available'] ?? $product->is_available;
         $imagePath = $request->file('image')?->store('products/'.$request->user()->business_id, 'public');
@@ -176,6 +179,7 @@ class ProductController extends Controller
                     ->whereNull('deleted_at'),
             ],
             'ingredients.*.quantity' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
+            'ingredients.*.unit' => ['sometimes', 'string', 'max:20'],
         ];
     }
 

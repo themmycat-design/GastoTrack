@@ -93,6 +93,37 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->assertSame(70.0, (float) $sugar->fresh()->current_quantity);
     }
 
+    public function test_two_cash_products_deduct_twice_the_recipe_in_stock_units(): void
+    {
+        $water = StockItem::create([
+            'business_id' => $this->business->id, 'name' => 'Water', 'unit' => 'L',
+            'current_quantity' => 1, 'minimum_quantity' => 0, 'unit_cost' => 10, 'active' => true,
+        ]);
+        $sugar = StockItem::create([
+            'business_id' => $this->business->id, 'name' => 'Sugar', 'unit' => 'kg',
+            'current_quantity' => 1, 'minimum_quantity' => 0, 'unit_cost' => 40, 'active' => true,
+        ]);
+
+        $product = $this->postJson('/api/v1/products', [
+            'name' => 'Mountain Dew', 'category' => 'Drinks', 'price' => 85,
+            'ingredients' => [
+                ['stock_id' => $water->id, 'quantity' => 10, 'unit' => 'ml'],
+                ['stock_id' => $sugar->id, 'quantity' => 10, 'unit' => 'g'],
+            ],
+        ])->assertCreated()->json('product');
+
+        $this->assertDatabaseHas('product_ingredients', [
+            'product_id' => $product['id'], 'stock_item_id' => $water->id, 'quantity' => 0.01,
+        ]);
+        $this->postJson('/api/v1/orders', [
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $product['id'], 'quantity' => 2]],
+        ])->assertCreated();
+
+        $this->assertSame(0.98, (float) $water->fresh()->current_quantity);
+        $this->assertSame(0.98, (float) $sugar->fresh()->current_quantity);
+    }
+
     public function test_order_rejects_ingredient_increases_and_unknown_recipe_ingredients(): void
     {
         $payload = [

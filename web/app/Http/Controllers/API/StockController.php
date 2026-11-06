@@ -87,6 +87,11 @@ class StockController extends Controller
             'unit_cost' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'sometimes|boolean',
         ]);
+        if (isset($data['unit']) && $data['unit'] !== $item->unit && $item->ingredients()->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'unit' => 'This stock item is used in a product recipe. Keep its unit so existing recipe quantities stay correct.',
+            ]);
+        }
         $item->update($data);
         app(NotificationService::class)->notifyLowStock($item);
 
