@@ -498,6 +498,10 @@
                 closeModal();
             }
         });
+
+        @if(request()->boolean('add'))
+            openAddModal();
+        @endif
     </script>
     </main>
 </div>

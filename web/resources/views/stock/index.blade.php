@@ -25,7 +25,7 @@
                 <button type="button" onclick="openAddModal()" class="gt-focus inline-flex items-center justify-center gap-2 rounded-xl bg-[#00A87E] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#08745D]">
                     <span aria-hidden="true">+</span> Add stock item
                 </button>
-                <a href="{{ route('stock.export') }}" class="gt-focus inline-flex items-center justify-center rounded-xl border border-[#C8DED7] bg-white px-5 py-3 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]" title="Download all non-deleted stock items, including inactive items">Download CSV</a>
+                <a href="{{ route('products.index', ['add' => 1]) }}" class="gt-focus inline-flex items-center justify-center rounded-xl border border-[#C8DED7] bg-white px-5 py-3 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">Add products</a>
             </div>
         </section>
 
