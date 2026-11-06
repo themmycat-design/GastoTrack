@@ -606,7 +606,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         columnWrapperStyle={styles.productRow}
         ListEmptyComponent={productsLoading ? <ProductGridSkeleton /> : (
           <View style={styles.emptyProductsState}>
-            <Icon name="store-alert-outline" size={48} color={COLORS.textMuted} />
+            <Image source={require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyProductsMascot} resizeMode="contain" accessibilityLabel="Gasto beside an empty tray" />
             <Text style={styles.emptyProductsTitle}>
               {availableProducts.length ? 'No products in this category' : 'No products available yet'}
             </Text>
@@ -1154,6 +1154,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 28,
   },
+  emptyProductsMascot: {width: 112, height: 112},
   emptyProductsTitle: {
     fontSize: 17,
     fontWeight: '700',

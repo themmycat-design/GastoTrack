@@ -149,6 +149,7 @@
                                 </tr>
                             @empty
                                 <tr><td colspan="7" class="px-6 py-14 text-center">
+                                    <img src="{{ asset('images/gasto-empty.png') }}" alt="" width="112" height="112" loading="lazy" class="mx-auto mb-3 h-28 w-28 object-contain">
                                     <p class="text-sm font-bold text-[#0A2E2A]">No orders found</p>
                                     <p class="mt-1 text-sm text-slate-500">{{ $searchFilter !== '' || $statusFilter !== '' || $paymentStatusFilter !== '' ? 'Try clearing the filters to see more orders.' : 'Staff orders will appear here after they are placed.' }}</p>
                                 </td></tr>

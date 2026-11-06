@@ -203,7 +203,7 @@
                     <tr>
                         <td colspan="6" class="px-6 py-14 text-center text-slate-500">
                             <div class="flex flex-col items-center">
-                                <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF8F2] text-xl text-[#08745D]" aria-hidden="true">▦</span>
+                                <img src="{{ asset('images/gasto-low-stock.png') }}" alt="" width="112" height="112" loading="lazy" class="h-28 w-28 object-contain">
                                 <p class="mt-3 text-sm font-bold text-[#0A2E2A]">No stock items found</p>
                                 <p class="mt-1 text-sm">{{ request()->hasAny(['search', 'stock_status', 'low_stock', 'active']) ? 'Try clearing the filters to see more items.' : 'Add your first stock item to start tracking inventory.' }}</p>
                             </div>
