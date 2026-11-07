@@ -739,6 +739,17 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
     text-wrap: balance;
 }
 
+@media (min-width: 1024px) {
+    .gt-welcome-hero .gt-welcome-title {
+        max-width: 11ch;
+        font-size: clamp(3.5rem, 4.25vw, 5.75rem);
+    }
+}
+
+.gt-welcome-illustration img {
+    filter: drop-shadow(0 28px 48px rgba(0, 8, 6, .23));
+}
+
 .gt-welcome-scroll {
     scroll-behavior: smooth;
 }

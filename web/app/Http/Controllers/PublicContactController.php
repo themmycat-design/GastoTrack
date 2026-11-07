@@ -39,6 +39,8 @@ class PublicContactController extends Controller
             return back()->withInput()->with('contact_error', 'We could not send your message. Please try again or use the email address below.');
         }
 
-        return redirect()->route('contact')->with('contact_sent', 'Your message was sent. Thank you for contacting GastoTrack.');
+        $destination = $request->input('source') === 'landing' ? url('/').'#contact' : route('contact');
+
+        return redirect()->to($destination)->with('contact_sent', 'Your message was sent. Thank you for contacting GastoTrack.');
     }
 }

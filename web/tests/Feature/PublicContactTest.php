@@ -8,6 +8,28 @@ use Tests\TestCase;
 
 class PublicContactTest extends TestCase
 {
+    public function test_landing_page_contains_the_contact_form(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('id="contact"', false)
+            ->assertSee('name="message"', false)
+            ->assertSee('Send message');
+    }
+
+    public function test_landing_contact_message_returns_to_the_landing_section(): void
+    {
+        Mail::fake();
+        config()->set('mail.default', 'smtp');
+        config()->set('services.gastotrack.contact_email', 'team@example.test');
+
+        $this->post(route('contact.send'), array_merge($this->validMessage(), ['source' => 'landing']))
+            ->assertRedirect(url('/').'#contact')
+            ->assertSessionHas('contact_sent');
+
+        Mail::assertSent(PublicContactMessage::class, 1);
+    }
+
     private function validMessage(): array
     {
         return [

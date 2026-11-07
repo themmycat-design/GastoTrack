@@ -25,7 +25,7 @@
                 <a href="#workflow" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">How it works</a>
                 <a href="#get-started" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Get started</a>
                 <a href="#download" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Download app</a>
-                <a href="{{ route('contact') }}" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Contact</a>
+                <a href="#contact" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Contact</a>
             </div>
 
             <div class="flex items-center gap-2 sm:gap-3">
@@ -52,7 +52,7 @@
             <a href="#workflow" class="gt-focus shrink-0 hover:text-[#72E6C4]">How it works</a>
             <a href="#get-started" class="gt-focus shrink-0 hover:text-[#72E6C4]">Get started</a>
             <a href="#download" class="gt-focus shrink-0 hover:text-[#72E6C4]">Download app</a>
-            <a href="{{ route('contact') }}" class="gt-focus shrink-0 hover:text-[#72E6C4]">Contact</a>
+            <a href="#contact" class="gt-focus shrink-0 hover:text-[#72E6C4]">Contact</a>
         </nav>
     </header>
 
@@ -69,16 +69,17 @@
                     <span></span>
                 @endfor
             </div>
-            <div class="gt-welcome-frame relative z-10 flex min-h-[620px] flex-col items-center justify-center py-20 text-center sm:min-h-[720px] sm:py-28">
+            <div class="gt-welcome-frame relative z-10 grid min-h-[620px] items-center gap-x-12 gap-y-12 py-16 lg:min-h-[720px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-16 lg:py-24">
+                <div class="min-w-0 text-center lg:text-left">
                 <div class="gt-enter inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold tracking-wide text-[#9BE9D0]">
                     <span class="h-2 w-2 rounded-full bg-[#00C897]"></span>
                     A clearer view of your shop
                 </div>
-                <h1 class="gt-welcome-title gt-enter gt-enter-1 mx-auto mt-8 text-white">
+                <h1 class="gt-welcome-title gt-enter gt-enter-1 mx-auto mt-8 text-white lg:mx-0">
                     Turn everyday records into <em class="not-italic text-[#65DDB6]">business clarity.</em>
                 </h1>
-                <p class="gt-enter gt-enter-2 mx-auto mt-7 max-w-2xl text-base leading-7 text-white/65 sm:text-lg sm:leading-8">Bring sales, expenses, inventory, and staff activity together in one practical workspace for your food and beverage shop.</p>
-                <div class="gt-enter gt-enter-3 mt-10 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
+                <p class="gt-enter gt-enter-2 mx-auto mt-7 max-w-2xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8 lg:mx-0">Bring sales, expenses, inventory, and staff activity together in one practical workspace for your food and beverage shop.</p>
+                <div class="gt-enter gt-enter-3 mt-10 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
                     @guest
                         <a href="{{ route('register') }}" class="gt-focus inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#00C897] px-7 py-3.5 text-sm font-extrabold text-[#062C24] transition hover:-translate-y-0.5 hover:bg-[#65DDB6] sm:w-auto">Create owner workspace <span aria-hidden="true">&#8594;</span></a>
                         <a href="{{ route('login') }}" class="gt-focus inline-flex w-full items-center justify-center rounded-xl border border-white/25 px-7 py-3.5 text-sm font-bold text-white transition hover:bg-white/10 sm:w-auto">Sign in</a>
@@ -92,13 +93,17 @@
                         @endif
                     @endauth
                 </div>
-                <div class="gt-enter gt-enter-4 mt-16 grid w-full max-w-4xl grid-cols-2 gap-0 border-t border-white/15 text-xs font-medium text-white/60 sm:mt-24 sm:grid-cols-3 sm:text-sm">
+                <div class="gt-enter gt-enter-4 mt-12 grid w-full max-w-4xl grid-cols-2 gap-0 border-t border-white/15 text-xs font-medium text-white/60 sm:grid-cols-3 sm:text-sm lg:mt-16">
                     <span class="border-b border-white/15 py-4">Sales &amp; expenses</span>
                     <span class="border-b border-l border-white/15 py-4">Inventory visibility</span>
                     <span class="border-b border-white/15 py-4 sm:border-l">Staff operations</span>
                     <span class="border-b border-l border-white/15 py-4 sm:border-b-0 sm:border-l-0">E-wallet review</span>
                     <span class="border-b border-white/15 py-4 sm:border-b-0 sm:border-l">Receipt scanning</span>
                     <span class="border-b border-l border-white/15 py-4 sm:border-b-0">Business insights</span>
+                </div>
+                </div>
+                <div class="gt-enter gt-enter-2 gt-welcome-illustration mx-auto w-full max-w-[640px]" aria-hidden="true">
+                    <img src="{{ asset('images/gastotrack-hero.svg') }}" alt="" width="640" height="560" class="h-auto w-full" decoding="async">
                 </div>
             </div>
         </section>
@@ -227,18 +232,25 @@
                 </div>
             </div>
         </section>
+        <section id="contact" class="scroll-mt-24 border-t border-[#DDE9E5] bg-[#F4F8F7] py-16 sm:py-20 lg:py-24" aria-labelledby="contact-title">
+            <div class="gt-welcome-frame grid items-start gap-10 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)] lg:gap-20">
+                <div class="gt-scroll-reveal max-w-xl">
+                    <p class="text-xs font-extrabold uppercase tracking-[.18em] text-[#008F70]">Questions and support</p>
+                    <h2 id="contact-title" class="mt-4 text-4xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-5xl">Contact the GastoTrack team.</h2>
+                    <p class="mt-5 text-base leading-8 text-slate-600">Ask about the project or your account. Fill out the form and your message will be emailed to the team.</p>
+                    <p class="mt-5 text-sm leading-6 text-slate-500">Please leave out passwords, payment codes, and private transaction details.</p>
+                </div>
+                <div class="gt-scroll-reveal rounded-2xl border border-[#DDE9E5] bg-white p-6 shadow-[0_18px_45px_rgba(10,46,42,0.08)] sm:p-8" style="--gt-reveal-delay: 90ms">
+                    <h3 class="text-xl font-extrabold text-[#0A2E2A]">Send a message</h3>
+                    <div class="mt-5">@include('public.contact-form', ['source' => 'landing'])</div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer class="border-t border-[#DDE9E5] bg-white py-8 sm:py-10">
         <div class="gt-welcome-frame">
-            <div class="flex flex-col gap-5 border-b border-[#DDE9E5] pb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
-                <div class="max-w-xl">
-                    <h2 class="text-lg font-extrabold text-[#0A2E2A] sm:text-xl">Questions about GastoTrack?</h2>
-                    <p class="mt-1 text-sm leading-6 text-slate-600">Send the team a message about your account or the project.</p>
-                </div>
-                <a href="{{ route('contact') }}" class="gt-focus inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#08745D] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#065A49] sm:w-auto">Contact us <span aria-hidden="true">&#8594;</span></a>
-            </div>
-            <div class="flex flex-col gap-5 pt-6 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-5 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <a href="{{ url('/') }}" class="gt-focus text-lg font-extrabold text-[#0A2E2A]">GastoTrack<span class="text-[#00A87E]">.</span></a>
                     <p class="mt-1 text-xs text-slate-500">&copy; {{ now()->year }} GastoTrack</p>
@@ -254,5 +266,8 @@
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg>
         <span>Top</span>
     </button>
+    @if($errors->any() || session('contact_error'))
+        <script>window.addEventListener('load', () => document.getElementById('contact')?.scrollIntoView());</script>
+    @endif
 </body>
 </html>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="560" viewBox="0 0 640 560" fill="none">
+  <defs>
+    <linearGradient id="halo" x1="80" y1="62" x2="565" y2="510" gradientUnits="userSpaceOnUse"><stop stop-color="#00C897" stop-opacity=".28"/><stop offset="1" stop-color="#00C897" stop-opacity=".02"/></linearGradient>
+    <linearGradient id="screen" x1="106" y1="157" x2="452" y2="409" gradientUnits="userSpaceOnUse"><stop stop-color="#FCFFFD"/><stop offset="1" stop-color="#E8F8F1"/></linearGradient>
+    <linearGradient id="phone" x1="440" y1="154" x2="575" y2="488" gradientUnits="userSpaceOnUse"><stop stop-color="#093E34"/><stop offset="1" stop-color="#031C18"/></linearGradient>
+    <filter id="blur" x="0" y="0" width="640" height="560" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="17"/></filter>
+  </defs>
+  <circle cx="322" cy="278" r="242" fill="url(#halo)"/>
+  <circle cx="322" cy="278" r="196" stroke="#7BDFC0" stroke-opacity=".18"/>
+  <ellipse cx="318" cy="491" rx="246" ry="24" fill="#001713" opacity=".48" filter="url(#blur)"/>
+
+  <!-- Laptop: the business owner's web workspace. -->
+  <rect x="62" y="115" width="439" height="313" rx="20" fill="#092820" stroke="#80DABC" stroke-width="3"/>
+  <rect x="76" y="129" width="411" height="284" rx="9" fill="url(#screen)"/>
+  <path d="M85 129h393a9 9 0 0 1 9 9v31H76v-31a9 9 0 0 1 9-9Z" fill="#0A2E2A"/>
+  <circle cx="95" cy="149" r="4" fill="#00C897"/><circle cx="109" cy="149" r="4" fill="#78DEBC"/><circle cx="123" cy="149" r="4" fill="#78DEBC" opacity=".5"/>
+  <rect x="147" y="145" width="88" height="8" rx="4" fill="#D5F7E9"/>
+  <rect x="76" y="169" width="79" height="244" fill="#E8F5EE"/>
+  <rect x="89" y="188" width="52" height="10" rx="5" fill="#08745D"/>
+  <rect x="86" y="215" width="58" height="29" rx="7" fill="#00A87E"/>
+  <rect x="94" y="227" width="32" height="5" rx="2.5" fill="#fff"/>
+  <rect x="94" y="263" width="43" height="6" rx="3" fill="#82A99A"/><rect x="94" y="287" width="38" height="6" rx="3" fill="#82A99A"/><rect x="94" y="311" width="44" height="6" rx="3" fill="#82A99A"/><rect x="94" y="335" width="36" height="6" rx="3" fill="#82A99A"/>
+  <rect x="176" y="188" width="106" height="10" rx="5" fill="#0A2E2A"/><rect x="176" y="207" width="158" height="6" rx="3" fill="#A4C0B2"/>
+  <rect x="176" y="232" width="129" height="72" rx="11" fill="#fff" stroke="#C9E7D8"/>
+  <rect x="190" y="247" width="57" height="6" rx="3" fill="#91B2A4"/><rect x="190" y="265" width="82" height="14" rx="7" fill="#00A87E"/>
+  <rect x="319" y="232" width="145" height="72" rx="11" fill="#fff" stroke="#C9E7D8"/>
+  <rect x="334" y="247" width="71" height="6" rx="3" fill="#91B2A4"/><rect x="334" y="265" width="89" height="14" rx="7" fill="#0A2E2A"/>
+  <rect x="176" y="318" width="288" height="75" rx="11" fill="#fff" stroke="#C9E7D8"/>
+  <path d="M192 372h256" stroke="#E3F1E9" stroke-width="2"/>
+  <path d="M193 366c22-2 38-29 59-24 19 4 29 17 48 10 23-9 36-27 58-21 21 6 27 20 47 8 17-11 24-11 42-18" stroke="#00A87E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M77 427h409l34 29c3 3 1 7-3 7H47c-4 0-6-4-3-7l33-29Z" fill="#D6E9E1" stroke="#A8CFBF" stroke-width="2"/>
+  <path d="M226 427h115l15 15H212l14-15Z" fill="#B2D4C5"/>
+  <path d="M43 457h477c0 10-9 15-22 15H66c-14 0-23-5-23-15Z" fill="#9DC6B4"/>
+
+  <!-- Phone: the staff POS app, shown in front of the laptop. -->
+  <rect x="421" y="152" width="161" height="335" rx="30" fill="url(#phone)" stroke="#74DFBD" stroke-width="3"/>
+  <rect x="431" y="163" width="141" height="313" rx="21" fill="#F8FFFA"/>
+  <rect x="472" y="168" width="59" height="11" rx="5.5" fill="#093E34"/>
+  <path d="M452 191h99a21 21 0 0 1 21 21v32H431v-32a21 21 0 0 1 21-21Z" fill="#0A2E2A"/>
+  <rect x="447" y="210" width="72" height="8" rx="4" fill="#D4F8E9"/>
+  <circle cx="545" cy="214" r="10" fill="#00C897"/><path d="M541 214h8m-4-4v8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <rect x="444" y="259" width="115" height="53" rx="10" fill="#E7F7EE"/>
+  <rect x="454" y="269" width="32" height="32" rx="8" fill="#BCEBD3"/>
+  <path d="m463 277 8-4 8 4v10l-8 4-8-4v-10Zm0 0 8 4 8-4m-8 4v10" stroke="#08745D" stroke-width="1.7" stroke-linejoin="round"/>
+  <rect x="495" y="273" width="54" height="6" rx="3" fill="#0A2E2A"/><rect x="495" y="287" width="37" height="6" rx="3" fill="#00A87E"/>
+  <rect x="444" y="322" width="115" height="53" rx="10" fill="#E7F7EE"/>
+  <circle cx="470" cy="348" r="16" fill="#BCEBD3"/><path d="M461 350h18m-15-6h12" stroke="#08745D" stroke-width="2" stroke-linecap="round"/>
+  <rect x="495" y="336" width="51" height="6" rx="3" fill="#0A2E2A"/><rect x="495" y="350" width="44" height="6" rx="3" fill="#00A87E"/>
+  <rect x="444" y="393" width="115" height="43" rx="11" fill="#00A87E"/>
+  <path d="m476 415 6 6 13-14" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="500" y="413" width="37" height="6" rx="3" fill="#fff"/>
+  <rect x="486" y="457" width="32" height="4" rx="2" fill="#B8DCCE"/>
+  <circle cx="571" cy="111" r="5" fill="#65DDB6"/><circle cx="53" cy="251" r="4" fill="#65DDB6"/><circle cx="136" cy="65" r="3" fill="#65DDB6"/>
+</svg>
