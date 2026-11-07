@@ -57,7 +57,7 @@
     </header>
 
     <main>
-        <section id="top" class="gt-welcome-hero relative isolate overflow-hidden border-b border-white/10 text-white">
+        <section id="top" class="gt-welcome-hero scroll-mt-40 lg:scroll-mt-32 relative isolate overflow-hidden border-b border-white/10 text-white">
             <div id="welcome-cursor-glow" class="gt-welcome-cursor-glow" aria-hidden="true"></div>
             <div class="gt-welcome-sparks gt-welcome-sparks-left" aria-hidden="true">
                 @for($spark = 0; $spark < 10; $spark++)
