@@ -24,7 +24,7 @@ class BusinessSeeder extends Seeder
                 'name' => 'GastoTrack Milk Tea Shop',
                 'address' => '123 Main St, Manila, Philippines',
                 'phone' => '+63 917 123 4567',
-                'business_type' => 'cafe',
+                'business_type' => 'milk_tea',
                 'active' => true,
                 'status' => 'active',
             ]

@@ -69,11 +69,9 @@
                                 <label for="business_type" class="mb-1 block text-sm font-bold text-gray-700">Business type</label>
                                 <select id="business_type" name="business_type" required class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
                                     <option value="">Select type</option>
-                                    <option value="cafe" {{ old('business_type') === 'cafe' ? 'selected' : '' }}>Coffee or milk tea shop</option>
-                                    <option value="restaurant" {{ old('business_type') === 'restaurant' ? 'selected' : '' }}>Food or bake shop</option>
-                                    <option value="retail" {{ old('business_type') === 'retail' ? 'selected' : '' }}>Retail shop</option>
-                                    <option value="service" {{ old('business_type') === 'service' ? 'selected' : '' }}>Service business</option>
-                                    <option value="other" {{ old('business_type') === 'other' ? 'selected' : '' }}>Other</option>
+                                    <option value="milk_tea" {{ old('business_type') === 'milk_tea' ? 'selected' : '' }}>Milk tea shop</option>
+                                    <option value="coffee" {{ old('business_type') === 'coffee' ? 'selected' : '' }}>Coffee shop</option>
+                                    <option value="bake_shop" {{ old('business_type') === 'bake_shop' ? 'selected' : '' }}>Bake shop</option>
                                 </select>
                                 <x-input-error :messages="$errors->get('business_type')" class="mt-2" />
                             </div>

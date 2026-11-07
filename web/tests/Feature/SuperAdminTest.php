@@ -214,7 +214,7 @@ class SuperAdminTest extends TestCase
 
         $this->actingAs($admin)->post(route('super-admin.businesses.store'), [
             'name' => 'Admin Created Cafe',
-            'business_type' => 'cafe',
+            'business_type' => 'coffee',
             'status' => 'active',
             'owner_name' => 'Cafe Owner',
             'owner_email' => 'owner@sunrisecafe.example',
@@ -243,7 +243,7 @@ class SuperAdminTest extends TestCase
 
         $this->actingAs($admin)->put(route('super-admin.businesses.update', $business), [
             'name' => 'Updated Cafe',
-            'business_type' => 'cafe',
+            'business_type' => 'coffee',
             'status' => 'active',
             'owner_name' => 'Updated Owner',
             'owner_email' => 'owner@sunrisecafe.example',

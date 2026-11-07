@@ -16,7 +16,7 @@ class BusinessController extends Controller
         $data = $request->validate([
             'name' => 'sometimes|string|max:255', 'description' => 'nullable|string|max:1000',
             'address' => 'nullable|string|max:500', 'phone' => 'nullable|string|max:30',
-            'email' => 'nullable|email', 'business_type' => 'sometimes|in:restaurant,cafe,retail,service,other',
+            'email' => 'nullable|email', 'business_type' => 'sometimes|in:milk_tea,coffee,bake_shop,restaurant,cafe,retail,service,other',
             'currency' => ['sometimes', 'string', 'regex:/^[A-Z]{3}$/'],
         ]);
         $business = $request->user()->business;

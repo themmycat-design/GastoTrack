@@ -37,7 +37,7 @@ class RegisteredUserController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'business_name' => ['required', 'string', 'max:255'],
-            'business_type' => ['required', 'in:cafe,restaurant,retail,service,other'],
+            'business_type' => ['required', 'in:milk_tea,coffee,bake_shop'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', new PasswordStrength()],
         ]);

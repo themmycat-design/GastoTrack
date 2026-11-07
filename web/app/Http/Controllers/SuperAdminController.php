@@ -157,7 +157,7 @@ class SuperAdminController extends Controller
 
     public function update(Request $request, Business $business)
     {
-        $validated = $this->validateBusiness($request);
+        $validated = $this->validateBusiness($request, allowLegacyTypes: true);
         $owner = $business->owner_account;
         $ownerEmailVerified = $owner?->hasVerifiedEmail() ?? false;
         $ownerData = $ownerEmailVerified ? $request->validate([
@@ -469,11 +469,16 @@ class SuperAdminController extends Controller
             $target instanceof Business ? 'business' : 'user', $target->id);
     }
 
-    private function validateBusiness(Request $request): array
+    private function validateBusiness(Request $request, bool $allowLegacyTypes = false): array
     {
+        $businessTypes = ['milk_tea', 'coffee', 'bake_shop'];
+        if ($allowLegacyTypes) {
+            $businessTypes = [...$businessTypes, 'restaurant', 'cafe', 'retail', 'service', 'other'];
+        }
+
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'business_type' => ['required', Rule::in(['restaurant', 'cafe', 'retail', 'service', 'other'])],
+            'business_type' => ['required', Rule::in($businessTypes)],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:500'],

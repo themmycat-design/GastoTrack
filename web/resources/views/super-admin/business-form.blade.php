@@ -22,9 +22,17 @@
                 <input name="name" value="{{ old('name', $business->name) }}" required class="mt-1 w-full rounded-lg border-slate-300" />
             </label>
             <label class="text-sm font-medium">Type
+                @php
+                    $businessType = old('business_type', $business->business_type ?: 'coffee');
+                    $targetBusinessTypes = ['milk_tea' => 'Milk tea shop', 'coffee' => 'Coffee shop', 'bake_shop' => 'Bake shop'];
+                    $legacyBusinessTypes = ['cafe' => 'Legacy: Coffee or milk tea shop', 'restaurant' => 'Legacy: Restaurant or food shop', 'retail' => 'Legacy: Retail shop', 'service' => 'Legacy: Service business', 'other' => 'Legacy: Other'];
+                @endphp
                 <select name="business_type" required class="mt-1 w-full rounded-lg border-slate-300">
-                    @foreach(['cafe' => 'Coffee / Milk Tea Shop', 'restaurant' => 'Restaurant', 'retail' => 'Retail', 'service' => 'Service', 'other' => 'Other'] as $value => $label)
-                        <option value="{{ $value }}" @selected(old('business_type', $business->business_type ?: 'cafe') === $value)>{{ $label }}</option>
+                    @if($business->exists && isset($legacyBusinessTypes[$businessType]))
+                        <option value="{{ $businessType }}" selected>{{ $legacyBusinessTypes[$businessType] }}</option>
+                    @endif
+                    @foreach($targetBusinessTypes as $value => $label)
+                        <option value="{{ $value }}" @selected($businessType === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             </label>

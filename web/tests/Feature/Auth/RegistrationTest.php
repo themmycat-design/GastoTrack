@@ -28,7 +28,7 @@ class RegistrationTest extends TestCase
         $response = $this->post('/register', [
             'name' => 'Carlo Reyes',
             'business_name' => 'Harbor Coffee',
-            'business_type' => 'cafe',
+            'business_type' => 'coffee',
             'email' => 'carlo@harborcoffee.example',
             'password' => 'GastoTrack9!',
             'password_confirmation' => 'GastoTrack9!',
@@ -41,7 +41,7 @@ class RegistrationTest extends TestCase
 
         $this->assertDatabaseHas('businesses', [
             'name' => 'Harbor Coffee',
-            'business_type' => 'cafe',
+            'business_type' => 'coffee',
             'status' => 'pending',
             'active' => false,
         ]);
@@ -59,7 +59,7 @@ class RegistrationTest extends TestCase
             ->post('/register', [
                 'name' => 'Carlo Reyes',
                 'business_name' => 'Harbor Coffee',
-                'business_type' => 'cafe',
+                'business_type' => 'coffee',
                 'email' => 'carlo@harborcoffee.example',
                 'password' => 'password1',
                 'password_confirmation' => 'password1',
@@ -80,7 +80,7 @@ class RegistrationTest extends TestCase
         $this->post('/register', [
             'name' => 'Pending Owner',
             'business_name' => 'Pending Cafe',
-            'business_type' => 'cafe',
+            'business_type' => 'coffee',
             'email' => 'pending@example.test',
             'password' => 'GastoTrack9!',
             'password_confirmation' => 'GastoTrack9!',
