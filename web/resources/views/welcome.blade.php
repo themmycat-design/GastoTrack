@@ -209,8 +209,16 @@
                 <p class="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600">Milk tea, coffee, and bake shops each have their own rhythm. GastoTrack helps bring the day's work together.</p>
             </div>
 
-            <div class="gt-scroll-reveal gt-testimonial-photo-frame overflow-hidden" data-gt-reveal-once="true">
-                <img src="{{ asset('images/shop-gallery.jpg') }}" alt="Milk tea, a latte, and fresh pastries in three shop scenes" class="gt-testimonial-photo block h-[190px] w-full object-cover sm:h-auto" width="2172" height="724" loading="lazy" decoding="async">
+            <div class="grid grid-cols-3 gap-1 bg-[#071C19]" aria-label="Milk tea, coffee, and bake shop gallery">
+                <div class="gt-scroll-reveal gt-testimonial-photo-frame h-44 overflow-hidden sm:aspect-square sm:h-auto" data-gt-reveal-once="true">
+                    <img src="{{ asset('images/shop-milk-tea.jpg') }}" alt="Iced milk tea with tapioca pearls" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
+                </div>
+                <div class="gt-scroll-reveal gt-testimonial-photo-frame h-44 overflow-hidden sm:aspect-square sm:h-auto" data-gt-reveal-once="true" style="--gt-reveal-delay: 90ms">
+                    <img src="{{ asset('images/shop-coffee.jpg') }}" alt="Latte with leaf-shaped milk art" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
+                </div>
+                <div class="gt-scroll-reveal gt-testimonial-photo-frame h-44 overflow-hidden sm:aspect-square sm:h-auto" data-gt-reveal-once="true" style="--gt-reveal-delay: 180ms">
+                    <img src="{{ asset('images/shop-bake-shop.jpg') }}" alt="Fresh croissants and baked pastries" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
+                </div>
             </div>
 
             <div class="relative overflow-hidden bg-[#071C19] py-16 text-white sm:py-20 lg:py-24">
