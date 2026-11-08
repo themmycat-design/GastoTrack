@@ -209,44 +209,22 @@
                 <p class="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600">Milk tea, coffee, and bake shops each have their own rhythm. GastoTrack helps bring the day's work together.</p>
             </div>
 
-            <img src="{{ asset('images/shop-gallery.jpg') }}" alt="Milk tea, a latte, and fresh pastries in three shop scenes" class="block h-[190px] w-full object-cover sm:h-auto" width="2172" height="724" loading="lazy" decoding="async">
+            <div class="gt-scroll-reveal gt-testimonial-photo-frame overflow-hidden" data-gt-reveal-once="true">
+                <img src="{{ asset('images/shop-gallery.jpg') }}" alt="Milk tea, a latte, and fresh pastries in three shop scenes" class="gt-testimonial-photo block h-[190px] w-full object-cover sm:h-auto" width="2172" height="724" loading="lazy" decoding="async">
+            </div>
 
-            <div class="bg-[#071C19] py-16 text-white sm:py-20 lg:py-24">
-                <div class="gt-welcome-frame">
-                    <div class="gt-scroll-reveal mx-auto max-w-3xl text-center">
-                        <p class="text-xs font-extrabold uppercase tracking-[.2em] text-[#72E6C4]">From behind the counter</p>
-                        <h3 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">A clearer day, from every counter.</h3>
-                        <p class="mt-4 text-sm leading-6 text-white/65">Illustrative feedback and portraits from three shop roles. These are examples, not customer reviews.</p>
-                    </div>
-
-                    <div class="mt-10 grid gap-5 md:grid-cols-3 lg:mt-12 lg:gap-6">
-                        <figure class="gt-scroll-reveal flex h-full flex-col rounded-2xl border border-white/15 bg-white/[.06] p-6 sm:p-7">
-                            <span class="font-serif text-5xl leading-none text-[#72E6C4]" aria-hidden="true">&ldquo;</span>
-                            <blockquote class="mt-3 flex-1 text-lg font-medium leading-relaxed text-white">I can check the ingredients used for each order and see what needs restocking before the next rush.</blockquote>
-                            <figcaption class="mt-7 flex items-center gap-3 border-t border-white/15 pt-5">
-                                <img src="{{ asset('images/feedback-milk-tea.svg') }}" alt="Illustration of a milk tea shop owner" class="h-12 w-12 shrink-0 rounded-full object-cover" width="48" height="48" loading="lazy">
-                                <span><strong class="block text-sm font-bold">Milk tea shop owner</strong><span class="mt-0.5 block text-xs text-white/60">Example perspective</span></span>
-                            </figcaption>
-                        </figure>
-
-                        <figure class="gt-scroll-reveal flex h-full flex-col rounded-2xl border border-white/15 bg-white/[.06] p-6 sm:p-7" style="--gt-reveal-delay: 80ms">
-                            <span class="font-serif text-5xl leading-none text-[#72E6C4]" aria-hidden="true">&ldquo;</span>
-                            <blockquote class="mt-3 flex-1 text-lg font-medium leading-relaxed text-white">Orders, expenses, and stock are together, so reviewing the day feels much easier to manage.</blockquote>
-                            <figcaption class="mt-7 flex items-center gap-3 border-t border-white/15 pt-5">
-                                <img src="{{ asset('images/feedback-coffee.svg') }}" alt="Illustration of a coffee shop manager" class="h-12 w-12 shrink-0 rounded-full object-cover" width="48" height="48" loading="lazy">
-                                <span><strong class="block text-sm font-bold">Coffee shop manager</strong><span class="mt-0.5 block text-xs text-white/60">Example perspective</span></span>
-                            </figcaption>
-                        </figure>
-
-                        <figure class="gt-scroll-reveal flex h-full flex-col rounded-2xl border border-white/15 bg-white/[.06] p-6 sm:p-7" style="--gt-reveal-delay: 160ms">
-                            <span class="font-serif text-5xl leading-none text-[#72E6C4]" aria-hidden="true">&ldquo;</span>
-                            <blockquote class="mt-3 flex-1 text-lg font-medium leading-relaxed text-white">Our team can record the day's activity as it happens, and I have a clearer picture when I review it later.</blockquote>
-                            <figcaption class="mt-7 flex items-center gap-3 border-t border-white/15 pt-5">
-                                <img src="{{ asset('images/feedback-bake-shop.svg') }}" alt="Illustration of a bake shop owner" class="h-12 w-12 shrink-0 rounded-full object-cover" width="48" height="48" loading="lazy">
-                                <span><strong class="block text-sm font-bold">Bake shop owner</strong><span class="mt-0.5 block text-xs text-white/60">Example perspective</span></span>
-                            </figcaption>
-                        </figure>
-                    </div>
+            <div class="relative overflow-hidden bg-[#071C19] py-16 text-white sm:py-20 lg:py-24">
+                <div class="pointer-events-none absolute left-1/2 top-0 h-64 w-96 -translate-x-1/2 rounded-full bg-[#00A87E]/15 blur-3xl" aria-hidden="true"></div>
+                <div class="gt-welcome-frame relative">
+                    <figure class="gt-scroll-reveal mx-auto max-w-4xl text-center">
+                        <p class="text-xs font-extrabold uppercase tracking-[.2em] text-[#72E6C4]">Why we built GastoTrack</p>
+                        <span class="mt-5 block font-serif text-7xl leading-none text-[#72E6C4]" aria-hidden="true">&ldquo;</span>
+                        <blockquote class="mt-2 text-2xl font-semibold leading-snug tracking-tight sm:text-3xl lg:text-4xl">Every order tells a story. GastoTrack brings sales, ingredients, expenses, and staff activity together so shop owners can see the day clearly and decide what comes next.</blockquote>
+                        <figcaption class="mt-9 flex items-center justify-center gap-3 border-t border-white/15 pt-7">
+                            <img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-11 w-11 object-contain" width="44" height="44" loading="lazy">
+                            <span class="text-left"><strong class="block text-sm font-bold">GastoTrack team</strong><span class="mt-0.5 block text-xs text-white/60">Our purpose for everyday shop operations</span></span>
+                        </figcaption>
+                    </figure>
                 </div>
             </div>
         </section>

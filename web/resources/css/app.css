@@ -792,6 +792,20 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
     translate: 0 24px;
 }
 
+.gt-testimonial-photo {
+    transition: transform 1.8s cubic-bezier(.2, .75, .25, 1);
+}
+
+.gt-reveal-ready .gt-testimonial-photo-frame:not(.is-visible) .gt-testimonial-photo {
+    transform: scale(1.08);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .gt-testimonial-photo-frame.is-visible:hover .gt-testimonial-photo {
+        transform: scale(1.025);
+    }
+}
+
 .gt-welcome-preview {
     border-color: #cfe7de;
     background: linear-gradient(155deg, #fff 62%, #f8fcfa 100%);
@@ -878,6 +892,8 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
     .gt-owner-page main > div button:not(:disabled):active { scale: none; }
     .gt-welcome-back-to-top { transition: none; }
     .gt-reveal-ready .gt-scroll-reveal { transition: none; }
+    .gt-testimonial-photo { transition: none; }
+    .gt-reveal-ready .gt-testimonial-photo-frame:not(.is-visible) .gt-testimonial-photo { transform: none; }
     .gt-welcome-sparks { display: none; }
     .gt-welcome-cursor-glow { display: none; }
 }
