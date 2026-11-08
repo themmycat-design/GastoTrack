@@ -201,6 +201,29 @@
                 </div>
             </div>
         </section>
+
+        <section class="border-t border-[#DDE9E5] bg-[#F4F8F7] py-16 sm:py-20 lg:py-24" aria-labelledby="welcome-perspective-title">
+            <div class="gt-welcome-frame grid items-center gap-10 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:gap-16">
+                <div class="gt-scroll-reveal max-w-xl">
+                    <p class="text-xs font-extrabold uppercase tracking-[.18em] text-[#008F70]">Why we built GastoTrack</p>
+                    <h2 id="welcome-perspective-title" class="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-[#0A2E2A] sm:text-5xl">Clarity for the people behind every order.</h2>
+                    <p class="mt-5 text-base leading-8 text-slate-600">Our goal is to help milk tea, coffee, and bake shops keep daily work in one place, from taking orders to checking stock and reviewing the day.</p>
+                </div>
+                <figure class="gt-scroll-reveal relative overflow-hidden rounded-[1.75rem] bg-[#0A2E2A] px-7 py-9 text-white shadow-[0_24px_60px_rgba(10,46,42,0.16)] sm:px-10 sm:py-11 lg:px-12" style="--gt-reveal-delay: 90ms">
+                    <div class="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-[#00C897]/20 blur-3xl" aria-hidden="true"></div>
+                    <span class="relative block font-serif text-7xl leading-none text-[#72E6C4]" aria-hidden="true">&ldquo;</span>
+                    <blockquote class="relative mt-1 text-2xl font-semibold leading-snug tracking-tight sm:text-3xl">Every order tells part of the story. Bring sales, ingredients, and daily records together, and the next decision starts with a clearer picture.</blockquote>
+                    <figcaption class="relative mt-8 flex items-center gap-3 border-t border-white/20 pt-6">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#00C897] text-lg font-extrabold text-[#062C24]" aria-hidden="true">G</span>
+                        <span>
+                            <strong class="block text-sm font-bold">GastoTrack team</strong>
+                            <span class="mt-0.5 block text-xs text-white/65">Our design goal for everyday shop operations</span>
+                        </span>
+                    </figcaption>
+                </figure>
+            </div>
+        </section>
+
         <section id="download" class="scroll-mt-24 border-t border-[#DDE9E5] bg-white py-12 sm:py-16 lg:py-20" aria-labelledby="download-title">
             <div class="gt-welcome-frame grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:gap-20">
                 <div class="gt-scroll-reveal max-w-2xl">
