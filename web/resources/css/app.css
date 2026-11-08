@@ -792,6 +792,30 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
     translate: 0 24px;
 }
 
+.gt-testimonial-photo-frame {
+    cursor: pointer;
+    perspective: 1200px;
+}
+
+.gt-testimonial-flip-inner {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform .75s cubic-bezier(.2, .75, .25, 1);
+}
+
+.gt-testimonial-photo-frame.is-flipped .gt-testimonial-flip-inner {
+    transform: rotateY(180deg);
+}
+
+.gt-testimonial-flip-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+.gt-testimonial-flip-back {
+    transform: rotateY(180deg);
+}
+
 .gt-testimonial-photo {
     transition: transform .8s cubic-bezier(.2, .75, .25, 1);
 }
@@ -892,6 +916,7 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
     .gt-owner-page main > div button:not(:disabled):active { scale: none; }
     .gt-welcome-back-to-top { transition: none; }
     .gt-reveal-ready .gt-scroll-reveal { transition: none; }
+    .gt-testimonial-flip-inner { transition: none; }
     .gt-testimonial-photo { transition: none; }
     .gt-reveal-ready .gt-testimonial-photo-frame:not(.is-visible) .gt-testimonial-photo { transform: none; }
     .gt-testimonial-photo-frame:hover .gt-testimonial-photo { transform: none; }

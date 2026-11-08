@@ -209,16 +209,58 @@
                 <p class="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600">Milk tea, coffee, and bake shops each have their own rhythm. GastoTrack helps bring the day's work together.</p>
             </div>
 
-            <div class="grid grid-cols-3 gap-1 bg-[#071C19]" aria-label="Milk tea, coffee, and bake shop gallery">
-                <div class="gt-scroll-reveal gt-testimonial-photo-frame h-44 overflow-hidden sm:aspect-square sm:h-auto" data-gt-reveal-once="true">
-                    <img src="{{ asset('images/shop-milk-tea.jpg') }}" alt="Iced milk tea with tapioca pearls" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
-                </div>
-                <div class="gt-scroll-reveal gt-testimonial-photo-frame h-44 overflow-hidden sm:aspect-square sm:h-auto" data-gt-reveal-once="true" style="--gt-reveal-delay: 90ms">
-                    <img src="{{ asset('images/shop-coffee.jpg') }}" alt="Latte with leaf-shaped milk art" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
-                </div>
-                <div class="gt-scroll-reveal gt-testimonial-photo-frame h-44 overflow-hidden sm:aspect-square sm:h-auto" data-gt-reveal-once="true" style="--gt-reveal-delay: 180ms">
-                    <img src="{{ asset('images/shop-bake-shop.jpg') }}" alt="Fresh croissants and baked pastries" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
-                </div>
+            <div class="grid grid-cols-1 gap-1 bg-[#071C19] sm:grid-cols-3" role="group" aria-label="Milk tea, coffee, and bake shop products">
+                <button type="button" class="gt-focus gt-scroll-reveal gt-testimonial-photo-frame relative block aspect-[3/2] w-full overflow-hidden bg-[#071C19] p-0 text-left sm:aspect-square" data-gt-flip-card data-gt-reveal-once="true" aria-label="Show details about milk tea" aria-pressed="false">
+                    <span class="gt-testimonial-flip-inner block h-full w-full">
+                        <span class="gt-testimonial-flip-face absolute inset-0 block" aria-hidden="true">
+                            <img src="{{ asset('images/shop-milk-tea.jpg') }}" alt="" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
+                            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-[#071C19]/85 to-transparent px-5 pb-5 pt-12 text-white">
+                                <span data-gt-product class="block text-lg font-extrabold">Milk tea</span>
+                                <span class="mt-1 block text-xs font-semibold text-white/85">View details &#8599;</span>
+                            </span>
+                        </span>
+                        <span class="gt-testimonial-flip-face gt-testimonial-flip-back absolute inset-0 flex flex-col items-center justify-center bg-[#0A2E2A] px-5 py-4 text-center text-white sm:px-3 sm:py-3 lg:px-8 lg:py-4" aria-hidden="true">
+                            <span class="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#72E6C4]">Product spotlight</span>
+                            <span class="mt-3 block text-xl font-extrabold sm:mt-2 sm:text-lg lg:mt-3 lg:text-2xl">Milk tea</span>
+                            <span data-gt-description class="mt-3 block max-w-xs text-sm leading-snug text-white/85 sm:mt-2 sm:text-xs lg:mt-3 lg:text-base">Creamy iced tea and chewy tapioca pearls, made for a refreshing break between busy moments.</span>
+                            <span class="mt-5 block text-xs font-bold text-[#72E6C4] sm:mt-3 lg:mt-5">View photo &#8634;</span>
+                        </span>
+                    </span>
+                </button>
+                <button type="button" class="gt-focus gt-scroll-reveal gt-testimonial-photo-frame relative block aspect-[3/2] w-full overflow-hidden bg-[#071C19] p-0 text-left sm:aspect-square" data-gt-flip-card data-gt-reveal-once="true" style="--gt-reveal-delay: 90ms" aria-label="Show details about coffee" aria-pressed="false">
+                    <span class="gt-testimonial-flip-inner block h-full w-full">
+                        <span class="gt-testimonial-flip-face absolute inset-0 block" aria-hidden="true">
+                            <img src="{{ asset('images/shop-coffee.jpg') }}" alt="" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
+                            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-[#071C19]/85 to-transparent px-5 pb-5 pt-12 text-white">
+                                <span data-gt-product class="block text-lg font-extrabold">Coffee</span>
+                                <span class="mt-1 block text-xs font-semibold text-white/85">View details &#8599;</span>
+                            </span>
+                        </span>
+                        <span class="gt-testimonial-flip-face gt-testimonial-flip-back absolute inset-0 flex flex-col items-center justify-center bg-[#0A2E2A] px-5 py-4 text-center text-white sm:px-3 sm:py-3 lg:px-8 lg:py-4" aria-hidden="true">
+                            <span class="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#72E6C4]">Product spotlight</span>
+                            <span class="mt-3 block text-xl font-extrabold sm:mt-2 sm:text-lg lg:mt-3 lg:text-2xl">Coffee</span>
+                            <span data-gt-description class="mt-3 block max-w-xs text-sm leading-snug text-white/85 sm:mt-2 sm:text-xs lg:mt-3 lg:text-base">A warm latte with smooth espresso, steamed milk, and a little art on top.</span>
+                            <span class="mt-5 block text-xs font-bold text-[#72E6C4] sm:mt-3 lg:mt-5">View photo &#8634;</span>
+                        </span>
+                    </span>
+                </button>
+                <button type="button" class="gt-focus gt-scroll-reveal gt-testimonial-photo-frame relative block aspect-[3/2] w-full overflow-hidden bg-[#071C19] p-0 text-left sm:aspect-square" data-gt-flip-card data-gt-reveal-once="true" style="--gt-reveal-delay: 180ms" aria-label="Show details about fresh bakes" aria-pressed="false">
+                    <span class="gt-testimonial-flip-inner block h-full w-full">
+                        <span class="gt-testimonial-flip-face absolute inset-0 block" aria-hidden="true">
+                            <img src="{{ asset('images/shop-bake-shop.jpg') }}" alt="" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
+                            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-[#071C19]/85 to-transparent px-5 pb-5 pt-12 text-white">
+                                <span data-gt-product class="block text-lg font-extrabold">Fresh bakes</span>
+                                <span class="mt-1 block text-xs font-semibold text-white/85">View details &#8599;</span>
+                            </span>
+                        </span>
+                        <span class="gt-testimonial-flip-face gt-testimonial-flip-back absolute inset-0 flex flex-col items-center justify-center bg-[#0A2E2A] px-5 py-4 text-center text-white sm:px-3 sm:py-3 lg:px-8 lg:py-4" aria-hidden="true">
+                            <span class="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#72E6C4]">Product spotlight</span>
+                            <span class="mt-3 block text-xl font-extrabold sm:mt-2 sm:text-lg lg:mt-3 lg:text-2xl">Fresh bakes</span>
+                            <span data-gt-description class="mt-3 block max-w-xs text-sm leading-snug text-white/85 sm:mt-2 sm:text-xs lg:mt-3 lg:text-base">Flaky croissants and fresh pastries, ready for a quick treat or an unhurried morning.</span>
+                            <span class="mt-5 block text-xs font-bold text-[#72E6C4] sm:mt-3 lg:mt-5">View photo &#8634;</span>
+                        </span>
+                    </span>
+                </button>
             </div>
 
             <div class="relative overflow-hidden bg-[#071C19] py-16 text-white sm:py-20 lg:py-24">

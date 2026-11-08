@@ -74,6 +74,20 @@ const revealItems = [...document.querySelectorAll('.gt-scroll-reveal')]
 initOwnerMotion(reducedMotion);
 initOwnerLive();
 
+document.querySelectorAll('[data-gt-flip-card]').forEach(card => {
+    const product = card.querySelector('[data-gt-product]')?.textContent.trim();
+    const description = card.querySelector('[data-gt-description]')?.textContent.trim();
+    if (!product || !description) return;
+
+    card.addEventListener('click', () => {
+        const flipped = card.classList.toggle('is-flipped');
+        card.setAttribute('aria-pressed', String(flipped));
+        card.setAttribute('aria-label', flipped
+            ? `${product}. ${description} Show photo.`
+            : `Show details about ${product.toLowerCase()}`);
+    });
+});
+
 const welcomeHero = document.querySelector('.gt-welcome-hero');
 const cursorGlow = welcomeHero?.querySelector('.gt-welcome-cursor-glow');
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
