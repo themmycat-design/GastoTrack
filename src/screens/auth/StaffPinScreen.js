@@ -9,19 +9,12 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onCancel, on
   const insets = useSafeAreaInsets();
   const title = mode === 'setup' ? 'Create your MPIN' : mode === 'confirm' ? 'Confirm your MPIN'
     : mode === 'locked' ? 'MPIN locked' : 'Enter your MPIN';
-  const hint = mode === 'setup'
-    ? 'Choose four numbers to protect your staff workspace.'
-    : mode === 'confirm' ? 'Enter the same four numbers again.'
-      : mode === 'locked' ? 'Sign in with your email and password to reset the attempt limit.'
-        : 'Unlock your staff workspace. If you forgot your MPIN, sign out and sign in with your password, then open Profile.';
-
   return (
     <View style={[styles.page, {paddingTop: Math.max(insets.top, 20) + 28, paddingBottom: Math.max(insets.bottom, 16)}]}>
       <View style={styles.header}>
         <Image source={require('../../../assets/mascot/gasto-login.png')}
           style={styles.mascot} resizeMode="contain" accessibilityLabel="Gasto the cat" />
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.hint}>{hint}</Text>
         <View style={styles.dots} accessibilityLabel={`${pin.length} of 4 digits entered`}>
           {[0, 1, 2, 3].map(index => <View key={index} style={[styles.dot, pin.length > index && styles.dotFilled]} />)}
         </View>
@@ -59,7 +52,6 @@ const styles = StyleSheet.create({
   header: {alignItems: 'center', width: '100%'},
   mascot: {width: 112, height: 112},
   title: {marginTop: 14, fontSize: 28, fontWeight: '800', color: COLORS.textDark, textAlign: 'center'},
-  hint: {marginTop: 10, fontSize: 14, lineHeight: 21, color: COLORS.textGray, textAlign: 'center'},
   dots: {flexDirection: 'row', gap: 18, marginTop: 32, marginBottom: 14},
   dot: {width: 15, height: 15, borderRadius: 8, borderWidth: 2, borderColor: COLORS.accentDark},
   dotFilled: {backgroundColor: COLORS.accentDark},
