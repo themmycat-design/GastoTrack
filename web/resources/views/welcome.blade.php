@@ -103,8 +103,8 @@
                     <span class="border-b border-l border-white/15 py-4 sm:border-b-0">Business insights</span>
                 </div>
                 </div>
-                <div class="gt-enter gt-enter-2 gt-welcome-illustration mx-auto w-full max-w-[640px]" aria-hidden="true">
-                    <img src="{{ asset('images/gastotrack-hero.svg') }}" alt="" width="640" height="560" class="h-auto w-full" decoding="async">
+                <div class="gt-enter gt-enter-2 gt-welcome-illustration mx-auto w-full max-w-[640px]">
+                    <img src="{{ asset('images/gastotrack-hero.svg') }}?v={{ filemtime(public_path('images/gastotrack-hero.svg')) }}" alt="Preview of the GastoTrack owner Overview and staff Home screens with illustrative data" width="640" height="560" class="h-auto w-full" decoding="async">
                 </div>
             </div>
         </section>
