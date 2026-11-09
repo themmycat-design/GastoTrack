@@ -34,7 +34,7 @@ const questions = [
   {
     icon: 'wifi-off',
     question: 'What can I record without internet?',
-    answer: 'Manual transactions, cash orders, and stock adjustments can be saved on this device. The app retries syncing while it is open when the connection returns. They become server records only after sync succeeds. Cashless payments and AI need an internet connection.',
+    answer: 'After signing in online and setting an MPIN on this phone, use Continue offline with MPIN to open cached staff data without internet. Manual transactions, cash orders, and stock adjustments can be saved on this device. Sign in online again to sync them. They become server records only after sync succeeds. Cashless payments and AI need an internet connection.',
   },
   {
     icon: 'line-scan',

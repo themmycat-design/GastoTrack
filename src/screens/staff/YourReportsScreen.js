@@ -12,7 +12,7 @@ import {COLORS, SHADOWS} from '../../theme';
 const label = value => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 
 const YourReportsScreen = ({navigation}) => {
-  const {userToken} = useAuth();
+  const {userToken, offlineMode} = useAuth();
   const [reports, setReports] = useState([]);
   const [page, setPage] = useState(1);
   const pageRef = useRef(1);
@@ -92,7 +92,7 @@ const YourReportsScreen = ({navigation}) => {
             <Text style={styles.reportDescription}>{report.description}</Text>
             {report.steps_to_reproduce ? <Text style={styles.reportSteps}><Text style={styles.bold}>Steps: </Text>{report.steps_to_reproduce}</Text> : null}
             {report.public_update ? <View style={styles.publicUpdate}><Text style={styles.publicUpdateLabel}>Update from GastoTrack</Text><Text style={styles.publicUpdateText}>{report.public_update}</Text></View> : null}
-            {report.has_screenshot && userToken ? <Image accessibilityLabel="Attached report screenshot" source={{uri: `${API_URL}/bug-reports/${report.id}/screenshot`, headers: {Authorization: `Bearer ${userToken}`}}} style={styles.screenshot} resizeMode="contain" /> : null}
+            {report.has_screenshot && userToken && !offlineMode ? <Image accessibilityLabel="Attached report screenshot" source={{uri: `${API_URL}/bug-reports/${report.id}/screenshot`, headers: {Authorization: `Bearer ${userToken}`}}} style={styles.screenshot} resizeMode="contain" /> : null}
           </View>
         ))}
 

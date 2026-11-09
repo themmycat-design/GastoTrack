@@ -22,7 +22,7 @@ const getMascot = (title, message) => {
   if (/low stock|out of stock|not enough stock/.test(text)) {
     return {source: require('../../assets/mascot/gasto-low-stock.png'), label: 'Gasto checking an empty stock box'};
   }
-  if (/saved on this device|offline|no connection|cannot reach|could not reach|network error|server.*unavailable/.test(text)) {
+  if (/saved on this device|offline|no internet connection|no connection|cannot reach|could not reach|network error|server.*unavailable/.test(text)) {
     return {source: require('../../assets/mascot/gasto-offline.png'), label: 'Gasto resting while the connection is unavailable'};
   }
   if (/order placed|order completed|payment confirmed/.test(text) && !/could not|failed|not confirmed/.test(text)) {

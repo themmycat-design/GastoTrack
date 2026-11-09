@@ -26,7 +26,8 @@ import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
 import {getProfilePhotoSource} from '../../utils/profilePhoto';
-import {getStaffSnapshot, saveStaffSnapshot, syncStaffOfflineActions} from '../../services/staffOffline';
+import {getStaffOfflineActions, getStaffSnapshot, saveStaffSnapshot, subscribeStaffOffline, syncStaffOfflineActions} from '../../services/staffOffline';
+import {pendingIncomeForDay} from '../../utils/pendingIncome';
 import useReduceMotion from '../../hooks/useReduceMotion';
 
 const IncomePeekCat = () => {
@@ -70,22 +71,28 @@ const DashboardScreen = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [todayIncome, setTodayIncome] = useState(null);
   const [todayIncomeCount, setTodayIncomeCount] = useState(null);
+  const [pendingIncomeCount, setPendingIncomeCount] = useState(0);
   const [incomeLoading, setIncomeLoading] = useState(true);
   const [incomeError, setIncomeError] = useState(null);
-  const [incomeFromCache, setIncomeFromCache] = useState(false);
   const incomeRequestId = React.useRef(0);
   const day = useStaffDay();
 
   const fetchDailyIncome = React.useCallback(async () => {
     const requestId = ++incomeRequestId.current;
     setIncomeLoading(true);
+    const pending = async () => {
+      try {return pendingIncomeForDay(offlineAccount ? await getStaffOfflineActions(offlineAccount) : [], day);}
+      catch {return {amount: 0, count: 0};}
+    };
     try {
       const response = await api.get('/transactions/summary', {params: {from: day, to: day}});
       if (requestId !== incomeRequestId.current) return;
       const summary = {day, income: Number(response.data?.income || 0), count: Number(response.data?.income_count || 0)};
-      setTodayIncome(summary.income);
-      setTodayIncomeCount(summary.count);
-      setIncomeFromCache(false);
+      const queued = await pending();
+      if (requestId !== incomeRequestId.current) return;
+      setTodayIncome(summary.income + queued.amount);
+      setTodayIncomeCount(summary.count + queued.count);
+      setPendingIncomeCount(queued.count);
       if (offlineAccount) saveStaffSnapshot(offlineAccount, 'daily_income', summary).catch(() => {});
       setIncomeError(null);
     } catch (error) {
@@ -95,19 +102,25 @@ const DashboardScreen = ({ navigation }) => {
         try {cached = await getStaffSnapshot(offlineAccount, 'daily_income');} catch {}
       }
       if (cached?.day === day) {
-        setTodayIncome(Number(cached.income));
-        setTodayIncomeCount(Number(cached.count));
-        setIncomeFromCache(true);
+        const queued = await pending();
+        if (requestId !== incomeRequestId.current) return;
+        setTodayIncome(Number(cached.income) + queued.amount);
+        setTodayIncomeCount(Number(cached.count) + queued.count);
+        setPendingIncomeCount(queued.count);
       } else {
         setTodayIncome(null);
         setTodayIncomeCount(null);
-        setIncomeFromCache(false);
+        setPendingIncomeCount(0);
       }
       setIncomeError(getApiErrorMessage(error));
     } finally {
       if (requestId === incomeRequestId.current) setIncomeLoading(false);
     }
   }, [day, offlineAccount]);
+
+  useEffect(() => subscribeStaffOffline(event => {
+    if (event === 'queued' || event === 'synced') fetchDailyIncome();
+  }), [fetchDailyIncome]);
 
   useFocusEffect(React.useCallback(() => {
     fetchDailyIncome();
@@ -192,10 +205,9 @@ const DashboardScreen = ({ navigation }) => {
             {todayIncome !== null ? <Text style={styles.currencySymbol}>₱</Text> : null}
             <Text style={[styles.incomeAmount, todayIncome === null && styles.incomeStatus]}>{incomeLoading ? 'Loading…' : todayIncome === null ? 'Unavailable' : todayIncome.toFixed(2)}</Text>
           </View>
-          <Text style={styles.incomeDescription}>{incomeFromCache
-            ? `Last synced today · ${todayIncomeCount ?? 0} confirmed entries; offline records excluded`
-            : incomeError ? 'Could not load today’s income'
-            : incomeLoading ? 'Loading today’s income records…' : `Income entries today: ${todayIncomeCount ?? 0}`}</Text>
+          <Text style={styles.incomeDescription}>{incomeLoading ? 'Loading today’s income records…'
+            : todayIncome !== null ? `Income entries today: ${todayIncomeCount ?? 0}${pendingIncomeCount ? ` · ${pendingIncomeCount} pending sync` : ''}`
+              : 'Could not load today’s income'}</Text>
         </View>
 
         <ApiErrorBanner message={dashboardError} onRetry={retryDashboard} />
@@ -295,7 +307,7 @@ const DashboardScreen = ({ navigation }) => {
                 />
                 <Text style={styles.emptyProductsTitle}>{productError ? 'Products unavailable' : 'No products available'}</Text>
                 <Text style={styles.emptyProductsText}>
-                  {productError ? 'Check the server connection, then retry.' : selectedCategory === 'All'
+                  {productError ? 'Check your internet connection, then retry.' : selectedCategory === 'All'
                     ? 'Add or enable products from Inventory.'
                     : `No available products in ${selectedCategory}.`}
                 </Text>

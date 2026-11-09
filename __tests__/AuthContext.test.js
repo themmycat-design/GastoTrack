@@ -1,9 +1,11 @@
 import React from 'react';
 import TestRenderer, {act} from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, {setApiAuthToken} from '../src/services/api';
+import api, {setApiAuthToken, setApiOfflineSession} from '../src/services/api';
 import {AuthContext, AuthProvider} from '../src/context/AuthContext';
 import {clearAuthToken, getAuthSession, saveAuthToken, STAFF_SESSION_MS} from '../src/services/authTokenStorage';
+import {getOfflineStaffAccount, saveOfflineStaffAccount} from '../src/services/offlineStaffAccount';
+import {getStaffPin} from '../src/services/staffPinStorage';
 
 jest.mock('../src/services/api', () => ({
   __esModule: true,
@@ -13,6 +15,18 @@ jest.mock('../src/services/api', () => ({
   },
   setUnauthorizedHandler: jest.fn(() => jest.fn()),
   setApiAuthToken: jest.fn(),
+  setApiOfflineSession: jest.fn(),
+  OFFLINE_SESSION_TOKEN: 'gastotrack:offline-staff-session',
+}));
+
+jest.mock('../src/services/offlineStaffAccount', () => ({
+  clearOfflineStaffAccount: jest.fn(() => Promise.resolve()),
+  getOfflineStaffAccount: jest.fn(() => Promise.resolve(null)),
+  saveOfflineStaffAccount: jest.fn(() => Promise.resolve()),
+}));
+jest.mock('../src/services/staffPinStorage', () => ({
+  getStaffPin: jest.fn(() => Promise.resolve(null)),
+  resetStaffPinAttempts: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../src/services/authTokenStorage', () => ({
@@ -33,6 +47,8 @@ describe('AuthProvider session storage', () => {
     contextValue = null;
     getAuthSession.mockResolvedValue({token: null, expired: false});
     saveAuthToken.mockResolvedValue(undefined);
+    getOfflineStaffAccount.mockResolvedValue(null);
+    getStaffPin.mockResolvedValue(null);
     api.get.mockResolvedValue({data: {user: {}, business: null}});
     api.post.mockResolvedValue({
       data: {
@@ -77,6 +93,8 @@ describe('AuthProvider session storage', () => {
 
     expect(result.success).toBe(true);
     expect(saveAuthToken).toHaveBeenCalledWith('staff-session-token', expect.any(Number));
+    expect(saveOfflineStaffAccount).toHaveBeenCalledWith(
+      {id: 17, role: 'staff'}, {id: 4, name: 'Harbor Coffee'}, expect.any(Number));
     expect(AsyncStorage.setMany).toHaveBeenCalledWith({
       userRole: 'staff',
       user: JSON.stringify({id: 17, role: 'staff'}),
@@ -135,5 +153,34 @@ describe('AuthProvider session storage', () => {
     expect(result.success).toBe(true);
     expect(contextValue.userToken).toBe('staff-session-token');
     await act(async () => { finishSave(); });
+  });
+
+  it('allows a previously verified staff account to enter offline only through its saved MPIN', async () => {
+    getOfflineStaffAccount.mockResolvedValue({
+      user: {id: 17, role: 'staff', email: 'staff1@example.test', business_id: 4},
+      business: {id: 4, name: 'Harbor Coffee'},
+      expiresAt: Date.now() + STAFF_SESSION_MS,
+    });
+    getStaffPin.mockResolvedValue('1234');
+    await mountProvider();
+
+    expect(contextValue.offlineLoginAvailable).toBe(true);
+    await act(async () => {expect(await contextValue.loginOffline()).toEqual({success: true});});
+    expect(contextValue.userToken).toBe('gastotrack:offline-staff-session');
+    expect(contextValue.user.email).toBe('staff1@example.test');
+    expect(setApiOfflineSession).toHaveBeenCalledWith(true);
+    expect(setApiAuthToken).toHaveBeenLastCalledWith(null);
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('does not allow offline sign-in without a saved MPIN', async () => {
+    getOfflineStaffAccount.mockResolvedValue({
+      user: {id: 17, role: 'staff', email: 'staff1@example.test', business_id: 4},
+      business: {id: 4}, expiresAt: Date.now() + STAFF_SESSION_MS,
+    });
+    await mountProvider();
+    expect(contextValue.offlineLoginAvailable).toBe(false);
+    await act(async () => {expect(await contextValue.loginOffline()).toEqual({success: false});});
+    expect(contextValue.userToken).toBeNull();
   });
 });

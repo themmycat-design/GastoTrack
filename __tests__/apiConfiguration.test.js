@@ -54,7 +54,7 @@ describe('order retry identity', () => {
 
 describe('API error feedback', () => {
   it('distinguishes network and expired-session failures', () => {
-    expect(getApiErrorMessage({isAxiosError: true, code: 'ERR_NETWORK', request: {}})).toMatch(/Cannot reach/);
+    expect(getApiErrorMessage({isAxiosError: true, code: 'ERR_NETWORK', request: {}})).toMatch(/No internet connection/);
     expect(getApiErrorMessage(new TypeError('local error'))).toBe('The request could not be completed.');
     expect(getApiErrorMessage({response: {status: 401}})).toMatch(/session has expired/);
   });

@@ -106,7 +106,7 @@ const PersonalInformationScreen = ({navigation}) => {
 
     setPhotoAsset(null);
     setIsEditing(false);
-    Alert.alert('Profile updated', 'Your personal information has been saved.');
+    Alert.alert('Profile updated');
   };
 
   const fields = [

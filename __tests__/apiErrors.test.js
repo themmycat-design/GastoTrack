@@ -7,7 +7,7 @@ describe('API error messages', () => {
       code: 'ERR_NETWORK',
     });
 
-    expect(getApiErrorMessage(networkError)).toMatch(/Cannot reach the GastoTrack server/);
+    expect(getApiErrorMessage(networkError)).toBe('No internet connection.');
     expect(getApiErrorMessage(new TypeError('AsyncStorage method is missing'), 'Sign-in failed.'))
       .toBe('Sign-in failed.');
   });

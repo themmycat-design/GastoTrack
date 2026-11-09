@@ -16,14 +16,20 @@ const getNativeConfig = () => {
 };
 
 export const API_URL = resolveNativeApiBaseUrl(getNativeConfig(), __DEV__);
+export const OFFLINE_SESSION_TOKEN = 'gastotrack:offline-staff-session';
 
 let unauthorizedHandler = null;
 let sessionToken = null;
+let offlineSession = false;
 
 // AuthContext restores this once at startup and updates it on login/logout.
 // Protected requests must not wait on a native Keychain call for every fetch.
 export const setApiAuthToken = token => {
   sessionToken = token || null;
+};
+
+export const setApiOfflineSession = enabled => {
+  offlineSession = Boolean(enabled);
 };
 
 export const setUnauthorizedHandler = handler => {
@@ -50,6 +56,11 @@ const describeRequest = config => {
 
 // Awtomatikong isama ang token kung nakapag-login na
 api.interceptors.request.use(config => {
+  if (offlineSession) {
+    const error = new Error('Online sign-in is required for this request.');
+    error.code = 'OFFLINE_SESSION';
+    return Promise.reject(error);
+  }
   if (!API_URL) {
     const error = new Error(API_CONFIGURATION_MESSAGE);
     error.code = 'API_URL_NOT_CONFIGURED';

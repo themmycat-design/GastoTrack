@@ -455,7 +455,7 @@ const TransactionsScreen = ({route}) => {
         Alert.alert('Could not save transaction', getErrorMessage(result));
         return;
       }
-      if (result.queued) Alert.alert('Saved on this device', 'This transaction is shown as pending until the server accepts it.');
+      if (result.queued) Alert.alert('Saved on this device', 'Transaction pending sync.');
       setEditorVisible(false);
       setEditingTransaction(null);
       setForm(emptyForm(form.type));

@@ -176,7 +176,7 @@ const StockScreen = () => {
       setStockEditorVisible(false);
       setStockForm(emptyStockForm);
       Alert.alert(created.offlinePending ? 'Saved on this device' : 'Stock item added', created.offlinePending
-        ? 'The stock item will be available after the server accepts it.' : 'The new stock item is ready to use.');
+        ? 'Stock item available after sync.' : '');
     } catch (error) {
       Alert.alert('Could not add stock item', apiErrorMessage(error));
     } finally {
@@ -211,8 +211,8 @@ const StockScreen = () => {
       setAdjustValue('');
       setAdjustReason('');
       Alert.alert(updated.offlinePending ? 'Saved on this device' : 'Stock updated', updated.offlinePending
-        ? 'The stock change is waiting to sync. The displayed quantity will update after the server accepts it.'
-        : `${updated.name} now has ${updated.quantity} ${updated.unit}.`);
+        ? 'Stock change pending sync.'
+        : '');
     } catch (error) {
       const data = error.response?.data;
       const details = Object.values(data?.errors || {}).flat().join('\n');
@@ -334,7 +334,7 @@ const StockScreen = () => {
       setEditingProduct(null);
       setSelectedProduct(saved);
       Alert.alert(saved.offlinePending ? 'Saved on this device' : 'Product saved', saved.offlinePending
-        ? `${saved.name} is waiting to sync before it can be used in orders.` : `${saved.name} is ready in the product list.`);
+        ? 'Product available for orders after sync.' : '');
     } catch (error) {
       Alert.alert('Could not save product', apiErrorMessage(error));
     } finally {

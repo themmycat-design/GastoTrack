@@ -1,4 +1,7 @@
 export const getApiErrorMessage = (error, fallback = 'The request could not be completed.') => {
+  if (error?.code === 'OFFLINE_SESSION') {
+    return 'No internet connection.';
+  }
   if (error?.code === 'API_URL_NOT_CONFIGURED') {
     return error.message;
   }
@@ -13,7 +16,7 @@ export const getApiErrorMessage = (error, fallback = 'The request could not be c
   }
 
   if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
-    return 'The server took too long to respond. Check your connection and try again.';
+    return 'No internet connection.';
   }
 
   const status = error?.response?.status;
@@ -22,7 +25,7 @@ export const getApiErrorMessage = (error, fallback = 'The request could not be c
   const isTransportError = error?.isAxiosError === true
     || ['ERR_NETWORK', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_INTERNET_DISCONNECTED'].includes(error?.code);
   if (!error?.response && isTransportError) {
-    return 'Cannot reach the GastoTrack server. Check that Laravel is running and that the device can reach the configured API URL.';
+    return 'No internet connection.';
   }
   if (!error?.response) return fallback;
   if (status === 401) {

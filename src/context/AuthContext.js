@@ -1,10 +1,11 @@
 import React, {createContext, useCallback, useEffect, useRef, useState} from 'react';
 import {AppState} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, {setApiAuthToken, setUnauthorizedHandler} from '../services/api';
+import api, {OFFLINE_SESSION_TOKEN, setApiAuthToken, setApiOfflineSession, setUnauthorizedHandler} from '../services/api';
 import {clearAuthToken, getAuthSession, saveAuthToken, STAFF_SESSION_MS} from '../services/authTokenStorage';
 import {getApiErrorMessage} from '../services/apiErrors';
-import {resetStaffPinAttempts} from '../services/staffPinStorage';
+import {getStaffPin, resetStaffPinAttempts} from '../services/staffPinStorage';
+import {clearOfflineStaffAccount, getOfflineStaffAccount, saveOfflineStaffAccount} from '../services/offlineStaffAccount';
 
 export const AuthContext = createContext();
 
@@ -41,9 +42,18 @@ export const AuthProvider = ({ children }) => {
   const [sessionStorageWarning, setSessionStorageWarning] = useState(null);
   const [sessionExpiresAt, setSessionExpiresAt] = useState(null);
   const [freshPasswordSignIn, setFreshPasswordSignIn] = useState(false);
+  const [offlineLoginAvailable, setOfflineLoginAvailable] = useState(false);
   const bootstrapStarted = useRef(false);
 
-  const clearLocalSession = useCallback(async () => {
+  const checkOfflineLogin = useCallback(async () => {
+    const account = await getOfflineStaffAccount();
+    const available = Boolean(account && await getStaffPin(account.user.id));
+    setOfflineLoginAvailable(available);
+    return available;
+  }, []);
+
+  const clearLocalSession = useCallback(async ({preserveOfflineAccount = false} = {}) => {
+    setApiOfflineSession(false);
     setApiAuthToken(null);
     setUserToken(null);
     setUserRole(null);
@@ -53,10 +63,12 @@ export const AuthProvider = ({ children }) => {
     setSessionStorageWarning(null);
     setSessionExpiresAt(null);
     setFreshPasswordSignIn(false);
+    if (!preserveOfflineAccount) setOfflineLoginAvailable(false);
     setIsLoading(false);
     await Promise.allSettled([
       clearAuthToken(),
       AsyncStorage.removeMany(['userToken', 'userRole', 'user', 'business']),
+      ...(preserveOfflineAccount ? [] : [clearOfflineStaffAccount()]),
     ]);
   }, []);
 
@@ -65,7 +77,8 @@ export const AuthProvider = ({ children }) => {
   }), [clearLocalSession]);
 
   useEffect(() => {
-    setApiAuthToken(userToken);
+    setApiOfflineSession(userToken === OFFLINE_SESSION_TOKEN);
+    setApiAuthToken(userToken === OFFLINE_SESSION_TOKEN ? null : userToken);
   }, [userToken]);
 
   const login = async (email, password) => {
@@ -80,6 +93,7 @@ export const AuthProvider = ({ children }) => {
         await resetStaffPinAttempts(response.data.user.id);
 
         setApiAuthToken(token);
+        setApiOfflineSession(false);
         setUserToken(token);
         setUserRole(role);
         setUser(response.data.user);
@@ -94,8 +108,11 @@ export const AuthProvider = ({ children }) => {
         // A native secure-storage call can stall on some Android devices.
         // Server-confirmed login remains usable for this process; never store
         // the token in plaintext when secure persistence fails.
+        const saveCredentials = saveAuthToken(token, signedInAt).then(() => role === 'staff'
+          ? saveOfflineStaffAccount(response.data.user, response.data.business, signedInAt)
+          : clearOfflineStaffAccount());
         withSessionTimeout(Promise.all([
-          saveAuthToken(token, signedInAt),
+          saveCredentials,
           AsyncStorage.setMany({
             userRole: role,
             user: JSON.stringify(response.data.user),
@@ -113,13 +130,39 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
+  const loginOffline = async () => {
     try {
-      await api.post('/logout');
+      const account = await getOfflineStaffAccount();
+      if (!account || !await getStaffPin(account.user.id)) {
+        setOfflineLoginAvailable(false);
+        return {success: false};
+      }
+      setApiOfflineSession(true);
+      setApiAuthToken(null);
+      setUserToken(OFFLINE_SESSION_TOKEN);
+      setUserRole('staff');
+      setUser(account.user);
+      setBusiness(account.business);
+      setSessionExpiresAt(account.expiresAt);
+      setStartupError(null);
+      setSessionStorageWarning(null);
+      setFreshPasswordSignIn(false);
+      return {success: true};
     } catch {
-      // Local credentials are cleared below even when the server is unreachable.
+      return {success: false};
     }
-    await clearLocalSession();
+  };
+
+  const logout = async () => {
+    if (userToken !== OFFLINE_SESSION_TOKEN) {
+      try {
+        await api.post('/logout');
+      } catch {
+        // Local credentials are cleared below even when the server is unreachable.
+      }
+    }
+    await clearLocalSession({preserveOfflineAccount: true});
+    checkOfflineLogin().catch(() => setOfflineLoginAvailable(false));
   };
 
   const updateProfile = useCallback(async (profileData, hasPhoto = false) => {
@@ -207,8 +250,9 @@ export const AuthProvider = ({ children }) => {
       setStartupError(getApiErrorMessage(error, 'Saved sign-in could not be restored. Please sign in again.'));
     } finally {
       setIsLoading(false);
+      checkOfflineLogin().catch(() => setOfflineLoginAvailable(false));
     }
-  }, []);
+  }, [checkOfflineLogin]);
 
   useEffect(() => {
     if (bootstrapStarted.current) return;
@@ -237,10 +281,13 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       login,
+      loginOffline,
+      offlineLoginAvailable,
       logout,
       updateProfile,
       isLoading,
       userToken,
+      offlineMode: userToken === OFFLINE_SESSION_TOKEN,
       userRole,
       user,
       business,

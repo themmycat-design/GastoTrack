@@ -25,7 +25,7 @@ const BRAND_MOVE_MS = 750;
 const LoginScreen = () => {
   const {height} = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const {login, startupError} = useContext(AuthContext);
+  const {login, loginOffline, offlineLoginAvailable, startupError} = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -98,7 +98,15 @@ const LoginScreen = () => {
     setLoading(true);
     const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
-    if (!result.success) Alert.alert('Login failed', result.message);
+    if (!result.success) Alert.alert('Login failed');
+  };
+
+  const handleOfflineLogin = async () => {
+    if (loading) return;
+    setLoading(true);
+    const result = await loginOffline();
+    setLoading(false);
+    if (!result.success) Alert.alert('Login failed');
   };
 
   const initialBrandTop = Math.max(0, height / 2 - 90);
@@ -151,6 +159,9 @@ const LoginScreen = () => {
             <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={openLogin}>
               <Text style={styles.primaryButtonText}>Log in</Text>
             </TouchableOpacity>
+            {offlineLoginAvailable ? <TouchableOpacity accessibilityRole="button" style={styles.offlineButton} onPress={handleOfflineLogin}>
+              <Text style={styles.offlineButtonText}>Continue offline with MPIN</Text>
+            </TouchableOpacity> : null}
           </Animated.View>
         ) : (
           <ScrollView
@@ -209,6 +220,9 @@ const LoginScreen = () => {
                 disabled={loading}>
                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Log in</Text>}
               </TouchableOpacity>
+              {offlineLoginAvailable ? <TouchableOpacity accessibilityRole="button" style={styles.offlineButton} onPress={handleOfflineLogin} disabled={loading}>
+                <Text style={styles.offlineButtonText}>Continue offline with MPIN</Text>
+              </TouchableOpacity> : null}
             </Animated.View>
           </ScrollView>
         )}
@@ -231,6 +245,8 @@ const styles = StyleSheet.create({
   actions: {flex: 1, justifyContent: 'flex-end', paddingHorizontal: 28},
   primaryButton: {minHeight: 52, borderRadius: 16, backgroundColor: '#00C897', alignItems: 'center', justifyContent: 'center'},
   primaryButtonText: {color: '#053B31', fontSize: 16, fontWeight: '800'},
+  offlineButton: {minHeight: 52, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: '#00AE84', alignItems: 'center', justifyContent: 'center'},
+  offlineButtonText: {color: '#075C48', fontSize: 15, fontWeight: '800'},
   formScroll: {flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20},
   formScrollCompact: {justifyContent: 'flex-start'},
   formCard: {padding: 22, borderWidth: 1, borderColor: '#D7ECE0', borderRadius: 24, backgroundColor: '#FFFFFF'},

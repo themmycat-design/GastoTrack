@@ -15,7 +15,7 @@ const ProfileScreen = ({navigation}) => {
   const staffPin = useStaffPin();
 
   const handleResetPin = () => {
-    Alert.alert('Create a new MPIN?', 'Your new MPIN will replace the current one. You will enter it again to unlock the app.', [
+    Alert.alert('Create a new MPIN?', 'Your new MPIN will replace the current one.', [
       {text: 'Back', style: 'cancel'},
       {text: 'New MPIN', onPress: () => staffPin?.startPinReset()},
     ]);

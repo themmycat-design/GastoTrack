@@ -162,7 +162,7 @@ describe('staff MPIN gate', () => {
     await enter('2222');
     expect(saveStaffPin).toHaveBeenCalledWith(17, '2222');
     expect(clearStaffPin).not.toHaveBeenCalled();
-    expect(AppAlert.alert).toHaveBeenCalledWith('MPIN created successfully', expect.any(String), expect.any(Array));
+    expect(AppAlert.alert).toHaveBeenCalledWith('MPIN created successfully', '', expect.any(Array));
     expect(tree.root.findByType(StaffPinScreen).props.mode).toBe('unlock');
     await enter('2222');
     expect(tree.root.findAllByType(StaffPinScreen)).toHaveLength(0);

@@ -1,8 +1,8 @@
 import * as Keychain from 'react-native-keychain';
-import api, {setApiAuthToken} from '../src/services/api';
+import api, {setApiAuthToken, setApiOfflineSession} from '../src/services/api';
 
 describe('API session token', () => {
-  afterEach(() => setApiAuthToken(null));
+  afterEach(() => {setApiAuthToken(null); setApiOfflineSession(false);});
 
   it('attaches the restored token to data requests without reading native storage', () => {
     const requestInterceptor = api.interceptors.request.handlers[0].fulfilled;
@@ -17,5 +17,12 @@ describe('API session token', () => {
     setApiAuthToken(null);
     const signedOut = requestInterceptor({method: 'get', url: '/products', headers: {Authorization: 'Bearer stale-token'}});
     expect(signedOut.headers.Authorization).toBeUndefined();
+  });
+
+  it('keeps offline sessions from sending requests or a placeholder token', async () => {
+    const requestInterceptor = api.interceptors.request.handlers[0].fulfilled;
+    setApiOfflineSession(true);
+    await expect(requestInterceptor({method: 'get', url: '/products', headers: {}}))
+      .rejects.toMatchObject({code: 'OFFLINE_SESSION'});
   });
 });

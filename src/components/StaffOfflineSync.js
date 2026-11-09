@@ -4,7 +4,7 @@ import {useAuth} from '../context/AuthContext';
 import {setActiveStaffOfflineAccount, syncStaffOfflineActions} from '../services/staffOffline';
 
 const StaffOfflineSync = () => {
-  const {userToken, userRole, user, business} = useAuth();
+  const {userToken, userRole, user, business, offlineMode} = useAuth();
   const userId = userToken && userRole === 'staff' ? Number(user?.id) : 0;
   const businessId = userId ? Number(user?.business_id || business?.id) : 0;
 
@@ -15,6 +15,7 @@ const StaffOfflineSync = () => {
     }
     const account = {userId, businessId};
     setActiveStaffOfflineAccount(account);
+    if (offlineMode) return () => setActiveStaffOfflineAccount(null);
     const sync = () => syncStaffOfflineActions(account).catch(() => {});
     sync();
     const appState = AppState.addEventListener('change', state => {
@@ -26,7 +27,7 @@ const StaffOfflineSync = () => {
       appState.remove();
       clearInterval(timer);
     };
-  }, [businessId, userId]);
+  }, [businessId, userId, offlineMode]);
   return null;
 };
 

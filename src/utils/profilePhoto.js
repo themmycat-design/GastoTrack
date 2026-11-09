@@ -1,4 +1,4 @@
-import {API_URL} from '../services/api';
+import {API_URL, OFFLINE_SESSION_TOKEN} from '../services/api';
 
 const PHOTO_TYPES = {
   'image/jpeg': 'jpg',
@@ -29,7 +29,7 @@ export const profilePhotoUpload = asset => {
 };
 
 export const getProfilePhotoSource = (user, token) => {
-  if (!user?.has_profile_photo || !token || !API_URL) return null;
+  if (!user?.has_profile_photo || !token || token === OFFLINE_SESSION_TOKEN || !API_URL) return null;
 
   return {
     uri: `${API_URL}/user/profile-photo?v=${encodeURIComponent(user.profile_photo_version || '')}`,

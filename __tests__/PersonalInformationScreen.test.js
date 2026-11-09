@@ -67,7 +67,7 @@ describe('staff personal information editing', () => {
     await press('Save personal information changes');
 
     expect(updateProfile).toHaveBeenCalledWith({name: 'Updated Staff', phone: '09998887777'}, false);
-    expect(AppAlert.alert).toHaveBeenCalledWith('Profile updated', 'Your personal information has been saved.');
+    expect(AppAlert.alert).toHaveBeenCalledWith('Profile updated');
   });
 
   it('sends a selected photo and edits in one multipart request', async () => {

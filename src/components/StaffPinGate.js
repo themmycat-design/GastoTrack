@@ -97,7 +97,7 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
           if (resettingPin) {
             setResettingPin(false);
             setMode('unlock');
-            AppAlert.alert('MPIN created successfully', 'Enter your new MPIN to unlock the app again.', [
+            AppAlert.alert('MPIN created successfully', '', [
               {text: 'Continue'},
             ]);
           } else {

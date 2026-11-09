@@ -380,7 +380,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         setQrPaymentModalVisible(false);
         setPaymentType(null);
         setSelectedEwallet(null);
-        Alert.alert('Saved on this device', 'This cash order will sync when the server is reachable. It is not a completed sale until the server accepts it.');
+        Alert.alert('Saved on this device', 'Cash order pending sync; sale not yet completed.');
       } else if (orderPaymentType === 'cashless' && order.paymentStatus !== 'confirmed') {
         setQrPaymentModalVisible(true);
         setPaymentSignalDetected(false);
