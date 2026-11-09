@@ -207,7 +207,7 @@ class SuperAdminTest extends TestCase
         ]);
     }
 
-    public function test_super_admin_can_create_update_archive_and_restore_a_business(): void
+    public function test_super_admin_can_create_update_and_delete_a_business(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
         Notification::fake();
@@ -231,7 +231,7 @@ class SuperAdminTest extends TestCase
         $this->actingAs($admin)
             ->get(route('super-admin.businesses'))
             ->assertOk()
-            ->assertSee('Archive');
+            ->assertSee('Delete');
 
         $this->assertDatabaseHas('users', [
             'email' => 'owner@sunrisecafe.example',
@@ -252,25 +252,11 @@ class SuperAdminTest extends TestCase
         $this->assertDatabaseHas('businesses', ['id' => $business->id, 'name' => 'Updated Cafe', 'active' => true]);
 
         $this->actingAs($admin)->delete(route('super-admin.businesses.destroy', $business))->assertRedirect();
-        $this->assertSoftDeleted('businesses', ['id' => $business->id]);
-
-        $this->actingAs($admin)->post(route('super-admin.businesses.restore', $business->id))->assertRedirect();
-        $this->assertDatabaseHas('businesses', ['id' => $business->id, 'status' => 'inactive', 'deleted_at' => null]);
-
-        $this->actingAs($admin)->delete(route('super-admin.businesses.destroy', $business))->assertRedirect();
-        $this->actingAs($admin)
-            ->get(route('super-admin.businesses', ['archived' => 1]))
-            ->assertOk()
-            ->assertSee('Delete permanently');
-
-        $this->actingAs($admin)
-            ->delete(route('super-admin.businesses.force-destroy', $business->id))
-            ->assertRedirect(route('super-admin.businesses', ['archived' => 1]));
-
         $this->assertDatabaseMissing('businesses', ['id' => $business->id]);
+        $this->assertDatabaseMissing('users', ['id' => $owner->id]);
     }
 
-    public function test_permanent_delete_is_limited_to_archived_businesses_and_removes_tenant_records(): void
+    public function test_delete_removes_tenant_records_and_legacy_delete_route_requires_a_previously_removed_business(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
         $business = Business::create(['name' => 'Permanent Delete Cafe', 'status' => 'active', 'active' => true]);
@@ -363,9 +349,6 @@ class SuperAdminTest extends TestCase
             ->assertNotFound();
 
         $this->actingAs($admin)->delete(route('super-admin.businesses.destroy', $business))->assertRedirect();
-        $this->actingAs($admin)
-            ->delete(route('super-admin.businesses.force-destroy', $business->id))
-            ->assertRedirect(route('super-admin.businesses', ['archived' => 1]));
 
         $this->assertDatabaseMissing('businesses', ['id' => $business->id]);
         $this->assertDatabaseMissing('users', ['id' => $owner->id]);
@@ -375,6 +358,39 @@ class SuperAdminTest extends TestCase
         $this->assertDatabaseMissing('transactions', ['business_id' => $business->id]);
         $this->assertDatabaseMissing('order_payment_events', ['business_id' => $business->id]);
         $this->assertDatabaseMissing('bug_reports', ['business_id' => $business->id]);
+    }
+
+    public function test_overview_shows_a_delete_button_for_each_recent_business(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+        $first = Business::create(['name' => 'First Shop', 'status' => 'active', 'active' => true]);
+        $second = Business::create(['name' => 'Second Shop', 'status' => 'pending', 'active' => false]);
+
+        $this->actingAs($admin)->get(route('super-admin.dashboard'))
+            ->assertOk()
+            ->assertSee('action="'.route('super-admin.businesses.destroy', $first).'"', false)
+            ->assertSee('action="'.route('super-admin.businesses.destroy', $second).'"', false)
+            ->assertSee('Delete First Shop permanently')
+            ->assertSee('Delete Second Shop permanently');
+    }
+
+    public function test_previously_archived_businesses_remain_accessible_for_cleanup(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+        $business = Business::create(['name' => 'Older Shop', 'status' => 'inactive', 'active' => false]);
+        $business->delete();
+
+        $this->actingAs($admin)->get(route('super-admin.businesses'))
+            ->assertOk()
+            ->assertSee('Older removed records');
+        $this->actingAs($admin)->get(route('super-admin.businesses', ['archived' => 1]))
+            ->assertOk()
+            ->assertSee('Older Shop')
+            ->assertSee('Delete permanently');
+        $this->actingAs($admin)->delete(route('super-admin.businesses.force-destroy', $business->id))
+            ->assertRedirect(route('super-admin.businesses', ['archived' => 1]));
+
+        $this->assertDatabaseMissing('businesses', ['id' => $business->id]);
     }
 
     public function test_super_admin_can_manage_bug_reports_and_export_platform_report(): void

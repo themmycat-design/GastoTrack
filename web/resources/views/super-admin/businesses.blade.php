@@ -18,7 +18,9 @@
     ] as [$status, $label, $count])
         <a href="{{ $status ? route('super-admin.businesses', ['status' => $status]) : route('super-admin.businesses') }}" aria-current="{{ request('status') === $status && !request()->boolean('archived') ? 'page' : 'false' }}" class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition {{ request('status') === $status && !request()->boolean('archived') ? 'bg-[#EAF8F2] text-[#08745D]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}"><span>{{ $label }}</span><span class="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-500">{{ $count }}</span></a>
     @endforeach
-    <a href="{{ route('super-admin.businesses', ['archived' => 1]) }}" aria-current="{{ request()->boolean('archived') ? 'page' : 'false' }}" class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition {{ request()->boolean('archived') ? 'bg-[#EAF8F2] text-[#08745D]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}"><span>Archived</span><span class="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-500">{{ $archivedCount }}</span></a>
+    @if($archivedCount > 0)
+        <a href="{{ route('super-admin.businesses', ['archived' => 1]) }}" aria-current="{{ request()->boolean('archived') ? 'page' : 'false' }}" class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition {{ request()->boolean('archived') ? 'bg-[#EAF8F2] text-[#08745D]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}"><span>Older removed records</span><span class="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-500">{{ $archivedCount }}</span></a>
+    @endif
 </nav>
 
 <form method="GET" role="search" class="mb-5 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -66,7 +68,7 @@
                 </td>
                 <td class="p-4 text-slate-600">{{ collect([$business->city, $business->province])->filter()->join(', ') ?: 'Not provided' }}</td>
                 <td class="p-4">{{ $business->staff_count }}</td>
-                <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-semibold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->trashed() ? 'archived' : $business->status }}</span></td>
+                <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-semibold capitalize {{ $business->status === 'active' ? 'bg-emerald-100 text-emerald-800' : ($business->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $business->trashed() ? 'previously removed' : $business->status }}</span></td>
                 <td class="p-4 text-slate-600">{{ $business->created_at->format('M d, Y') }}</td>
                 <td class="p-4">
                     @if($business->trashed())
@@ -81,16 +83,10 @@
                     @else
                         <div class="flex items-center gap-3">
                             <a href="{{ route('super-admin.businesses.show', $business) }}" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-emerald-700 hover:bg-emerald-50">View</a>
-                            @if($business->status === 'pending' && ! $business->active && $business->owner_email_verification_pending)
-                                <form method="POST" action="{{ route('super-admin.businesses.pending-registration.delete', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Delete the unverified registration for ' + this.dataset.businessName + ' and its owner account? This cannot be undone.')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50 hover:text-red-900">Delete</button>
-                                </form>
-                            @endif
-                            <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Archive ' + this.dataset.businessName + '? Access will be disabled and its records preserved.')">
+                            <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Permanently delete ' + this.dataset.businessName + ', its owner and staff accounts, and all associated records? This cannot be undone.')">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50 hover:text-red-900">Archive</button>
+                                <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50 hover:text-red-900" aria-label="Delete {{ $business->name }} permanently">Delete</button>
                             </form>
                         </div>
                     @endif

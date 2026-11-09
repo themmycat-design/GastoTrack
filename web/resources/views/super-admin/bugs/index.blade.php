@@ -76,7 +76,7 @@
                             @if($report->is_legacy)<span class="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">Legacy &middot; {{ str_replace('_', ' ', $report->category) }}</span>@endif
                         </div>
                     </td>
-                    <td class="p-4"><p class="font-medium text-slate-800">{{ $report->business?->name ?? 'Archived business' }}</p><p class="mt-1 text-xs text-slate-500">{{ $report->reporter?->name ?? 'Administrator' }}</p></td>
+                    <td class="p-4"><p class="font-medium text-slate-800">{{ $report->business?->name ?? 'Unavailable business' }}</p><p class="mt-1 text-xs text-slate-500">{{ $report->reporter?->name ?? 'Administrator' }}</p></td>
                     <td class="p-4"><span class="inline-flex rounded-full px-3 py-1 text-xs font-bold capitalize {{ $priorityStyles[$report->priority] ?? 'bg-amber-50 text-amber-800' }}">{{ $report->priority }}</span></td>
                     <td class="p-4"><span class="inline-flex rounded-full px-3 py-1 text-xs font-bold capitalize {{ $statusStyles[$report->status] ?? 'bg-amber-50 text-amber-800' }}">{{ str_replace('_', ' ', $report->status) }}</span></td>
                     <td class="whitespace-nowrap p-4 text-slate-600">{{ $report->created_at->format('M d, Y') }}</td>

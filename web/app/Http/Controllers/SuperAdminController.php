@@ -201,17 +201,10 @@ class SuperAdminController extends Controller
 
     public function destroy(Business $business)
     {
-        $business->update([
-            'status' => 'inactive',
-            'active' => false,
-            'suspension_reason' => 'Archived by a platform administrator.',
-        ]);
-        $this->revokeBusinessTokens($business);
-        $business->delete();
-        $this->audit('business.archived', $business);
+        $this->permanentlyDeleteBusiness($business);
 
         return redirect()->route('super-admin.businesses')
-            ->with('success', 'Business archived. Its private records were preserved.');
+            ->with('success', 'Business and its associated records were permanently deleted.');
     }
 
     public function restore(int $business)
@@ -232,7 +225,7 @@ class SuperAdminController extends Controller
         $this->permanentlyDeleteBusiness($record);
 
         return redirect()->route('super-admin.businesses', ['archived' => 1])
-            ->with('success', 'The archived business and its associated records were permanently deleted.');
+            ->with('success', 'The previously removed business and its associated records were permanently deleted.');
     }
 
     public function deletePendingRegistration(Business $business)
@@ -242,7 +235,7 @@ class SuperAdminController extends Controller
             $owner = $record->owner_account;
 
             // This shortcut is for untouched registrations only. Established
-            // businesses must use the existing archive and deletion workflow.
+            // businesses use the regular deletion action.
             abort_unless(
                 $record->status === 'pending'
                 && ! $record->active
@@ -271,6 +264,7 @@ class SuperAdminController extends Controller
 
         DB::transaction(function () use ($record): void {
             $this->revokeBusinessTokens($record);
+            $staffIds = $record->users()->where('role', 'staff')->pluck('id');
 
             // These audit tables restrict business deletion; remove only this
             // tenant's rows so the rest of the business data can cascade away.
@@ -312,7 +306,13 @@ class SuperAdminController extends Controller
 
             $this->audit('business.permanently_deleted', $record);
 
-            DB::afterCommit(fn () => Storage::disk('local')->delete($bugScreenshotPaths->all()));
+            DB::afterCommit(function () use ($record, $bugScreenshotPaths, $staffIds): void {
+                Storage::disk('local')->delete($bugScreenshotPaths->all());
+                foreach ($staffIds as $staffId) {
+                    Storage::disk('local')->deleteDirectory('profile-photos/'.$staffId);
+                }
+                Storage::disk('public')->deleteDirectory('products/'.$record->id);
+            });
         });
     }
 

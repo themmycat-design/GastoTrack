@@ -50,12 +50,10 @@
                 <td class="p-4 text-slate-600">{{ $business->created_at->format('M d, Y') }}</td>
                 <td class="p-4"><div class="flex items-center gap-2">
                     <a href="{{ route('super-admin.businesses.show', $business) }}" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-emerald-700 hover:bg-emerald-50">View</a>
-                    @if($business->status === 'pending' && ! $business->active && $business->owner_email_verification_pending)
-                        <form method="POST" action="{{ route('super-admin.businesses.pending-registration.delete', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Delete the unverified registration for ' + this.dataset.businessName + ' and its owner account? This cannot be undone.')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50">Delete</button>
-                        </form>
-                    @endif
+                    <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Permanently delete ' + this.dataset.businessName + ', its owner and staff accounts, and all associated records? This cannot be undone.')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-red-700 hover:bg-red-50" aria-label="Delete {{ $business->name }} permanently">Delete</button>
+                    </form>
                 </div></td>
             </tr>
         @empty

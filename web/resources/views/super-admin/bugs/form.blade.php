@@ -15,7 +15,7 @@
     @if($report->is_legacy)<div class="mb-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><i class="fas fa-circle-info mt-0.5" aria-hidden="true"></i><p>Converted from a previous violation report. Original category: <strong class="capitalize">{{ str_replace('_', ' ', $report->category) }}</strong></p></div>@endif
     <div class="grid gap-5 sm:grid-cols-2">
         <label class="text-sm font-bold text-slate-700">Business
-            <select name="business_id" required class="mt-1.5 w-full rounded-xl border-slate-300 text-sm font-normal"><option value="">Select business</option>@foreach($businesses as $business)<option value="{{ $business->id }}" @selected((string) old('business_id', $report->business_id) === (string) $business->id)>{{ $business->name }}{{ $business->trashed() ? ' (archived)' : '' }}</option>@endforeach</select>
+            <select name="business_id" required class="mt-1.5 w-full rounded-xl border-slate-300 text-sm font-normal"><option value="">Select business</option>@foreach($businesses as $business)<option value="{{ $business->id }}" @selected((string) old('business_id', $report->business_id) === (string) $business->id)>{{ $business->name }}{{ $business->trashed() ? ' (previously removed)' : '' }}</option>@endforeach</select>
         </label>
         <label class="text-sm font-bold text-slate-700">Area
             <select name="area" required class="mt-1.5 w-full rounded-xl border-slate-300 text-sm font-normal"><option value="">Select area</option>@foreach(\App\Models\BugReport::AREAS as $area)<option value="{{ $area }}" @selected(old('area', $report->area) === $area)>{{ ucwords(str_replace('_', ' ', $area)) }}</option>@endforeach</select>

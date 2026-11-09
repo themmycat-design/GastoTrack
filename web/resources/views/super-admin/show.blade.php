@@ -111,10 +111,7 @@
             <div class="mt-5 border-l-2 border-emerald-200 pl-4 text-sm"><p class="font-semibold">Business registered</p><p class="text-slate-500">{{ $business->created_at->format('M d, Y · g:i A') }}</p>@if(!$business->updated_at->equalTo($business->created_at))<p class="mt-5 font-semibold">Last updated</p><p class="text-slate-500">{{ $business->updated_at->format('M d, Y · g:i A') }}</p>@endif</div>
         </section>
 
-        @if($business->status === 'pending' && ! $business->active && $ownerDetailsHidden)
-            <form method="POST" action="{{ route('super-admin.businesses.pending-registration.delete', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Delete the unverified registration for ' + this.dataset.businessName + ' and its owner account? This cannot be undone.')">@csrf @method('DELETE')<button class="min-h-11 w-full rounded-lg border border-red-300 px-4 py-3 font-semibold text-red-700 hover:bg-red-50">Delete registration</button></form>
-        @endif
-        <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Archive ' + this.dataset.businessName + '? Access will be disabled, but private records will be preserved.')">@csrf @method('DELETE')<button class="min-h-11 w-full rounded-lg border border-red-300 px-4 py-3 font-semibold text-red-700 hover:bg-red-50"><i class="fas fa-box-archive mr-2" aria-hidden="true"></i>Archive business</button></form>
+        <form method="POST" action="{{ route('super-admin.businesses.destroy', $business) }}" data-business-name="{{ $business->name }}" onsubmit="return confirm('Permanently delete ' + this.dataset.businessName + ', its owner and staff accounts, and all associated records? This cannot be undone.')">@csrf @method('DELETE')<button class="min-h-11 w-full rounded-lg border border-red-300 px-4 py-3 font-semibold text-red-700 hover:bg-red-50"><i class="fas fa-trash mr-2" aria-hidden="true"></i>Delete business permanently</button></form>
     </aside>
 </div>
 @endsection

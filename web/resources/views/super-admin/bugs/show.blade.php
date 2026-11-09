@@ -21,7 +21,7 @@
         <a href="{{ route('super-admin.bug-reports.index') }}" class="inline-flex min-h-11 items-center rounded-lg text-sm font-bold text-emerald-700 hover:text-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">&larr; Bug reports</a>
         <p class="mb-1 mt-3 text-xs font-bold uppercase tracking-[.12em] text-emerald-700">Report details</p>
         <h1 class="break-words">{{ $report->subject }}</h1>
-        <p class="mt-2 text-sm text-slate-600">{{ $report->business?->name ?? 'Archived business' }}</p>
+        <p class="mt-2 text-sm text-slate-600">{{ $report->business?->name ?? 'Unavailable business' }}</p>
     </div>
     <a href="{{ route('super-admin.bug-reports.edit', $report) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"><i class="fas fa-pen mr-2" aria-hidden="true"></i>Update report</a>
 </div>
