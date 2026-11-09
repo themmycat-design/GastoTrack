@@ -44,7 +44,7 @@ class PublicContactTest extends TestCase
 
         $this->postJson(route('contact.send'), array_merge($this->validMessage(), ['source' => 'landing']))
             ->assertOk()
-            ->assertJsonPath('message', 'Your message was sent to the GastoTrack team. We sent a thank-you email to your address.')
+            ->assertJsonPath('message', 'Your message was sent to the GastoTrack team. Thank you for reaching out.')
             ->assertJsonPath('acknowledgement_sent', true);
 
         Mail::assertSent(PublicContactMessage::class, function (PublicContactMessage $mail) {

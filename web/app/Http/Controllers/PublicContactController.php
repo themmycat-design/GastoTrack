@@ -49,7 +49,7 @@ class PublicContactController extends Controller
             return back()->withInput()->with('contact_error', 'We could not send your message. Please try again or use the email address below.');
         }
 
-        $confirmation = 'Your message was sent to the GastoTrack team. We sent a thank-you email to your address.';
+        $confirmation = 'Your message was sent to the GastoTrack team. Thank you for reaching out.';
         $acknowledgementSent = true;
 
         try {
