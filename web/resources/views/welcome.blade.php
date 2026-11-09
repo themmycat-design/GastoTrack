@@ -313,7 +313,7 @@
                 <div class="gt-scroll-reveal max-w-xl">
                     <p class="text-xs font-extrabold uppercase tracking-[.18em] text-[#008F70]">Questions and support</p>
                     <h2 id="contact-title" class="mt-4 text-4xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-5xl">Contact the GastoTrack team.</h2>
-                    <p class="mt-5 text-base leading-8 text-slate-600">Ask about the project or your account. Fill out the form and your message will be emailed to the team.</p>
+                    <p class="mt-5 text-base leading-8 text-slate-600">Ask about the project or your account. Your message will be emailed to the team, and we'll send a thank-you note to your email address.</p>
                     <p class="mt-5 text-sm leading-6 text-slate-500">Please leave out passwords, payment codes, and private transaction details.</p>
                 </div>
                 <div class="gt-scroll-reveal rounded-2xl border border-[#DDE9E5] bg-white p-6 shadow-[0_18px_45px_rgba(10,46,42,0.08)] sm:p-8" style="--gt-reveal-delay: 90ms">

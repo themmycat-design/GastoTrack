@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PublicContactAcknowledgement;
 use App\Mail\PublicContactMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -48,13 +49,29 @@ class PublicContactController extends Controller
             return back()->withInput()->with('contact_error', 'We could not send your message. Please try again or use the email address below.');
         }
 
-        $confirmation = 'Your message was sent. Thank you for contacting GastoTrack.';
+        $confirmation = 'Your message was sent to the GastoTrack team. We sent a thank-you email to your address.';
+        $acknowledgementSent = true;
+
+        try {
+            Mail::to($data['email'])->send(new PublicContactAcknowledgement(
+                $data['name'],
+                $recipient,
+            ));
+        } catch (Throwable $exception) {
+            Log::warning('Contact acknowledgement delivery failed', ['exception' => $exception::class]);
+            $confirmation = 'Your message reached the GastoTrack team, but we could not send the thank-you email.';
+            $acknowledgementSent = false;
+        }
+
         if ($request->expectsJson()) {
-            return response()->json(['message' => $confirmation]);
+            return response()->json([
+                'message' => $confirmation,
+                'acknowledgement_sent' => $acknowledgementSent,
+            ]);
         }
 
         $destination = $request->input('source') === 'landing' ? url('/').'#contact' : route('contact');
 
-        return redirect()->to($destination)->with('contact_sent', $confirmation);
+        return redirect()->to($destination)->with($acknowledgementSent ? 'contact_sent' : 'contact_warning', $confirmation);
     }
 }

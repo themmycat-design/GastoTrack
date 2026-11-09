@@ -1,7 +1,7 @@
 <x-layouts.public-info title="Contact" intro="Questions about GastoTrack, your account, or a privacy request? Send the team an email and include enough detail for us to understand the issue." description="Contact the GastoTrack project team.">
     <section>
         <h2 class="text-xl font-extrabold">Send a message</h2>
-        <p class="mt-2 text-sm leading-7 text-slate-600">Fill out the form and we will receive your message by email. Please do not include passwords, payment codes, or private transaction details.</p>
+        <p class="mt-2 text-sm leading-7 text-slate-600">Fill out the form and we will receive your message by email. We will also send a thank-you note to your address. Please do not include passwords, payment codes, or private transaction details.</p>
         <div class="mt-5">@include('public.contact-form')</div>
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">

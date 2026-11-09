@@ -93,7 +93,7 @@ if (landingContactForm) {
 
                 if (response.ok) {
                     landingContactForm.reset();
-                    showStatus(result.message || 'Your message was sent to the GastoTrack team.', false);
+                    showStatus(result.message || 'Your message was sent to the GastoTrack team.', result.acknowledgement_sent === false);
                 } else {
                     const errors = result.errors || {};
                     Object.keys(errors).forEach(name => {

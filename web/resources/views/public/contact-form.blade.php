@@ -1,6 +1,9 @@
 @if(session('contact_sent'))
     <p role="status" class="rounded-xl border border-[#B7DAD0] bg-[#EAF8F2] px-4 py-3 text-sm font-semibold text-[#065A49]">{{ session('contact_sent') }}</p>
 @endif
+@if(session('contact_warning'))
+    <p role="alert" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{{ session('contact_warning') }}</p>
+@endif
 @if(session('contact_error'))
     <p role="alert" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{{ session('contact_error') }}</p>
 @endif
