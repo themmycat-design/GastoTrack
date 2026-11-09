@@ -6,11 +6,20 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useAuth} from '../../context/AuthContext';
+import {useStaffPin} from '../../context/StaffPinContext';
 import {COLORS} from '../../theme';
 import {getProfilePhotoSource} from '../../utils/profilePhoto';
 
 const ProfileScreen = ({navigation}) => {
   const {user, userRole, business, logout, userToken} = useAuth();
+  const staffPin = useStaffPin();
+
+  const handleResetPin = () => {
+    Alert.alert('Create a new MPIN?', 'Your new MPIN will replace the current one. You will enter it again to unlock the app.', [
+      {text: 'Back', style: 'cancel'},
+      {text: 'New MPIN', onPress: () => staffPin?.startPinReset()},
+    ]);
+  };
 
   const handleLogout = () => {
     Alert.alert('Sign out?', 'You will need to sign in again to continue.', [
@@ -23,6 +32,7 @@ const ProfileScreen = ({navigation}) => {
   const photoSource = getProfilePhotoSource(user, userToken);
   const profileOptions = [
     {title: 'Personal information', icon: 'account-outline', route: 'PersonalInformation'},
+    {title: 'Forgot MPIN', icon: 'lock-reset', onPress: handleResetPin},
     {title: 'Permissions', icon: 'shield-check-outline', route: 'Permissions'},
     {title: 'Your reports', icon: 'bug-outline', route: 'YourReports'},
     {title: 'Help', icon: 'help-circle-outline', route: 'Help'},
@@ -56,9 +66,9 @@ const ProfileScreen = ({navigation}) => {
         <View style={styles.profileOptions}>
           {profileOptions.map(option => (
             <TouchableOpacity
-              key={option.route}
+              key={option.route || option.title}
               style={styles.optionCard}
-              onPress={() => navigation.navigate(option.route)}
+              onPress={() => option.onPress ? option.onPress() : navigation.navigate(option.route)}
               accessibilityRole="button"
               accessibilityLabel={option.title}
               activeOpacity={0.75}>

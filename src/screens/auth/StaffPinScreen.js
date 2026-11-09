@@ -5,7 +5,7 @@ import {COLORS} from '../../theme';
 
 const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete'];
 
-const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, recoveryRequiresSignIn, onSignOut}) => {
+const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onCancel, onSignOut}) => {
   const insets = useSafeAreaInsets();
   const title = mode === 'setup' ? 'Create your MPIN' : mode === 'confirm' ? 'Confirm your MPIN'
     : mode === 'locked' ? 'MPIN locked' : 'Enter your MPIN';
@@ -13,7 +13,7 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, r
     ? 'Choose four numbers to protect your staff workspace.'
     : mode === 'confirm' ? 'Enter the same four numbers again.'
       : mode === 'locked' ? 'Sign in with your email and password to reset the attempt limit.'
-        : 'Unlock your staff workspace.';
+        : 'Unlock your staff workspace. If you forgot your MPIN, sign out and sign in with your password, then open Profile.';
 
   return (
     <View style={[styles.page, {paddingTop: Math.max(insets.top, 20) + 28, paddingBottom: Math.max(insets.bottom, 16)}]}>
@@ -42,10 +42,9 @@ const StaffPinScreen = ({mode, pin, error, busy, onDigit, onDelete, onRecover, r
         ) : <View key={`empty-${index}`} style={styles.key} />)}
       </View> : <View />}
       <View style={styles.footer}>
-        {onRecover ? <TouchableOpacity accessibilityRole="button"
-          accessibilityLabel={recoveryRequiresSignIn ? 'Forgot MPIN? Sign in to create a new one' : 'Forgot MPIN? Create a new one'}
-          onPress={onRecover} disabled={busy} style={styles.signOut}>
-          <Text style={styles.signOutText}>Forgot MPIN? Create a new one</Text>
+        {onCancel ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to profile"
+          onPress={onCancel} disabled={busy} style={styles.signOut}>
+          <Text style={styles.signOutText}>Back to profile</Text>
         </TouchableOpacity> : null}
         <TouchableOpacity accessibilityRole="button" onPress={onSignOut} disabled={busy} style={styles.signOut}>
           <Text style={styles.signOutText}>Sign out</Text>

@@ -59,7 +59,7 @@ const questions = [
   {
     icon: 'lock-reset',
     question: 'What if I forget my MPIN?',
-    answer: 'Tap Forgot MPIN? Create a new one on the unlock screen. Sign in again with your email and password when asked, then create and confirm a new four-digit MPIN.',
+    answer: 'Open Profile > Forgot MPIN, then choose New MPIN and enter four digits twice. After the success message, unlock the app with your new MPIN. If you cannot unlock with the old MPIN, sign out and sign in with your email and password first, then open Profile.',
   },
   {
     icon: 'account-edit-outline',

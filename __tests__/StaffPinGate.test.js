@@ -3,6 +3,8 @@ import {AppState} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import StaffPinGate from '../src/components/StaffPinGate';
 import StaffPinScreen from '../src/screens/auth/StaffPinScreen';
+import {useStaffPin} from '../src/context/StaffPinContext';
+import {AppAlert} from '../src/services/AppDialogService';
 import {
   clearStaffPin, getStaffPin, getStaffPinAttempts, recordStaffPinFailure,
   resetStaffPinAttempts, saveStaffPin,
@@ -17,6 +19,7 @@ jest.mock('../src/services/staffPinStorage', () => ({
   clearStaffPin: jest.fn(),
 }));
 jest.mock('../src/screens/auth/StaffPinScreen', () => 'StaffPinScreen');
+jest.mock('../src/services/AppDialogService', () => ({AppAlert: {alert: jest.fn()}}));
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -50,6 +53,7 @@ describe('staff MPIN gate', () => {
     recordStaffPinFailure.mockImplementation(async () => ++persistedAttempts);
     resetStaffPinAttempts.mockImplementation(async () => {persistedAttempts = 0;});
     clearStaffPin.mockImplementation(async () => {persistedAttempts = 0;});
+    AppAlert.alert.mockClear();
   });
   afterEach(() => {
     if (tree) act(() => tree.unmount());
@@ -133,32 +137,35 @@ describe('staff MPIN gate', () => {
     expect(tree.root.findByType(StaffPinScreen).props.mode).toBe('locked');
   });
 
-  it('allows a new PIN only after a fresh password sign-in', async () => {
+  it('allows password sign-in to reach Profile when the old MPIN is forgotten', async () => {
     getStaffPin.mockResolvedValue('0042');
     await mount(true);
-    await act(async () => tree.root.findByType(StaffPinScreen).props.onRecover());
-    expect(clearStaffPin).toHaveBeenCalledWith(17);
+    expect(tree.root.findAllByType(StaffPinScreen)).toHaveLength(0);
+    expect(clearStaffPin).not.toHaveBeenCalled();
+  });
+
+  it('replaces the MPIN from Profile, shows success, then requires the new MPIN', async () => {
+    getStaffPin.mockResolvedValue('0042');
+    let startReset;
+    const ResetControl = () => {
+      startReset = useStaffPin().startPinReset;
+      return null;
+    };
+    await mount(false, <ResetControl />);
+    await enter('0042');
+    act(() => startReset());
     expect(tree.root.findByType(StaffPinScreen).props.mode).toBe('setup');
+    act(() => tree.root.findByType(StaffPinScreen).props.onCancel());
+    expect(tree.root.findAllByType(StaffPinScreen)).toHaveLength(0);
+    act(() => startReset());
     await enter('2222');
     await enter('2222');
     expect(saveStaffPin).toHaveBeenCalledWith(17, '2222');
-  });
-
-  it('offers recovery on a restored session and requires password sign-in before clearing the PIN', async () => {
-    getStaffPin.mockResolvedValue('0042');
-    await mount();
-    const pinScreen = tree.root.findByType(StaffPinScreen);
-    expect(pinScreen.props.mode).toBe('unlock');
-    expect(pinScreen.props.recoveryRequiresSignIn).toBe(true);
-    await act(async () => pinScreen.props.onRecover());
-    expect(onSignOut).toHaveBeenCalledTimes(1);
     expect(clearStaffPin).not.toHaveBeenCalled();
-
-    act(() => tree.unmount());
-    tree = null;
-    await mount(true);
-    await act(async () => tree.root.findByType(StaffPinScreen).props.onRecover());
-    expect(clearStaffPin).toHaveBeenCalledWith(17);
-    expect(tree.root.findByType(StaffPinScreen).props.mode).toBe('setup');
+    expect(AppAlert.alert).toHaveBeenCalledWith('MPIN created successfully', expect.any(String), expect.any(Array));
+    expect(tree.root.findByType(StaffPinScreen).props.mode).toBe('unlock');
+    await enter('2222');
+    expect(tree.root.findAllByType(StaffPinScreen)).toHaveLength(0);
+    expect(onSignOut).not.toHaveBeenCalled();
   });
 });

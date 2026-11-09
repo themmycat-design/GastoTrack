@@ -1,10 +1,12 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {
-  clearStaffPin, getStaffPin, getStaffPinAttempts, recordStaffPinFailure,
+  getStaffPin, getStaffPinAttempts, recordStaffPinFailure,
   resetStaffPinAttempts, saveStaffPin,
 } from '../services/staffPinStorage';
 import StaffPinScreen from '../screens/auth/StaffPinScreen';
+import {StaffPinContext} from '../context/StaffPinContext';
+import {AppAlert} from '../services/AppDialogService';
 import {COLORS} from '../theme';
 
 const MAX_ATTEMPTS = 5;
@@ -18,8 +20,13 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
   const [savedPin, setSavedPin] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [resettingPin, setResettingPin] = useState(false);
   const processing = useRef(false);
   const backgroundedAt = useRef(null);
+  const passwordAuthenticatedRef = useRef(passwordAuthenticated);
+  const onPinUnlockedRef = useRef(onPinUnlocked);
+  passwordAuthenticatedRef.current = passwordAuthenticated;
+  onPinUnlockedRef.current = onPinUnlocked;
 
   const loadPin = useCallback(async () => {
     setMode('loading');
@@ -38,7 +45,15 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
     Promise.all([getStaffPin(userId), getStaffPinAttempts(userId)]).then(([stored, failedAttempts]) => {
       if (!active) return;
       setSavedPin(stored);
-      setMode(failedAttempts >= MAX_ATTEMPTS ? 'locked' : stored ? 'unlock' : 'setup');
+      if (stored && passwordAuthenticatedRef.current) {
+        // Password sign-in also proves ownership when the old MPIN was forgotten.
+        // The staff member can then replace it from Profile.
+        setHasOpened(true);
+        setMode('open');
+        onPinUnlockedRef.current?.();
+      } else {
+        setMode(failedAttempts >= MAX_ATTEMPTS ? 'locked' : stored ? 'unlock' : 'setup');
+      }
     }).catch(() => { if (active) setMode('storage-error'); });
     return () => { active = false; };
   }, [userId]);
@@ -79,9 +94,17 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
           await saveStaffPin(userId, value);
           await resetStaffPinAttempts(userId);
           setSavedPin(value);
-          setHasOpened(true);
-          setMode('open');
-          onPinUnlocked?.();
+          if (resettingPin) {
+            setResettingPin(false);
+            setMode('unlock');
+            AppAlert.alert('MPIN created successfully', 'Enter your new MPIN to unlock the app again.', [
+              {text: 'Continue'},
+            ]);
+          } else {
+            setHasOpened(true);
+            setMode('open');
+            onPinUnlocked?.();
+          }
         }
       } else if (mode === 'unlock') {
         if (value === savedPin) {
@@ -115,29 +138,21 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
     if (next.length === 4) completePin(next);
   };
 
-  const recoverPin = async () => {
-    if (busy || processing.current) return;
-    if (!passwordAuthenticated) {
-      // An already-unlocked session does not prove the staff member knows the
-      // account password. Return to sign-in before allowing PIN replacement.
-      await onSignOut();
-      return;
-    }
-    processing.current = true;
-    setBusy(true);
-    try {
-      await clearStaffPin(userId);
-      setSavedPin(null);
-      setPin('');
-      setFirstPin('');
-      setError('Create a new MPIN after your password sign-in.');
-      setMode('setup');
-    } catch {
-      setError('Secure PIN storage is unavailable. Try again.');
-    } finally {
-      setBusy(false);
-      processing.current = false;
-    }
+  const startPinReset = () => {
+    if (mode !== 'open' || busy || processing.current) return;
+    setResettingPin(true);
+    setPin('');
+    setFirstPin('');
+    setError('');
+    setMode('setup');
+  };
+
+  const cancelPinReset = () => {
+    setResettingPin(false);
+    setPin('');
+    setFirstPin('');
+    setError('');
+    setMode('open');
   };
 
   if (mode === 'loading') return <View style={styles.center}><ActivityIndicator color={COLORS.accentDark} /></View>;
@@ -150,8 +165,7 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
   );
   const pinScreen = <StaffPinScreen mode={mode} pin={pin} error={error} busy={busy} onDigit={onDigit}
     onDelete={() => {setPin(current => current.slice(0, -1)); setError('');}}
-    onRecover={mode === 'unlock' ? recoverPin : null}
-    recoveryRequiresSignIn={!passwordAuthenticated} onSignOut={onSignOut} />;
+    onCancel={resettingPin ? cancelPinReset : null} onSignOut={onSignOut} />;
   if (!hasOpened) return pinScreen;
 
   return <View style={styles.gate}>
@@ -159,7 +173,7 @@ const StaffPinGate = ({userId, onSignOut, passwordAuthenticated = false, onPinUn
       pointerEvents={mode === 'open' ? 'auto' : 'none'}
       accessibilityElementsHidden={mode !== 'open'}
       importantForAccessibility={mode === 'open' ? 'auto' : 'no-hide-descendants'}>
-      {children}
+      <StaffPinContext.Provider value={{startPinReset}}>{children}</StaffPinContext.Provider>
     </View>
     {mode !== 'open' ? pinScreen : null}
   </View>;
