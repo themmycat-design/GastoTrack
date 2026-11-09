@@ -13,6 +13,8 @@ class PublicContactTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('id="contact"', false)
+            ->assertSee('data-gt-contact-form', false)
+            ->assertSee('data-gt-contact-status', false)
             ->assertSee('name="message"', false)
             ->assertSee('Send message');
     }
@@ -28,6 +30,45 @@ class PublicContactTest extends TestCase
             ->assertSessionHas('contact_sent');
 
         Mail::assertSent(PublicContactMessage::class, 1);
+    }
+
+    public function test_landing_contact_message_can_be_sent_without_a_page_redirect(): void
+    {
+        Mail::fake();
+        config()->set('mail.default', 'smtp');
+        config()->set('services.gastotrack.contact_email', 'team@example.test');
+
+        $this->postJson(route('contact.send'), array_merge($this->validMessage(), ['source' => 'landing']))
+            ->assertOk()
+            ->assertJsonPath('message', 'Your message was sent. Thank you for contacting GastoTrack.');
+
+        Mail::assertSent(PublicContactMessage::class, function (PublicContactMessage $mail) {
+            return $mail->hasTo('team@example.test')
+                && $mail->envelope()->replyTo[0]->getAddress() === 'visitor@example.test';
+        });
+    }
+
+    public function test_landing_contact_json_validation_failure_does_not_send_mail(): void
+    {
+        Mail::fake();
+
+        $this->postJson(route('contact.send'), array_merge($this->validMessage(), ['message' => 'short']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('message');
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_landing_contact_json_reports_unavailable_delivery(): void
+    {
+        Mail::fake();
+        config()->set('mail.default', 'log');
+
+        $this->postJson(route('contact.send'), array_merge($this->validMessage(), ['source' => 'landing']))
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Message delivery is unavailable right now. Please try again later.');
+
+        Mail::assertNothingSent();
     }
 
     private function validMessage(): array

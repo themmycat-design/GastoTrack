@@ -50,6 +50,74 @@ document.querySelectorAll('form[data-submit-feedback]').forEach(form => {
     });
 });
 
+const landingContactForm = document.querySelector('form[data-gt-contact-form]');
+
+if (landingContactForm) {
+    const button = landingContactForm.querySelector('button[type="submit"]');
+    const status = landingContactForm.querySelector('[data-gt-contact-status]');
+
+    if (button && status) {
+        const buttonLabel = button.textContent;
+        const showStatus = (message, isError) => {
+            status.textContent = message;
+            status.hidden = false;
+            status.setAttribute('role', isError ? 'alert' : 'status');
+            status.classList.toggle('border-red-200', isError);
+            status.classList.toggle('bg-red-50', isError);
+            status.classList.toggle('text-red-800', isError);
+            status.classList.toggle('border-[#B7DAD0]', !isError);
+            status.classList.toggle('bg-[#EAF8F2]', !isError);
+            status.classList.toggle('text-[#065A49]', !isError);
+        };
+
+        landingContactForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (button.disabled) return;
+
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            status.hidden = true;
+            landingContactForm.querySelectorAll('[aria-invalid]').forEach(field => field.setAttribute('aria-invalid', 'false'));
+
+            try {
+                const response = await fetch(landingContactForm.action, {
+                    method: 'POST',
+                    body: new FormData(landingContactForm),
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const result = (await response.json().catch(() => null)) || {};
+
+                if (response.ok) {
+                    landingContactForm.reset();
+                    showStatus(result.message || 'Your message was sent to the GastoTrack team.', false);
+                } else {
+                    const errors = result.errors || {};
+                    Object.keys(errors).forEach(name => {
+                        const field = landingContactForm.elements.namedItem(name);
+                        if (field instanceof HTMLElement) field.setAttribute('aria-invalid', 'true');
+                    });
+                    const firstError = Object.values(errors)[0]?.[0];
+                    const message = response.status === 429
+                        ? 'Please wait a minute before sending another message.'
+                        : response.status === 419
+                            ? 'Your session expired. Refresh the page and try again.'
+                            : firstError || result.message || 'We could not send your message. Please try again.';
+                    showStatus(message, true);
+                }
+            } catch {
+                showStatus('We could not connect to the server. Please try again.', true);
+            } finally {
+                button.disabled = false;
+                button.textContent = buttonLabel;
+            }
+        });
+    }
+}
+
 const backToTop = document.getElementById('welcome-back-to-top');
 
 if (backToTop) {

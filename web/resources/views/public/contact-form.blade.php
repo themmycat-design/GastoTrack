@@ -8,7 +8,7 @@
     <p role="alert" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">Please check the highlighted fields and try again.</p>
 @endif
 
-<form method="POST" action="{{ route('contact.send') }}" class="mt-6 space-y-4">
+<form method="POST" action="{{ route('contact.send') }}" class="mt-6 space-y-4" @if(($source ?? null) === 'landing') data-gt-contact-form @endif>
     @csrf
     @if(($source ?? null) === 'landing')
         <input type="hidden" name="source" value="landing">
@@ -37,4 +37,7 @@
     </div>
     <div class="sr-only" aria-hidden="true"><label for="contact-website">Website</label><input id="contact-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
     <button type="submit" class="gt-focus inline-flex min-h-12 items-center justify-center rounded-xl bg-[#08745D] px-6 py-3 text-sm font-extrabold text-white transition hover:bg-[#065A49]">Send message</button>
+    @if(($source ?? null) === 'landing')
+        <p data-gt-contact-status role="status" hidden class="rounded-xl border px-4 py-3 text-sm font-semibold"></p>
+    @endif
 </form>
