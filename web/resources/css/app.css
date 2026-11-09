@@ -820,6 +820,15 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
     transition: transform .8s cubic-bezier(.2, .75, .25, 1);
 }
 
+.gt-testimonial-photo-shade {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 25%;
+    pointer-events: none;
+    background: linear-gradient(to top, rgba(7, 28, 25, .9), rgba(7, 28, 25, .4) 50%, transparent);
+}
+
 .gt-reveal-ready .gt-testimonial-photo-frame:not(.is-visible) .gt-testimonial-photo {
     transform: scale(1.06);
 }

@@ -12,18 +12,18 @@
 </head>
 <body class="gt-welcome bg-[#F4F8F7] font-sans text-[#0A2E2A] antialiased" style="font-family: Inter, ui-sans-serif, system-ui, sans-serif">
     <header class="sticky top-0 z-30 border-b border-white/10 bg-[#071C19]/95 text-white backdrop-blur-xl">
-        <div class="border-b border-white/10 bg-[#00A87E] px-4 py-2 text-center text-[11px] font-bold tracking-wide text-[#062C24] sm:text-xs">Built for coffee, milk tea, and bake shops <span class="mx-2 opacity-50" aria-hidden="true">·</span> <a href="#features" class="gt-focus underline underline-offset-2 hover:text-white">Explore GastoTrack <span aria-hidden="true">→</span></a></div>
         <nav class="gt-welcome-frame flex h-20 items-center justify-between gap-4" aria-label="Main navigation">
             <a href="{{ url('/') }}" class="gt-focus inline-flex items-center gap-2.5 rounded-lg text-xl font-extrabold tracking-tight text-white">
                 <img src="{{ asset('images/gastotrack-logo.png') }}" alt="" class="h-9 w-9 object-contain">
                 GastoTrack
             </a>
 
-            <div class="hidden items-center gap-6 lg:flex">
+            <div class="hidden items-center gap-4 lg:flex">
                 <a href="#top" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Overview</a>
                 <a href="#features" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Features</a>
                 <a href="#workflow" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">How it works</a>
                 <a href="#get-started" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Get started</a>
+                <a href="#testimonial" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Testimonial</a>
                 <a href="#download" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Download app</a>
                 <a href="#contact" class="gt-focus rounded-md text-sm font-semibold text-white/70 transition hover:text-[#72E6C4]">Contact</a>
             </div>
@@ -51,13 +51,14 @@
             <a href="#features" class="gt-focus shrink-0 hover:text-[#72E6C4]">Features</a>
             <a href="#workflow" class="gt-focus shrink-0 hover:text-[#72E6C4]">How it works</a>
             <a href="#get-started" class="gt-focus shrink-0 hover:text-[#72E6C4]">Get started</a>
+            <a href="#testimonial" class="gt-focus shrink-0 hover:text-[#72E6C4]">Testimonial</a>
             <a href="#download" class="gt-focus shrink-0 hover:text-[#72E6C4]">Download app</a>
             <a href="#contact" class="gt-focus shrink-0 hover:text-[#72E6C4]">Contact</a>
         </nav>
     </header>
 
     <main>
-        <section id="top" class="gt-welcome-hero scroll-mt-40 lg:scroll-mt-32 relative isolate overflow-hidden border-b border-white/10 text-white">
+        <section id="top" class="gt-welcome-hero scroll-mt-32 lg:scroll-mt-24 relative isolate overflow-hidden border-b border-white/10 text-white">
             <div id="welcome-cursor-glow" class="gt-welcome-cursor-glow" aria-hidden="true"></div>
             <div class="gt-welcome-sparks gt-welcome-sparks-left" aria-hidden="true">
                 @for($spark = 0; $spark < 10; $spark++)
@@ -202,7 +203,7 @@
             </div>
         </section>
 
-        <section class="border-t border-[#DDE9E5] bg-white" aria-labelledby="welcome-feedback-title">
+        <section id="testimonial" class="scroll-mt-32 border-t border-[#DDE9E5] bg-white lg:scroll-mt-24" aria-labelledby="welcome-feedback-title">
             <div class="gt-welcome-frame gt-scroll-reveal py-12 text-center sm:py-16">
                 <p class="text-xs font-extrabold uppercase tracking-[.2em] text-[#008F70]">Made for your kind of shop</p>
                 <h2 id="welcome-feedback-title" class="mx-auto mt-4 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-[#0A2E2A] sm:text-5xl">From the first order to the final count.</h2>
@@ -214,16 +215,15 @@
                     <span class="gt-testimonial-flip-inner block h-full w-full">
                         <span class="gt-testimonial-flip-face absolute inset-0 block" aria-hidden="true">
                             <img src="{{ asset('images/shop-milk-tea.jpg') }}" alt="" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
-                            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-[#071C19]/85 to-transparent px-5 pb-5 pt-12 text-white">
+                            <span class="gt-testimonial-photo-shade" aria-hidden="true"></span>
+                            <span class="absolute inset-x-0 bottom-0 block px-5 pb-4 text-white sm:pb-5">
                                 <span data-gt-product class="block text-lg font-extrabold">Milk tea</span>
                                 <span class="mt-1 block text-xs font-semibold text-white/85">View details &#8599;</span>
                             </span>
                         </span>
                         <span class="gt-testimonial-flip-face gt-testimonial-flip-back absolute inset-0 flex flex-col items-center justify-center bg-[#0A2E2A] px-5 py-4 text-center text-white sm:px-3 sm:py-3 lg:px-8 lg:py-4" aria-hidden="true">
-                            <span class="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#72E6C4]">Product spotlight</span>
-                            <span class="mt-3 block text-xl font-extrabold sm:mt-2 sm:text-lg lg:mt-3 lg:text-2xl">Milk tea</span>
+                            <span class="block text-xl font-extrabold sm:text-lg lg:text-2xl">Milk tea</span>
                             <span data-gt-description class="mt-3 block max-w-xs text-sm leading-snug text-white/85 sm:mt-2 sm:text-xs lg:mt-3 lg:text-base">Creamy iced tea and chewy tapioca pearls, made for a refreshing break between busy moments.</span>
-                            <span class="mt-5 block text-xs font-bold text-[#72E6C4] sm:mt-3 lg:mt-5">View photo &#8634;</span>
                         </span>
                     </span>
                 </button>
@@ -231,16 +231,15 @@
                     <span class="gt-testimonial-flip-inner block h-full w-full">
                         <span class="gt-testimonial-flip-face absolute inset-0 block" aria-hidden="true">
                             <img src="{{ asset('images/shop-coffee.jpg') }}" alt="" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
-                            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-[#071C19]/85 to-transparent px-5 pb-5 pt-12 text-white">
+                            <span class="gt-testimonial-photo-shade" aria-hidden="true"></span>
+                            <span class="absolute inset-x-0 bottom-0 block px-5 pb-4 text-white sm:pb-5">
                                 <span data-gt-product class="block text-lg font-extrabold">Coffee</span>
                                 <span class="mt-1 block text-xs font-semibold text-white/85">View details &#8599;</span>
                             </span>
                         </span>
                         <span class="gt-testimonial-flip-face gt-testimonial-flip-back absolute inset-0 flex flex-col items-center justify-center bg-[#0A2E2A] px-5 py-4 text-center text-white sm:px-3 sm:py-3 lg:px-8 lg:py-4" aria-hidden="true">
-                            <span class="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#72E6C4]">Product spotlight</span>
-                            <span class="mt-3 block text-xl font-extrabold sm:mt-2 sm:text-lg lg:mt-3 lg:text-2xl">Coffee</span>
+                            <span class="block text-xl font-extrabold sm:text-lg lg:text-2xl">Coffee</span>
                             <span data-gt-description class="mt-3 block max-w-xs text-sm leading-snug text-white/85 sm:mt-2 sm:text-xs lg:mt-3 lg:text-base">A warm latte with smooth espresso, steamed milk, and a little art on top.</span>
-                            <span class="mt-5 block text-xs font-bold text-[#72E6C4] sm:mt-3 lg:mt-5">View photo &#8634;</span>
                         </span>
                     </span>
                 </button>
@@ -248,16 +247,15 @@
                     <span class="gt-testimonial-flip-inner block h-full w-full">
                         <span class="gt-testimonial-flip-face absolute inset-0 block" aria-hidden="true">
                             <img src="{{ asset('images/shop-bake-shop.jpg') }}" alt="" class="gt-testimonial-photo block h-full w-full object-cover" width="724" height="724" loading="lazy" decoding="async">
-                            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-[#071C19]/85 to-transparent px-5 pb-5 pt-12 text-white">
+                            <span class="gt-testimonial-photo-shade" aria-hidden="true"></span>
+                            <span class="absolute inset-x-0 bottom-0 block px-5 pb-4 text-white sm:pb-5">
                                 <span data-gt-product class="block text-lg font-extrabold">Fresh bakes</span>
                                 <span class="mt-1 block text-xs font-semibold text-white/85">View details &#8599;</span>
                             </span>
                         </span>
                         <span class="gt-testimonial-flip-face gt-testimonial-flip-back absolute inset-0 flex flex-col items-center justify-center bg-[#0A2E2A] px-5 py-4 text-center text-white sm:px-3 sm:py-3 lg:px-8 lg:py-4" aria-hidden="true">
-                            <span class="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#72E6C4]">Product spotlight</span>
-                            <span class="mt-3 block text-xl font-extrabold sm:mt-2 sm:text-lg lg:mt-3 lg:text-2xl">Fresh bakes</span>
+                            <span class="block text-xl font-extrabold sm:text-lg lg:text-2xl">Fresh bakes</span>
                             <span data-gt-description class="mt-3 block max-w-xs text-sm leading-snug text-white/85 sm:mt-2 sm:text-xs lg:mt-3 lg:text-base">Flaky croissants and fresh pastries, ready for a quick treat or an unhurried morning.</span>
-                            <span class="mt-5 block text-xs font-bold text-[#72E6C4] sm:mt-3 lg:mt-5">View photo &#8634;</span>
                         </span>
                     </span>
                 </button>
