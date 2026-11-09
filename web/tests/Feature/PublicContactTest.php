@@ -44,7 +44,7 @@ class PublicContactTest extends TestCase
 
         Mail::assertSent(PublicContactMessage::class, function (PublicContactMessage $mail) {
             return $mail->hasTo('team@example.test')
-                && $mail->envelope()->replyTo[0]->getAddress() === 'visitor@example.test';
+                && $mail->envelope()->replyTo[0]->address === 'visitor@example.test';
         });
     }
 
@@ -95,8 +95,26 @@ class PublicContactTest extends TestCase
         Mail::assertSent(PublicContactMessage::class, function (PublicContactMessage $mail) {
             return $mail->hasTo('team@example.test')
                 && $mail->senderEmail === 'visitor@example.test'
-                && $mail->envelope()->replyTo[0]->getAddress() === 'visitor@example.test';
+                && $mail->envelope()->replyTo[0]->address === 'visitor@example.test';
         });
+    }
+
+    public function test_contact_mailable_can_be_sent_through_an_in_memory_transport(): void
+    {
+        config()->set('mail.from.address', 'gastotrack@example.test');
+        config()->set('mail.from.name', 'GastoTrack');
+
+        $mailer = Mail::mailer('array');
+        $mailer->to('team@example.test')->send(new PublicContactMessage(
+            'Sample Visitor',
+            'visitor@example.test',
+            'Account question',
+            'How can I access my shop account?',
+        ));
+
+        $sent = $mailer->getSymfonyTransport()->messages()->first();
+        $this->assertNotNull($sent);
+        $this->assertSame('visitor@example.test', $sent->getOriginalMessage()->getReplyTo()[0]->getAddress());
     }
 
     public function test_invalid_or_bot_contact_message_is_not_sent(): void

@@ -8,7 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Throwable;
 
 class PublicContactController extends Controller
 {
@@ -38,7 +38,7 @@ class PublicContactController extends Controller
                 $data['subject'],
                 $data['message'],
             ));
-        } catch (TransportExceptionInterface $exception) {
+        } catch (Throwable $exception) {
             Log::warning('Contact form mail delivery failed', ['exception' => $exception::class]);
 
             if ($request->expectsJson()) {
