@@ -303,7 +303,15 @@
                     <!-- Unit -->
                     <div>
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
-                        <input type="text" id="unit" name="unit" required class="gt-field" placeholder="e.g., kg, liters, pieces">
+                        <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
+                        <datalist id="stock-unit-options">
+                            <option value="ml">Millilitres</option>
+                            <option value="L">Litres</option>
+                            <option value="g">Grams</option>
+                            <option value="kg">Kilograms</option>
+                            <option value="pcs">Pieces</option>
+                        </datalist>
+                        <p class="mt-1 text-xs text-slate-500">For liquids, use ml or L. Recipe amounts can use either unit.</p>
                     </div>
 
                     <!-- Unit Cost -->

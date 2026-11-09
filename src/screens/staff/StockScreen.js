@@ -532,7 +532,12 @@ const StockScreen = () => {
             <Text style={styles.fieldLabel}>Stock name</Text>
             <TextInput style={styles.input} value={stockForm.name} onChangeText={value => setStockField('name', value)} placeholder="e.g. Fresh milk" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Unit</Text>
-            <TextInput style={styles.input} value={stockForm.unit} onChangeText={value => setStockField('unit', value)} placeholder="pcs, ml, g, kg" placeholderTextColor={COLORS.placeholder} />
+            <View style={styles.categoryOptions}>
+              {['pcs', 'g', 'kg', 'ml', 'L'].map(unit => <TouchableOpacity key={unit} style={[styles.categoryOption, stockForm.unit === unit && styles.categoryOptionActive]} onPress={() => setStockField('unit', unit)} accessibilityRole="button" accessibilityLabel={`Use ${unit} as the stock unit`} accessibilityState={{selected: stockForm.unit === unit}}>
+                <Text style={[styles.categoryOptionText, stockForm.unit === unit && styles.categoryOptionTextActive]}>{unit}</Text>
+              </TouchableOpacity>)}
+            </View>
+            <TextInput style={[styles.input, styles.stockUnitInput]} value={stockForm.unit} onChangeText={value => setStockField('unit', value)} placeholder="Or enter another unit" placeholderTextColor={COLORS.placeholder} accessibilityLabel="Stock unit" />
             <Text style={styles.fieldLabel}>Starting quantity</Text>
             <TextInput style={styles.input} value={stockForm.quantity} onChangeText={value => setStockField('quantity', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Low-stock level</Text>
@@ -686,7 +691,7 @@ const StockScreen = () => {
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>Recipe ingredients</Text>
-            <Text style={styles.recipeHint}>Choose each ingredient and the amount used by one product. Two products deduct twice this amount.</Text>
+            <Text style={styles.recipeHint}>Choose the amount used by one product. For liquids, use ml or L; two products deduct twice this amount.</Text>
             {stockItems.length ? stockItems.map(stock => {
               const ingredient = productForm.ingredients.find(item => item.stockId === Number(stock.id));
               return (
@@ -759,6 +764,7 @@ const styles = StyleSheet.create({
   fieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 12, marginBottom: 5}, adjustToggle: {flexDirection: 'row', gap: 8},
   toggleButton: {flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, toggleButtonActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, toggleText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray}, toggleTextActive: {color: '#FFFFFF'},
   input: {backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 11, color: COLORS.textDark},
+  stockUnitInput: {marginTop: 8},
   primaryButton: {minHeight: 48, justifyContent: 'center', backgroundColor: COLORS.accentDark, borderRadius: 12, alignItems: 'center', paddingVertical: 12, marginTop: 14}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 10, textAlign: 'center'},
   productHero: {height: 190, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'}, productHeroImage: {width: '100%', height: '100%', resizeMode: 'cover'}, noImage: {alignItems: 'center'}, noImageText: {fontSize: 12, color: COLORS.textGray, marginTop: 6},
   detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 10},

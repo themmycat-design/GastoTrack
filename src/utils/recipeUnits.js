@@ -5,9 +5,12 @@ const smallerUnit = stockUnit => {
   return null;
 };
 
+const largerVolumeUnit = stockUnit => String(stockUnit || '').trim().toLowerCase() === 'ml' ? 'L' : null;
+
 export const recipeUnitOptions = stockUnit => {
   const smaller = smallerUnit(stockUnit);
-  return smaller ? [stockUnit, smaller] : [stockUnit];
+  const larger = largerVolumeUnit(stockUnit);
+  return [stockUnit, ...(smaller ? [smaller] : []), ...(larger ? [larger] : [])];
 };
 
 export const recipeQuantityForDisplay = (quantity, stockUnit) => {
@@ -24,7 +27,8 @@ export const toStockQuantity = (quantity, chosenUnit, stockUnit) => {
   if (!Number.isFinite(amount) || amount <= 0) return null;
   const converted = chosenUnit === stockUnit
     ? amount
-    : chosenUnit === smallerUnit(stockUnit) ? amount / 1000 : NaN;
+    : chosenUnit === smallerUnit(stockUnit) ? amount / 1000
+      : chosenUnit === largerVolumeUnit(stockUnit) ? amount * 1000 : NaN;
   const rounded = Number(converted.toFixed(4));
   return Number.isFinite(converted) && converted > 0 && converted <= 99999999.9999
     && Math.abs(converted - rounded) < 0.0000001 && rounded >= 0.0001

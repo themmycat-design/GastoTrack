@@ -312,7 +312,7 @@
                     <div class="sm:col-span-2">
                         <div class="mb-3">
                             <label class="gt-label mb-1">Recipe ingredients</label>
-                            <p class="text-xs leading-5 text-slate-500">Choose each ingredient and the amount used by one product. Selling two products deducts twice each amount. For example, choose 10 ml of water and 10 g of sugar per drink.</p>
+                            <p class="text-xs leading-5 text-slate-500">Choose each ingredient and the amount used by one product. For liquids, choose ml or L; the amount is converted to the stock unit before deduction. Selling two products deducts twice each amount.</p>
                         </div>
                         <input type="hidden" name="replace_ingredients" value="1">
                         @if($stockItems->isEmpty())
@@ -328,9 +328,10 @@
                                             <input type="number" class="recipe-quantity gt-field w-24 !px-2 !py-1.5" name="ingredients[{{ $stockItem->id }}][quantity]" min="0.0001" step="any" placeholder="0" disabled>
                                         </label>
                                         <select class="recipe-unit gt-field w-24 !px-2 !py-1.5 text-sm" name="ingredients[{{ $stockItem->id }}][unit]" aria-label="Unit for {{ $stockItem->name }}" disabled>
-                                            <option value="{{ $stockItem->unit }}">{{ $stockItem->unit }}</option>
-                                            @if(in_array(strtolower(trim($stockItem->unit)), ['l', 'liter', 'liters', 'litre', 'litres'], true))<option value="ml">ml</option>@endif
-                                            @if(in_array(strtolower(trim($stockItem->unit)), ['kg', 'kilogram', 'kilograms'], true))<option value="g">g</option>@endif
+                                            <option value="{{ $stockItem->unit }}" data-to-stock-factor="1">{{ $stockItem->unit }}</option>
+                                            @if(in_array(strtolower(trim($stockItem->unit)), ['l', 'liter', 'liters', 'litre', 'litres'], true))<option value="ml" data-to-stock-factor="0.001">ml</option>@endif
+                                            @if(strtolower(trim($stockItem->unit)) === 'ml')<option value="L" data-to-stock-factor="1000">L</option>@endif
+                                            @if(in_array(strtolower(trim($stockItem->unit)), ['kg', 'kilogram', 'kilograms'], true))<option value="g" data-to-stock-factor="0.001">g</option>@endif
                                         </select>
                                     </div>
                                 @endforeach
@@ -399,7 +400,7 @@
                 quantity.disabled = !isSelected;
                 unit.disabled = !isSelected;
                 const stockQuantity = Number(selected.get(row.dataset.stockId));
-                const smallerUnit = unit.options.length > 1 ? unit.options[1].value : null;
+                const smallerUnit = unit.options.length > 1 && Number(unit.options[1].dataset.toStockFactor) === 0.001 ? unit.options[1].value : null;
                 if (isSelected && smallerUnit && stockQuantity > 0 && stockQuantity < 1) {
                     unit.value = smallerUnit;
                     quantity.value = String(Number((stockQuantity * 1000).toFixed(4)));
@@ -432,7 +433,7 @@
                 const quantity = row.querySelector('.recipe-quantity');
                 const unit = row.querySelector('.recipe-unit');
                 const entered = Number(quantity.value);
-                const normalized = unit.value === row.dataset.stockUnit ? entered : entered / 1000;
+                const normalized = entered * Number(unit.selectedOptions[0].dataset.toStockFactor || 1);
                 const rounded = Number(normalized.toFixed(4));
                 if (!Number.isFinite(normalized) || normalized <= 0 || normalized > 99999999.9999 ||
                     Math.abs(normalized - rounded) >= 0.0000001 || rounded < 0.0001) {

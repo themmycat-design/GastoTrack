@@ -233,6 +233,25 @@ class OwnerProductsTest extends TestCase
         $this->assertDatabaseCount('products', 1);
     }
 
+    public function test_owner_recipe_converts_liters_to_milliliters_when_stock_uses_ml(): void
+    {
+        $business = $this->business('Volume Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $milk = StockItem::create([
+            'business_id' => $business->id, 'name' => 'Milk', 'unit' => 'ml',
+            'current_quantity' => 2000, 'minimum_quantity' => 0, 'unit_cost' => 0.1, 'active' => true,
+        ]);
+
+        $this->actingAs($owner)->post(route('products.store'), [
+            'name' => 'Latte', 'category' => 'Coffee', 'price' => 150,
+            'ingredients' => [['stock_id' => $milk->id, 'quantity' => 0.25, 'unit' => 'L']],
+        ])->assertRedirect(route('products.index'));
+
+        $this->assertDatabaseHas('product_ingredients', [
+            'stock_item_id' => $milk->id, 'quantity' => 250,
+        ]);
+    }
+
     private function business(string $name): Business
     {
         return Business::create(['name' => $name, 'status' => 'active', 'active' => true]);
