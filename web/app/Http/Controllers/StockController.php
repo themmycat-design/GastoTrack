@@ -213,9 +213,8 @@ class StockController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:add,subtract,set',
             'quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
-            'unit' => 'required_with:conversion_factor|nullable|string|max:50',
-            'conversion_factor' => 'nullable|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
-            'reason' => 'nullable|string|max:'.($request->filled('conversion_factor') ? '300' : '500'),
+            'unit' => 'nullable|string|max:50',
+            'reason' => 'nullable|string|max:500',
             'movement_category' => 'nullable|in:adjustment,waste',
         ]);
 
@@ -231,7 +230,6 @@ class StockController extends Controller
                 (float) $validated['quantity'],
                 $validated['unit'] ?? $lockedStock->unit,
                 $lockedStock->unit,
-                isset($validated['conversion_factor']) ? (float) $validated['conversion_factor'] : null,
             );
 
             $quantityAfter = match ($validated['type']) {
@@ -252,9 +250,7 @@ class StockController extends Controller
                 'quantity' => $quantity,
                 'previous_quantity' => $quantityBefore,
                 'new_quantity' => $quantityAfter,
-                'reason' => isset($validated['conversion_factor'])
-                    ? trim(($validated['reason'] ?? 'Manual stock adjustment').' (1 '.trim($validated['unit']).' = '.$validated['conversion_factor'].' '.$lockedStock->unit.')')
-                    : ($validated['reason'] ?? 'Manual stock adjustment'),
+                'reason' => $validated['reason'] ?? 'Manual stock adjustment',
                 'movement_category' => $movementCategory,
                 'unit_cost_at_movement' => $lockedStock->unit_cost,
             ]);

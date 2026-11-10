@@ -16,7 +16,7 @@ class StockUnitPolicy
         }
     }
 
-    public static function adjustmentQuantity(float $quantity, string $enteredUnit, string $stockUnit, ?float $conversionFactor = null): float
+    public static function adjustmentQuantity(float $quantity, string $enteredUnit, string $stockUnit): float
     {
         $enteredUnit = trim($enteredUnit);
         $stockUnit = trim($stockUnit);
@@ -30,26 +30,9 @@ class StockUnitPolicy
         if (strcasecmp($enteredUnit, $stockUnit) === 0) {
             $factor = 1;
         }
-        if ($conversionFactor !== null && $factor !== null) {
-            throw ValidationException::withMessages([
-                'conversion_factor' => 'A conversion is only needed for another unit.',
-            ]);
-        }
-        if ($factor === null && $conversionFactor !== null) {
-            // Familiar weight and volume units must use their defined conversions.
-            $standardUnits = ['g', 'gram', 'grams', 'kg', 'kilogram', 'kilograms',
-                'ml', 'milliliter', 'milliliters', 'millilitre', 'millilitres',
-                'l', 'liter', 'liters', 'litre', 'litres'];
-            if (in_array(strtolower($enteredUnit), $standardUnits, true)) {
-                throw ValidationException::withMessages([
-                    'unit' => 'Use a compatible weight or volume unit for this stock item.',
-                ]);
-            }
-            $factor = $conversionFactor;
-        }
         if ($factor === null) {
             throw ValidationException::withMessages([
-                'unit' => 'Choose the saved unit, a compatible unit, or enter another unit with its conversion.',
+                'unit' => 'Choose the saved stock unit or a compatible weight or volume unit.',
             ]);
         }
 

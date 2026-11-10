@@ -331,38 +331,6 @@ class OwnerProductsTest extends TestCase
         $this->assertSame('2.5000', $flour->fresh()->current_quantity);
     }
 
-    public function test_owner_can_adjust_stock_using_a_custom_unit_with_an_explicit_conversion(): void
-    {
-        $business = $this->business('Packaged Stock Cafe');
-        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
-        $cups = StockItem::create([
-            'business_id' => $business->id, 'name' => 'Cups', 'unit' => 'pcs',
-            'current_quantity' => 10, 'minimum_quantity' => 0, 'unit_cost' => 2,
-        ]);
-
-        $this->actingAs($owner)->postJson(route('stock.adjust', $cups), [
-            'type' => 'add', 'quantity' => 2, 'unit' => 'box', 'conversion_factor' => 12,
-            'reason' => 'Delivery',
-        ])->assertOk()->assertJsonPath('new_quantity', '34.0000');
-        $this->assertDatabaseHas('stock_movements', [
-            'stock_item_id' => $cups->id, 'quantity' => 24, 'type' => 'in',
-            'reason' => 'Delivery (1 box = 12 pcs)',
-        ]);
-        $this->assertSame('pcs', $cups->fresh()->unit);
-
-        $this->actingAs($owner)->postJson(route('stock.adjust', $cups), [
-            'type' => 'subtract', 'quantity' => 1, 'unit' => 'pack', 'conversion_factor' => 6,
-        ])->assertOk()->assertJsonPath('new_quantity', '28.0000');
-
-        $this->actingAs($owner)->postJson(route('stock.adjust', $cups), [
-            'type' => 'add', 'quantity' => 1, 'unit' => 'box',
-        ])->assertUnprocessable()->assertJsonValidationErrors('unit');
-        $this->actingAs($owner)->postJson(route('stock.adjust', $cups), [
-            'type' => 'add', 'quantity' => 1, 'unit' => 'kg', 'conversion_factor' => 12,
-        ])->assertUnprocessable()->assertJsonValidationErrors('unit');
-        $this->assertSame('28.0000', $cups->fresh()->current_quantity);
-    }
-
     private function business(string $name): Business
     {
         return Business::create(['name' => $name, 'status' => 'active', 'active' => true]);
