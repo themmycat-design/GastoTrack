@@ -1,4 +1,5 @@
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import {AppState} from 'react-native';
 import api from '../services/api';
 import {AuthContext} from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
@@ -29,24 +30,32 @@ export const StockProvider = ({children}) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
+  const loadedPageCount = useRef(1);
   const {userToken, user, business} = useContext(AuthContext);
   const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
     ? {userId: user.id, businessId: user.business_id || business.id} : null,
   [user?.role, user?.id, user?.business_id, business?.id]);
   const stockItems = useMemo(() => overlayStockActions(serverStockItems, localActions), [serverStockItems, localActions]);
 
-  const fetchStock = useCallback(async ({page = 1, append = false} = {}) => {
+  const fetchStock = useCallback(async ({page = 1, append = false, refreshLoaded = false} = {}) => {
     if (!userToken) return;
-    append ? setIsLoadingMore(true) : setIsLoading(true);
+    if (!refreshLoaded) append ? setIsLoadingMore(true) : setIsLoading(true);
     try {
-      const response = await api.get('/stock', {params: {page}});
-      const normalized = (response.data.stock || []).map(normalize);
-      if (offlineAccount && page === 1) saveStaffSnapshot(offlineAccount, 'stock', normalized).catch(() => {});
+      const pageCount = refreshLoaded ? loadedPageCount.current : 1;
+      const responses = refreshLoaded
+        ? await Promise.all(Array.from({length: pageCount}, (_, index) => api.get('/stock', {params: {page: index + 1}})))
+        : [await api.get('/stock', {params: {page}})];
+      const response = responses[0];
+      const normalized = responses.flatMap(result => (result.data.stock || []).map(normalize));
+      if (offlineAccount && (page === 1 || refreshLoaded)) saveStaffSnapshot(offlineAccount, 'stock', normalized).catch(() => {});
       setStockItems(current => append
         ? [...current, ...normalized.filter(record => !current.some(item => item.id === record.id))]
-        : normalized,
+        : normalized.filter((item, index) => normalized.findIndex(candidate => candidate.id === item.id) === index),
       );
-      setPagination(normalizePagination(response.data?.meta, page, normalized.length));
+      const nextPagination = normalizePagination(response.data?.meta, page, normalized.length);
+      if (refreshLoaded) nextPagination.currentPage = Math.min(pageCount, nextPagination.lastPage);
+      loadedPageCount.current = nextPagination.currentPage || 1;
+      setPagination(nextPagination);
       setOutOfStockCount(Number(response.data?.meta?.out_of_stock_count ?? 0));
       setLoadError(null);
       return {success: true};
@@ -63,7 +72,7 @@ export const StockProvider = ({children}) => {
       setLoadError(getApiErrorMessage(error));
       return {success: false, error};
     } finally {
-      append ? setIsLoadingMore(false) : setIsLoading(false);
+      if (!refreshLoaded) append ? setIsLoadingMore(false) : setIsLoading(false);
     }
   }, [userToken, offlineAccount]);
 
@@ -112,6 +121,21 @@ export const StockProvider = ({children}) => {
       setLoadError(null);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
     }
+  }, [fetchStock, userToken]);
+
+  useEffect(() => {
+    if (!userToken) return undefined;
+    const onAppStateChange = state => {
+      if (state === 'active') fetchStock({refreshLoaded: true});
+    };
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') fetchStock({refreshLoaded: true});
+    }, 30000);
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
   }, [fetchStock, userToken]);
 
   const getStatus = (quantity, threshold) => quantity <= 0 ? 'Out' : quantity <= threshold ? 'Low' : 'OK';

@@ -312,7 +312,7 @@
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
                         <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
                         <datalist id="stock-unit-options"><option value="pcs"><option value="g"><option value="kg"><option value="ml"><option value="L"></datalist>
-                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">Change the unit of the stock</p>
+                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">Change the stock unit, then enter minimum quantity and unit cost in the new unit.</p>
                         <div id="unit_conversion_wrapper" class="mt-3 hidden">
                             <label for="conversion_factor" class="gt-label">Old units in 1 new unit <span class="text-rose-600">*</span></label>
                             <input type="number" id="conversion_factor" name="conversion_factor" step="0.0001" min="0.0001" max="99999999.9999" class="gt-field" placeholder="e.g. 12">
@@ -457,6 +457,7 @@
             document.getElementById('name').value = '';
             document.getElementById('unit').value = '';
             document.getElementById('unit').readOnly = false;
+            document.getElementById('unit').setCustomValidity('');
             document.getElementById('unit_help').classList.add('hidden');
             document.getElementById('unit_conversion_wrapper').classList.add('hidden');
             document.getElementById('conversion_factor').required = false;
@@ -487,7 +488,9 @@
             document.getElementById('unit').dataset.wasChanged = 'false';
             document.getElementById('conversion_factor').value = '';
             document.getElementById('minimum_quantity').dataset.originalValue = minQty;
+            document.getElementById('minimum_quantity').dataset.manuallyEdited = 'false';
             document.getElementById('unit_cost').dataset.originalValue = unitCost;
+            document.getElementById('unit_cost').dataset.manuallyEdited = 'false';
             document.getElementById('current_quantity').dataset.originalValue = currentQty;
             document.getElementById('current_quantity').value = currentQty;
             document.getElementById('current_quantity').disabled = true;
@@ -517,7 +520,6 @@
             conversionInput.required = !!(changed && !automatic);
             conversionInput.disabled = !changed || !!automatic;
             document.getElementById('unit_conversion_help').textContent = `For example, 1 ${newUnit || 'new unit'} = how many ${oldUnit}? Enter 1 to correct only the label.`;
-            for (const id of ['minimum_quantity', 'unit_cost']) document.getElementById(id).readOnly = changed;
             const incompatible = !!(oldMeasure && newMeasure && oldMeasure[0] !== newMeasure[0]);
             unitInput.setCustomValidity(incompatible ? 'Weight and volume units cannot be converted to each other.' : '');
             if (!changed) {
@@ -525,6 +527,7 @@
                     for (const id of ['current_quantity', 'minimum_quantity', 'unit_cost']) {
                         const input = document.getElementById(id);
                         input.value = input.dataset.originalValue;
+                        if (id !== 'current_quantity') input.dataset.manuallyEdited = 'false';
                     }
                 }
                 unitInput.dataset.wasChanged = 'false';
@@ -532,16 +535,28 @@
             }
             unitInput.dataset.wasChanged = 'true';
             if (!Number.isFinite(factor) || factor <= 0 || incompatible) {
-                for (const id of ['current_quantity', 'minimum_quantity', 'unit_cost']) document.getElementById(id).value = '';
+                document.getElementById('current_quantity').value = '';
+                for (const id of ['minimum_quantity', 'unit_cost']) {
+                    const input = document.getElementById(id);
+                    if (input.dataset.manuallyEdited !== 'true') input.value = '';
+                }
                 return;
             }
             document.getElementById('current_quantity').value = (Number(document.getElementById('current_quantity').dataset.originalValue) / factor).toFixed(4);
-            document.getElementById('minimum_quantity').value = (Number(document.getElementById('minimum_quantity').dataset.originalValue) / factor).toFixed(4);
-            document.getElementById('unit_cost').value = (Number(document.getElementById('unit_cost').dataset.originalValue) * factor).toFixed(4);
+            if (document.getElementById('minimum_quantity').dataset.manuallyEdited !== 'true')
+                document.getElementById('minimum_quantity').value = (Number(document.getElementById('minimum_quantity').dataset.originalValue) / factor).toFixed(4);
+            if (document.getElementById('unit_cost').dataset.manuallyEdited !== 'true')
+                document.getElementById('unit_cost').value = (Number(document.getElementById('unit_cost').dataset.originalValue) * factor).toFixed(4);
         }
 
         document.getElementById('unit').addEventListener('input', updateStockUnitConversion);
         document.getElementById('conversion_factor').addEventListener('input', updateStockUnitConversion);
+        for (const id of ['minimum_quantity', 'unit_cost']) {
+            document.getElementById(id).addEventListener('input', event => {
+                if (document.getElementById('formMethod').value && document.getElementById('unit').value.trim() !== document.getElementById('unit').dataset.originalUnit)
+                    event.target.dataset.manuallyEdited = 'true';
+            });
+        }
 
         function closeStockModal() {
             document.getElementById('stockModal').classList.add('hidden');

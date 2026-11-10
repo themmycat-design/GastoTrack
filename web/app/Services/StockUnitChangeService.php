@@ -29,8 +29,12 @@ class StockUnitChangeService
 
             $factor = $this->oldUnitsPerNewUnit($oldUnit, $newUnit, $oldUnitsPerNewUnit);
             $item->current_quantity = $this->convert((float) $item->current_quantity / $factor, 'unit');
-            $item->minimum_quantity = $this->convert((float) $item->minimum_quantity / $factor, 'unit');
-            $item->unit_cost = $this->convert((float) $item->unit_cost * $factor, 'unit');
+            $item->minimum_quantity = array_key_exists('minimum_quantity', $attributes)
+                ? $this->convert((float) $attributes['minimum_quantity'], 'minimum_quantity')
+                : $this->convert((float) $item->minimum_quantity / $factor, 'unit');
+            $item->unit_cost = array_key_exists('unit_cost', $attributes)
+                ? $this->convert((float) $attributes['unit_cost'], 'unit_cost')
+                : $this->convert((float) $item->unit_cost * $factor, 'unit');
 
             DB::table('product_ingredients')->where('stock_item_id', $item->id)->orderBy('id')->chunkById(100, function ($ingredients) use ($factor): void {
                 foreach ($ingredients as $ingredient) {

@@ -1,4 +1,5 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {
   ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -93,6 +94,15 @@ const StockScreen = () => {
       ? products.find(product => String(product.id) === String(current.id)) || current
       : null);
   }, [products]);
+  useEffect(() => {
+    setSelectedItem(current => current
+      ? stockItems.find(item => String(item.id) === String(current.id)) || null
+      : null);
+  }, [stockItems]);
+  useFocusEffect(useCallback(() => {
+    fetchStock();
+    fetchProducts();
+  }, [fetchProducts, fetchStock]));
   const listLoading = activeTab === 'stock' ? isLoading : productsLoading;
 
   const statusCounts = useMemo(() => stockItems.filter(item => !item.offlinePending && !item.offlineRejected).reduce((counts, item) => {

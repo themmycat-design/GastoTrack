@@ -243,7 +243,7 @@ class OwnerProductsTest extends TestCase
 
         $this->actingAs($owner)->put(route('stock.update', $water), [
             'name' => 'Water', 'unit' => 'ml', 'minimum_quantity' => 0,
-            'unit_cost' => 10, 'active' => 1,
+            'unit_cost' => 0.01, 'active' => 1,
         ])->assertRedirect(route('stock.index'));
         $this->assertSame('ml', $water->fresh()->unit);
         $this->assertSame('1000.0000', $water->fresh()->current_quantity);
@@ -297,8 +297,8 @@ class OwnerProductsTest extends TestCase
         $this->assertSame('kg', $stock->fresh()->unit);
 
         $this->actingAs($owner)->put(route('stock.update', $stock), [
-            'name' => 'Flour', 'unit' => 'g', 'minimum_quantity' => 2,
-            'unit_cost' => 50, 'active' => 1,
+            'name' => 'Flour', 'unit' => 'g', 'minimum_quantity' => 2000,
+            'unit_cost' => 0.05, 'active' => 1,
         ])->assertRedirect(route('stock.index'));
         $this->assertSame('g', $stock->fresh()->unit);
         $this->assertSame('15000.0000', $stock->fresh()->current_quantity);
@@ -330,12 +330,14 @@ class OwnerProductsTest extends TestCase
             ->assertSessionHasErrors('conversion_factor');
         $this->assertSame('pcs', $cups->fresh()->unit);
 
-        $this->actingAs($owner)->put(route('stock.update', $cups), $payload + ['conversion_factor' => 12])
+        $this->actingAs($owner)->put(route('stock.update', $cups), array_replace($payload, [
+            'conversion_factor' => 12, 'minimum_quantity' => 1.5, 'unit_cost' => 25,
+        ]))
             ->assertRedirect(route('stock.index'));
         $this->assertSame('pack', $cups->fresh()->unit);
         $this->assertSame('2.0000', $cups->fresh()->current_quantity);
-        $this->assertSame('1.0000', $cups->fresh()->minimum_quantity);
-        $this->assertSame('24.0000', $cups->fresh()->unit_cost);
+        $this->assertSame('1.5000', $cups->fresh()->minimum_quantity);
+        $this->assertSame('25.0000', $cups->fresh()->unit_cost);
         $this->assertSame('0.5000', $product->productIngredients()->firstOrFail()->quantity);
 
         $this->actingAs($owner)->put(route('stock.update', $cups), [
@@ -344,6 +346,13 @@ class OwnerProductsTest extends TestCase
         ])->assertSessionHasErrors('unit');
         $this->assertSame('pack', $cups->fresh()->unit);
         $this->assertSame('0.5000', $product->productIngredients()->firstOrFail()->quantity);
+
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        Sanctum::actingAs($staff);
+        $this->getJson('/api/v1/stock')->assertOk()
+            ->assertJsonPath('stock.0.unit', 'pack')
+            ->assertJsonPath('stock.0.minimum_quantity', '1.5000')
+            ->assertJsonPath('stock.0.unit_cost', '25.0000');
     }
 
     public function test_owner_api_uses_the_same_stock_unit_conversion(): void
