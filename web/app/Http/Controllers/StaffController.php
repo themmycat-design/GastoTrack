@@ -8,6 +8,7 @@ use App\Services\BusinessStaffLimit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class StaffController extends Controller
 {
@@ -109,16 +110,23 @@ class StaffController extends Controller
             'role' => $validated['role'],
         ];
         
-        // Only update password if provided
-        if (!empty($validated['password'])) {
+        $passwordChanged = !empty($validated['password']);
+        if ($passwordChanged) {
             $updateData['password'] = Hash::make($validated['password']);
         }
         
-        DB::transaction(function () use ($staff, $updateData, $staffLimit): void {
+        DB::transaction(function () use ($staff, $updateData, $staffLimit, $passwordChanged): void {
             if ($staff->role !== 'staff' && $updateData['role'] === 'staff') {
                 $staffLimit->assertCanAddStaff((int) $staff->business_id);
             }
             $staff->update($updateData);
+            if ($passwordChanged) {
+                $staff->forceFill([
+                    'must_reset_password' => false,
+                    'remember_token' => Str::random(60),
+                ])->save();
+                $staff->tokens()->delete();
+            }
         });
         
         return redirect()->route('staff.index')

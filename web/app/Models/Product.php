@@ -14,7 +14,7 @@ class Product extends Model
         static::updating(fn (self $product) => $product->revision = (int) $product->revision + 1);
     }
     protected $fillable = [
-        'business_id', 'name', 'description', 'category',
+        'business_id', 'name', 'description', 'category', 'size',
         'price', 'cost', 'emoji', 'image', 'active', 'is_available', 'display_order', 'prep_time'
     ];
 

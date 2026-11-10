@@ -19,9 +19,10 @@ import api from '../../services/api';
 import {needsStockAlternativeCheck} from '../../utils/stockAlternatives';
 import {createIdempotencyKey} from '../../config/orderIdempotency';
 import {recipeQuantityForDisplay, recipeUnitOptions, toStockQuantity} from '../../utils/recipeUnits';
+import {PRODUCT_SIZES} from '../../constants/productCategories';
 
 const emptyProductForm = {
-  name: '', category: 'Coffee', price: '', emoji: '☕', description: '',
+  name: '', category: 'Coffee', size: '', price: '', emoji: '☕', description: '',
   isAvailable: true, ingredients: [], image: null, imageAsset: null,
 };
 
@@ -30,6 +31,7 @@ const emptyStockForm = {name: '', unit: 'pcs', quantity: '', threshold: '', unit
 const productToForm = product => ({
   name: product.name || '',
   category: product.category || 'Coffee',
+  size: product.size || '',
   price: String(product.price ?? ''),
   emoji: product.emoji || '☕',
   description: product.description || '',
@@ -415,7 +417,7 @@ const StockScreen = () => {
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle}>{item.name}</Text>
-          <Text style={styles.cardSubtitle}>{item.category || 'Uncategorized'} · ₱{Number(item.price || 0).toFixed(2)}</Text>
+          <Text style={styles.cardSubtitle}>{item.category || 'Uncategorized'}{item.size ? ` · ${item.size}` : ''} · ₱{Number(item.price || 0).toFixed(2)}</Text>
           {hasMissingIngredient ? <Text style={styles.stockAlertText}>Ingredient out of stock</Text> : null}
           {item.offlineRejected ? <Text style={styles.stockAlertText}>{item.offlineAction || 'Create'} rejected: {item.offlineError || 'Review this product'}</Text>
             : item.offlinePending ? <Text style={styles.cardSubtitle}>{item.offlineAction || 'Create'} pending sync</Text> : null}
@@ -605,6 +607,7 @@ const StockScreen = () => {
             </View>
             <View style={styles.detailRow}><Text style={styles.detailLabel}>Price</Text><Text style={styles.detailValue}>₱{Number(selectedProduct.price || 0).toFixed(2)}</Text></View>
             <View style={styles.detailRow}><Text style={styles.detailLabel}>Category</Text><Text style={styles.detailValue}>{selectedProduct.category || 'Uncategorized'}</Text></View>
+            {selectedProduct.size ? <View style={styles.detailRow}><Text style={styles.detailLabel}>Size</Text><Text style={styles.detailValue}>{selectedProduct.size}</Text></View> : null}
             <View style={styles.detailRow}><Text style={styles.detailLabel}>Status</Text><Text style={styles.detailValue}>{selectedProduct.is_available === false ? 'Unavailable' : 'Available'}</Text></View>
             {selectedProduct.description ? <Text style={styles.description}>{selectedProduct.description}</Text> : null}
             <Text style={styles.fieldLabel}>Recipe ingredients</Text>
@@ -675,6 +678,16 @@ const StockScreen = () => {
               {PRODUCT_CATEGORIES.map(category => (
                 <TouchableOpacity key={category} style={[styles.categoryOption, productForm.category === category && styles.categoryOptionActive]} onPress={() => setProductField('category', category)}>
                   <Text style={[styles.categoryOptionText, productForm.category === category && styles.categoryOptionTextActive]}>{category}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Size (optional)</Text>
+            <Text style={styles.recipeHint}>Add a separate product for each size to set its price and ingredient amounts.</Text>
+            <View style={styles.categoryOptions}>
+              {['No size', ...PRODUCT_SIZES].map(size => (
+                <TouchableOpacity key={size} style={[styles.categoryOption, (productForm.size || 'No size') === size && styles.categoryOptionActive]} onPress={() => setProductField('size', size === 'No size' ? '' : size)} accessibilityRole="button" accessibilityLabel={`Set product size to ${size}`}>
+                  <Text style={[styles.categoryOptionText, (productForm.size || 'No size') === size && styles.categoryOptionTextActive]}>{size}</Text>
                 </TouchableOpacity>
               ))}
             </View>

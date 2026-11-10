@@ -90,6 +90,10 @@ class PlatformAdministrationTest extends TestCase
             'password' => 'NewStrongPassword1!', 'password_confirmation' => 'NewStrongPassword1!',
         ])->assertRedirect(route('login'));
         $this->assertFalse($staff->fresh()->must_reset_password);
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $staff->email,
+            'password' => 'NewStrongPassword1!',
+        ])->assertOk()->assertJsonPath('user.id', $staff->id);
     }
 
     public function test_subscription_expiry_keeps_owner_reads_but_blocks_changes_and_staff_api(): void

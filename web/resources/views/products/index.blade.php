@@ -95,7 +95,7 @@
                         @if($stale)<span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">Product changed since request</span>@endif
                     </div>
                     <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                        @foreach(['name' => 'Name', 'category' => 'Category', 'price' => 'Price', 'description' => 'Description', 'emoji' => 'Icon', 'is_available' => 'Availability', 'display_order' => 'Menu order'] as $field => $label)
+                        @foreach(['name' => 'Name', 'category' => 'Category', 'size' => 'Size', 'price' => 'Price', 'description' => 'Description', 'emoji' => 'Icon', 'is_available' => 'Availability', 'display_order' => 'Menu order'] as $field => $label)
                             @if(array_key_exists($field, $changes))
                                 <div class="rounded-lg bg-white px-3 py-2">
                                     <dt class="text-xs font-bold text-slate-500">{{ $label }}</dt>
@@ -142,7 +142,7 @@
 
         <!-- Filters -->
         <section class="gt-card p-5 sm:p-6" aria-label="Filter products">
-            <form method="GET" action="{{ route('products.index') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(200px,1.4fr)_minmax(160px,1fr)_minmax(160px,1fr)_auto] xl:items-end">
+            <form method="GET" action="{{ route('products.index') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1.4fr)_repeat(3,minmax(135px,1fr))_auto] xl:items-end">
                 <!-- Search -->
                 <div>
                     <label for="product-search" class="gt-label">Search</label>
@@ -156,6 +156,18 @@
                         <option value="">All Categories</option>
                         @foreach($categories as $category)
                             <option value="{{ $category }}" {{ request('category') == $category ? 'selected' : '' }}>{{ $category }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="product-size" class="gt-label">Size</label>
+                    <select id="product-size" name="size" class="gt-field">
+                        <option value="">All Sizes</option>
+                        @foreach(['Small', 'Medium', 'Large'] as $size)
+                            @if($sizes->contains($size))
+                                <option value="{{ $size }}" {{ request('size') === $size ? 'selected' : '' }}>{{ $size }}</option>
+                            @endif
                         @endforeach
                     </select>
                 </div>
@@ -199,7 +211,7 @@
                             </span>
                             <div>
                                 <h3 class="break-words text-base font-extrabold text-[#0A2E2A]">{{ $product->name }}</h3>
-                                <span class="mt-0.5 block text-xs font-semibold text-slate-500">{{ $product->category }}</span>
+                                <span class="mt-0.5 block text-xs font-semibold text-slate-500">{{ $product->category }}{{ $product->size ? ' · '.$product->size : '' }}</span>
                             </div>
                         </div>
                         @if($product->active && $product->is_available)
@@ -266,7 +278,7 @@
                         <span class="text-sm font-medium text-slate-500">Inactive product</span>
                     @endif
                     <div class="flex space-x-3">
-                        <button type="button" onclick="openEditModal({{ \Illuminate\Support\Js::from(['id' => $product->id, 'name' => $product->name, 'description' => $product->description, 'category' => $product->category, 'price' => $product->price, 'cost' => $product->cost, 'emoji' => $product->emoji, 'is_available' => $product->is_available, 'image_url' => $product->image ? url('/api/product-images/'.$product->id.'?v='.$product->updated_at?->timestamp) : null, 'ingredients' => $product->productIngredients->map(fn ($ingredient) => ['stock_id' => $ingredient->stock_item_id, 'quantity' => $ingredient->quantity])->values()->all()]) }})" class="gt-focus rounded-lg px-2 py-1.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Edit</button>
+                        <button type="button" onclick="openEditModal({{ \Illuminate\Support\Js::from(['id' => $product->id, 'name' => $product->name, 'description' => $product->description, 'category' => $product->category, 'size' => $product->size, 'price' => $product->price, 'cost' => $product->cost, 'emoji' => $product->emoji, 'is_available' => $product->is_available, 'image_url' => $product->image ? url('/api/product-images/'.$product->id.'?v='.$product->updated_at?->timestamp) : null, 'ingredients' => $product->productIngredients->map(fn ($ingredient) => ['stock_id' => $ingredient->stock_item_id, 'quantity' => $ingredient->quantity])->values()->all()]) }})" class="gt-focus rounded-lg px-2 py-1.5 text-sm font-bold text-[#08745D] hover:bg-[#EAF8F2]">Edit</button>
                         <button type="button" onclick="deleteProduct({{ $product->id }})" class="gt-focus rounded-lg px-2 py-1.5 text-sm font-bold text-rose-600 hover:bg-rose-50">Delete</button>
                     </div>
                 </div>
@@ -342,6 +354,17 @@
                                 <option value="{{ $category }}">
                             @endforeach
                         </datalist>
+                    </div>
+
+                    <div>
+                        <label for="size" class="gt-label">Size</label>
+                        <select id="size" name="size" class="gt-field">
+                            <option value="">No size</option>
+                            <option value="Small">Small</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Large">Large</option>
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">Create one product per size so each can have its own price and recipe.</p>
                     </div>
 
                     <!-- Emoji -->
@@ -528,6 +551,7 @@
             document.getElementById('name').value = '';
             document.getElementById('description').value = '';
             document.getElementById('category').value = '';
+            document.getElementById('size').value = '';
             document.getElementById('price').value = '';
             document.getElementById('cost').value = '';
             document.getElementById('emoji').value = '🍽️';
@@ -552,6 +576,7 @@
             document.getElementById('name').value = product.name;
             document.getElementById('description').value = product.description || '';
             document.getElementById('category').value = product.category;
+            document.getElementById('size').value = product.size || '';
             document.getElementById('price').value = product.price;
             document.getElementById('cost').value = product.cost || 0;
             document.getElementById('emoji').value = product.emoji || '☕';

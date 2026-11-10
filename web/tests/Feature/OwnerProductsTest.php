@@ -31,6 +31,7 @@ class OwnerProductsTest extends TestCase
                 'name' => 'Iced Matcha',
                 'description' => 'Green tea latte',
                 'category' => 'Tea',
+                'size' => 'Small',
                 'price' => 145,
                 'cost' => 55,
                 'emoji' => '🍵',
@@ -40,12 +41,14 @@ class OwnerProductsTest extends TestCase
 
         $product = Product::query()->where('business_id', $business->id)->firstOrFail();
         $this->assertTrue($product->is_available);
+        $this->assertSame('Small', $product->size);
 
         $this->actingAs($owner)
             ->put(route('products.update', $product), [
                 'name' => 'Iced Matcha',
                 'description' => 'Green tea latte',
                 'category' => 'Tea',
+                'size' => 'Medium',
                 'price' => 150,
                 'cost' => 60,
                 'emoji' => '🍵',
@@ -56,6 +59,7 @@ class OwnerProductsTest extends TestCase
         $this->assertDatabaseHas('products', [
             'id' => $product->id,
             'price' => 150,
+            'size' => 'Medium',
             'is_available' => 0,
         ]);
 
@@ -63,6 +67,11 @@ class OwnerProductsTest extends TestCase
             ->get(route('products.index', ['available' => '0']))
             ->assertOk()
             ->assertSee('Iced Matcha');
+
+        $this->actingAs($owner)->get(route('products.index', ['category' => 'Tea', 'size' => 'Medium']))
+            ->assertOk()->assertSee('Iced Matcha');
+        $this->actingAs($owner)->get(route('products.index', ['category' => 'Tea', 'size' => 'Small']))
+            ->assertOk()->assertDontSee('Iced Matcha');
 
         $this->actingAs($owner)
             ->deleteJson(route('products.destroy', $product))

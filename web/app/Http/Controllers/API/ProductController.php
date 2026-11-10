@@ -24,6 +24,7 @@ class ProductController extends Controller
         $products = Product::where('business_id', $request->user()->business_id)
             ->with('productIngredients.stockItem')
             ->when($request->filled('category'), fn ($query) => $query->where('category', $request->category))
+            ->when($request->filled('size'), fn ($query) => $query->where('size', $request->size))
             ->when(! $canManageProducts, fn ($query) => $query->where('is_available', true))
             ->orderBy('display_order')
             ->get();
@@ -48,6 +49,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'category' => 'required|string',
+            'size' => ['nullable', Rule::in(['Small', 'Medium', 'Large'])],
             'price' => 'required|numeric|min:0',
             'description' => 'nullable|string',
             'emoji' => 'nullable|string',
@@ -68,6 +70,7 @@ class ProductController extends Controller
                     'business_id' => $request->user()->business_id,
                     'name' => $request->name,
                     'category' => $request->category,
+                    'size' => $validated['size'] ?? null,
                     'price' => $request->price,
                     'description' => $request->description,
                     'emoji' => $request->emoji ?? '🍵',
@@ -115,6 +118,7 @@ class ProductController extends Controller
         $this->ensureCanManageProducts($request);
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255', 'category' => 'sometimes|string|max:100',
+            'size' => ['nullable', Rule::in(['Small', 'Medium', 'Large'])],
             'price' => 'sometimes|numeric|min:0', 'description' => 'nullable|string|max:1000',
             'emoji' => 'nullable|string|max:10', 'is_available' => 'sometimes|boolean',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
@@ -137,7 +141,7 @@ class ProductController extends Controller
         try {
             DB::transaction(function () use ($request, $product, $imagePath, $ingredients) {
                 $product->update($request->only([
-                    'name', 'category', 'price', 'description',
+                    'name', 'category', 'size', 'price', 'description',
                     'emoji', 'is_available', 'display_order',
                 ]));
 

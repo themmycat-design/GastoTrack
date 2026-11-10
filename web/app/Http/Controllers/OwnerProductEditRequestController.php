@@ -32,7 +32,7 @@ class OwnerProductEditRequestController extends Controller
 
             $changes = $pending->changes;
             $attributes = array_intersect_key($changes, array_flip([
-                'name', 'category', 'price', 'description', 'emoji', 'is_available', 'display_order',
+                'name', 'category', 'size', 'price', 'description', 'emoji', 'is_available', 'display_order',
             ]));
             $oldImage = $product->image;
             if ($pending->image_path) {

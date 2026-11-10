@@ -244,7 +244,9 @@ class OrderController extends Controller
 
                     $order->items()->create([
                         'product_id' => $product->id,
-                        'product_name' => $product->name,
+                        'product_name' => $product->size
+                            ? mb_substr($product->name, 0, 255 - mb_strlen(' ('.$product->size.')')).' ('.$product->size.')'
+                            : $product->name,
                         'price' => $product->price,
                         'quantity' => $item['quantity'],
                         'subtotal' => number_format(((int) round((float) $product->price * 100) * $item['quantity']) / 100, 2, '.', ''),

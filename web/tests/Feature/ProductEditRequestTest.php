@@ -34,7 +34,7 @@ class ProductEditRequestTest extends TestCase
         $headers = ['Authorization' => 'Bearer '.$staff->createToken('test')->plainTextToken];
 
         $response = $this->putJson('/api/v1/products/'.$product->id, [
-            'name' => 'Iced Milk Tea', 'price' => 120,
+            'name' => 'Iced Milk Tea', 'price' => 120, 'size' => 'Large',
             'replace_ingredients' => true,
             'ingredients' => [['stock_id' => $milk->id, 'quantity' => 250, 'unit' => 'ml']],
         ], $headers)->assertStatus(202)->assertJsonPath('approval_pending', true);
@@ -42,6 +42,7 @@ class ProductEditRequestTest extends TestCase
         $editRequest = ProductEditRequest::findOrFail($response->json('edit_request_id'));
         $this->assertSame('100.00', $product->fresh()->price);
         $this->assertSame('pending', $editRequest->status);
+        $this->assertSame('Large', $editRequest->changes['size']);
         $this->assertSame(0.25, $editRequest->changes['ingredients'][0]['quantity']);
         $this->assertSame(1, Notification::where('user_id', $owner->id)->where('type', 'product_edit_request')->count());
         $this->putJson('/api/v1/products/'.$product->id, ['price' => 130], $headers)->assertStatus(409);
@@ -51,7 +52,7 @@ class ProductEditRequestTest extends TestCase
         $this->actingAs($owner)->post(route('products.edit-requests.approve', $editRequest))
             ->assertRedirect(route('products.index'));
 
-        $this->assertDatabaseHas('products', ['id' => $product->id, 'name' => 'Iced Milk Tea', 'price' => 120]);
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'name' => 'Iced Milk Tea', 'price' => 120, 'size' => 'Large']);
         $this->assertDatabaseHas('product_ingredients', [
             'product_id' => $product->id, 'stock_item_id' => $milk->id, 'quantity' => 0.25,
         ]);
@@ -62,9 +63,14 @@ class ProductEditRequestTest extends TestCase
         $this->actingAs($staff)->getJson('/api/v1/products', $headers)
             ->assertOk()
             ->assertJsonPath('products.0.name', 'Iced Milk Tea')
+            ->assertJsonPath('products.0.size', 'Large')
             ->assertJsonPath('products.0.price', '120.00')
             ->assertJsonPath('products.0.approval_pending', false)
             ->assertJsonPath('products.0.product_ingredients.0.quantity', '0.2500');
+        $this->getJson('/api/v1/products?category=Drinks&size=Medium', $headers)
+            ->assertOk()->assertJsonCount(0, 'products');
+        $this->getJson('/api/v1/products?category=Drinks&size=Large', $headers)
+            ->assertOk()->assertJsonCount(1, 'products');
     }
 
     public function test_only_the_business_owner_can_reject_a_pending_photo_edit(): void

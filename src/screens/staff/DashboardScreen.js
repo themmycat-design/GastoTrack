@@ -24,7 +24,7 @@ import {transactionCategoryIcon} from '../../utils/transactionIcons';
 import {useStaffDay} from '../../utils/useStaffDay';
 import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
-import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
+import {productCategoryTabs, productSizesInCategory, productsInCategory, productsInSize} from '../../constants/productCategories';
 import {getProfilePhotoSource} from '../../utils/profilePhoto';
 import {getStaffOfflineActions, getStaffSnapshot, saveStaffSnapshot, subscribeStaffOffline, syncStaffOfflineActions} from '../../services/staffOffline';
 import {pendingIncomeForDay} from '../../utils/pendingIncome';
@@ -69,6 +69,7 @@ const DashboardScreen = ({ navigation }) => {
   const { products, isLoading: productsLoading, loadError: productError, fetchProducts } = useProducts();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedSize, setSelectedSize] = useState('All sizes');
   const [todayIncome, setTodayIncome] = useState(null);
   const [todayIncomeCount, setTodayIncomeCount] = useState(null);
   const [pendingIncomeCount, setPendingIncomeCount] = useState(0);
@@ -143,18 +144,22 @@ const DashboardScreen = ({ navigation }) => {
     [products],
   );
   const categories = useMemo(() => productCategoryTabs(PRODUCT_CATEGORIES), [PRODUCT_CATEGORIES]);
+  const sizes = useMemo(() => productSizesInCategory(availableProducts, selectedCategory), [availableProducts, selectedCategory]);
   useEffect(() => {
     if (!categories.some(category => category.toLowerCase() === selectedCategory.toLowerCase())) {
       setSelectedCategory('All');
     }
   }, [categories, selectedCategory]);
+  useEffect(() => {
+    if (selectedSize !== 'All sizes' && !sizes.includes(selectedSize)) setSelectedSize('All sizes');
+  }, [selectedSize, sizes]);
   const isToday = value => {
     if (!value) return false;
     return String(value).slice(0, 10) === day;
   };
 
   // Filter products by category
-  const filteredProducts = productsInCategory(availableProducts, selectedCategory);
+  const filteredProducts = productsInSize(productsInCategory(availableProducts, selectedCategory), selectedSize);
 
   // Get recent transactions (last 5)
   const recentTransactions = (transactions || []).filter(t => isToday(t.date || t.created_at)).slice(0, 5);
@@ -251,7 +256,7 @@ const DashboardScreen = ({ navigation }) => {
             onPress={() =>
               navigation.navigate('Orders', {
                 screen: 'OrderQueue',
-                params: selectedCategory === 'All' ? undefined : {category: selectedCategory},
+                params: selectedCategory === 'All' ? undefined : {category: selectedCategory, size: selectedSize},
               })
             }>
               <Text style={styles.viewAllText}>View all &gt;</Text>
@@ -270,7 +275,9 @@ const DashboardScreen = ({ navigation }) => {
                   styles.categoryTab,
                   selectedCategory === category && styles.categoryTabActive,
                 ]}
-                onPress={() => setSelectedCategory(category)}>
+                accessibilityRole="button"
+                accessibilityLabel={`Filter products by ${category}`}
+                onPress={() => {setSelectedCategory(category); setSelectedSize('All sizes');}}>
                 <Text
                   style={[
                     styles.categoryTabText,
@@ -281,6 +288,12 @@ const DashboardScreen = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </ScrollView>
+
+          {sizes.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sizeTabs} contentContainerStyle={styles.sizeTabsContent}>
+            {['All sizes', ...sizes].map(size => <TouchableOpacity key={size} accessibilityRole="button" accessibilityLabel={`Filter ${selectedCategory} by ${size}`} style={[styles.sizeTab, selectedSize === size && styles.categoryTabActive]} onPress={() => setSelectedSize(size)}>
+              <Text style={[styles.categoryTabText, selectedSize === size && styles.categoryTabTextActive]}>{size}</Text>
+            </TouchableOpacity>)}
+          </ScrollView> : null}
 
           {/* Product Cards */}
           <ScrollView
@@ -311,9 +324,11 @@ const DashboardScreen = ({ navigation }) => {
                 <TouchableOpacity
                   key={product.id}
                   style={styles.productCard}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${product.name}${product.size ? ` ${product.size}` : ''} in orders`}
                   onPress={() => navigation.navigate('Orders', {
                     screen: 'OrderQueue',
-                    params: {category: product.category},
+                    params: {category: product.category, size: product.size || 'All sizes'},
                   })}>
                   <View style={styles.productImageContainer}>
                     {product.image ? (
@@ -324,7 +339,7 @@ const DashboardScreen = ({ navigation }) => {
                   </View>
                   <View style={styles.productInfo}>
                     <View style={styles.productBadge}>
-                      <Text style={styles.productBadgeText}>{product.category || 'Uncategorized'}</Text>
+                      <Text style={styles.productBadgeText}>{product.category || 'Uncategorized'}{product.size ? ` · ${product.size}` : ''}</Text>
                     </View>
                     <Text style={styles.productName}>{product.name}</Text>
                     <Text style={styles.productPrice}>₱{parseFloat(product.price || 0).toFixed(2)}</Text>
@@ -614,6 +629,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
   },
+  sizeTabs: {paddingHorizontal: 16, marginBottom: 12},
+  sizeTabsContent: {alignItems: 'center'},
+  sizeTab: {minHeight: 40, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: COLORS.bgCard, marginRight: 8, elevation: 1},
   categoryTab: {
     minHeight: 48,
     justifyContent: 'center',

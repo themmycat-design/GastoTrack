@@ -154,6 +154,7 @@ class OwnerDashboardMetrics
         $topSellingProducts = (clone $productSales)
             ->select('order_items.product_id')
             ->selectRaw('COALESCE(MAX(products.name), MAX(order_items.product_name)) as product_name')
+            ->selectRaw('MAX(products.size) as product_size')
             ->selectRaw('MAX(CASE WHEN products.deleted_at IS NULL THEN products.image END) as image')
             ->selectRaw('SUM(order_items.quantity) as units_sold')
             ->selectRaw("COALESCE(SUM($itemSalesExpression), 0) as sales_amount")
@@ -163,6 +164,10 @@ class OwnerDashboardMetrics
             ->limit(5)
             ->get()
             ->each(function ($item) use ($productSalesTotal): void {
+                if ($item->product_size) {
+                    $item->product_name .= ' ('.$item->product_size.')';
+                }
+                unset($item->product_size);
                 $item->sales_amount = round((float) $item->sales_amount, 2);
                 $item->sales_share = $productSalesTotal > 0
                     ? round($item->sales_amount / $productSalesTotal * 100, 1)

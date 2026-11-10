@@ -93,6 +93,20 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->assertSame(70.0, (float) $sugar->fresh()->current_quantity);
     }
 
+    public function test_sized_product_keeps_its_size_in_order_history_and_uses_its_recipe(): void
+    {
+        $this->product->update(['size' => 'Medium']);
+
+        $order = $this->postJson('/api/v1/orders', [
+            'client_id' => '29a4b877-ef9f-40c2-92dc-f7be84a8f107',
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 2]],
+        ])->assertCreated()->json('order');
+
+        $this->assertSame('Cafe latte (Medium)', $order['items'][0]['product_name']);
+        $this->assertSame(600.0, (float) $this->stock->fresh()->current_quantity);
+    }
+
     public function test_two_cash_products_deduct_twice_the_recipe_in_stock_units(): void
     {
         $water = StockItem::create([

@@ -1,4 +1,4 @@
-import {productCategoriesFromOptions, productCategoryTabs, productsInCategory} from '../src/constants/productCategories';
+import {productCategoriesFromOptions, productCategoryTabs, productSizesInCategory, productsInCategory, productsInSize} from '../src/constants/productCategories';
 
 describe('product category choices', () => {
   const options = [
@@ -33,5 +33,18 @@ describe('product category choices', () => {
     expect(productsInCategory(products, 'bakery')).toEqual([products[1]]);
     expect(productsInCategory(products, 'All')).toEqual(products);
     expect(productsInCategory(products, 'Milktea')).toEqual([]);
+  });
+
+  it('offers only configured sizes in a category and filters to the selected size', () => {
+    const products = [
+      {id: 1, category: 'Milktea', size: 'Medium'},
+      {id: 2, category: 'Milktea', size: 'Small'},
+      {id: 3, category: 'Milktea', size: null},
+      {id: 4, category: 'Coffee', size: 'Large'},
+    ];
+    expect(productSizesInCategory(products, 'Milktea')).toEqual(['Small', 'Medium']);
+    expect(productSizesInCategory(products, 'All')).toEqual([]);
+    expect(productsInSize(productsInCategory(products, 'Milktea'), 'Medium')).toEqual([products[0]]);
+    expect(productsInSize(productsInCategory(products, 'Milktea'), 'All sizes')).toEqual(products.slice(0, 3));
   });
 });

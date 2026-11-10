@@ -19,6 +19,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'string', 'max:100'],
+            'size' => ['nullable', Rule::in(['Small', 'Medium', 'Large'])],
             'available' => ['nullable', Rule::in(['0', '1'])],
         ]);
         $businessId = (int) $request->user()->business_id;
@@ -35,6 +36,9 @@ class ProductController extends Controller
         }
         if (!empty($validated['category'])) {
             $query->where('category', $validated['category']);
+        }
+        if (!empty($validated['size'])) {
+            $query->where('size', $validated['size']);
         }
         if (isset($validated['available'])) {
             if ($validated['available'] === '1') {
@@ -53,6 +57,12 @@ class ProductController extends Controller
             ->distinct()
             ->orderBy('category')
             ->pluck('category');
+        $sizes = Product::query()
+            ->where('business_id', $businessId)
+            ->when(!empty($validated['category']), fn ($query) => $query->where('category', $validated['category']))
+            ->whereNotNull('size')
+            ->distinct()
+            ->pluck('size');
         $totalProducts = Product::query()->where('business_id', $businessId)->count();
         $availableProducts = Product::query()
             ->where('business_id', $businessId)
@@ -76,7 +86,7 @@ class ProductController extends Controller
             ->get();
 
         return view('products.index', compact(
-            'products', 'categories', 'totalProducts', 'availableProducts', 'categoriesCount', 'stockItems', 'pendingEditRequests'
+            'products', 'categories', 'sizes', 'totalProducts', 'availableProducts', 'categoriesCount', 'stockItems', 'pendingEditRequests'
         ));
     }
 
@@ -172,6 +182,7 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:500'],
             'category' => ['required', 'string', 'max:100'],
+            'size' => ['nullable', Rule::in(['Small', 'Medium', 'Large'])],
             'price' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'emoji' => ['nullable', 'string', 'max:10'],
@@ -196,6 +207,7 @@ class ProductController extends Controller
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'category' => $validated['category'],
+            'size' => $validated['size'] ?? null,
             'price' => $validated['price'],
             'cost' => $validated['cost'] ?? 0,
             'emoji' => $validated['emoji'] ?? '☕',

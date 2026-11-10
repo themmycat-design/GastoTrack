@@ -24,7 +24,7 @@ import api from '../../services/api';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import GastoModalMascot from '../../components/staff/GastoModalMascot';
-import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
+import {productCategoryTabs, productSizesInCategory, productsInCategory, productsInSize} from '../../constants/productCategories';
 import {ingredientUsageForCartLine} from '../../utils/orderIngredientUsage';
 
 const OrderQueueScreen = ({navigation, route}) => {
@@ -61,6 +61,7 @@ const OrderQueueScreen = ({navigation, route}) => {
   const [ingredientAmounts, setIngredientAmounts] = useState({});
   const [ingredientError, setIngredientError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedSize, setSelectedSize] = useState('All sizes');
   const [refreshing, setRefreshing] = useState(false);
 
   const refreshProducts = async () => {
@@ -74,7 +75,8 @@ const OrderQueueScreen = ({navigation, route}) => {
     [products],
   );
   const categories = useMemo(() => productCategoryTabs(PRODUCT_CATEGORIES), [PRODUCT_CATEGORIES]);
-  const filteredProducts = productsInCategory(availableProducts, selectedCategory);
+  const sizes = useMemo(() => productSizesInCategory(availableProducts, selectedCategory), [availableProducts, selectedCategory]);
+  const filteredProducts = productsInSize(productsInCategory(availableProducts, selectedCategory), selectedSize);
 
   useEffect(() => {
     const requestedCategory = route?.params?.category;
@@ -83,11 +85,18 @@ const OrderQueueScreen = ({navigation, route}) => {
     );
     if (matchingCategory) {
       setSelectedCategory(matchingCategory);
-      navigation.setParams({category: undefined});
+      const requestedSize = route?.params?.size;
+      setSelectedSize(productSizesInCategory(availableProducts, matchingCategory).includes(requestedSize) ? requestedSize : 'All sizes');
+      navigation.setParams({category: undefined, size: undefined});
     } else if (!categories.some(category => category.toLowerCase() === selectedCategory.toLowerCase())) {
       setSelectedCategory('All');
+      setSelectedSize('All sizes');
     }
-  }, [categories, navigation, route?.params?.category, selectedCategory]);
+  }, [availableProducts, categories, navigation, route?.params?.category, route?.params?.size, selectedCategory]);
+
+  useEffect(() => {
+    if (!route?.params?.category && selectedSize !== 'All sizes' && !sizes.includes(selectedSize)) setSelectedSize('All sizes');
+  }, [route?.params?.category, selectedSize, sizes]);
 
   useEffect(() => {
     if (!paymentNotice) return undefined;
@@ -518,7 +527,7 @@ const OrderQueueScreen = ({navigation, route}) => {
       onPress={() => handleOpenProduct(product)}
       disabled={!cartHydrated}
       accessibilityRole="button"
-      accessibilityLabel={`View ${product.name} details`}
+      accessibilityLabel={`View ${product.name}${product.size ? ` ${product.size}` : ''} details`}
       activeOpacity={0.8}>
       <View style={styles.productEmoji}>
         {product.image
@@ -527,7 +536,7 @@ const OrderQueueScreen = ({navigation, route}) => {
       </View>
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{product.name}</Text>
-        <Text style={styles.productCategory}>{product.category}</Text>
+        <Text style={styles.productCategory}>{product.category}{product.size ? ` · ${product.size}` : ''}</Text>
         <Text style={styles.productPrice}>₱{product.price.toFixed(2)}</Text>
       </View>
     </TouchableOpacity>
@@ -592,7 +601,9 @@ const OrderQueueScreen = ({navigation, route}) => {
                   styles.categoryChip,
                   selectedCategory === cat && styles.categoryChipActive,
                 ]}
-                onPress={() => setSelectedCategory(cat)}>
+                accessibilityRole="button"
+                accessibilityLabel={`Filter products by ${cat}`}
+                onPress={() => {setSelectedCategory(cat); setSelectedSize('All sizes');}}>
                 <Text style={[
                   styles.categoryChipText,
                   selectedCategory === cat && styles.categoryChipTextActive,
@@ -603,6 +614,11 @@ const OrderQueueScreen = ({navigation, route}) => {
             ))}
           </View>
         </ScrollView>
+        {sizes.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow} style={styles.sizeRow}>
+          {['All sizes', ...sizes].map(size => <TouchableOpacity key={size} accessibilityRole="button" accessibilityLabel={`Filter ${selectedCategory} by ${size}`} style={[styles.categoryChip, styles.sizeChip, selectedSize === size && styles.categoryChipActive]} onPress={() => setSelectedSize(size)}>
+            <Text style={[styles.categoryChipText, selectedSize === size && styles.categoryChipTextActive]}>{size}</Text>
+          </TouchableOpacity>)}
+        </ScrollView> : null}
       </View>
 
       {/* Products Grid */}
@@ -666,7 +682,7 @@ const OrderQueueScreen = ({navigation, route}) => {
 
                   {/* Category & Price */}
                   <View style={styles.productDetailHeader}>
-                    <Text style={styles.productDetailCategory}>{selectedProduct.category}</Text>
+                    <Text style={styles.productDetailCategory}>{selectedProduct.category}{selectedProduct.size ? ` · ${selectedProduct.size}` : ''}</Text>
                     <Text style={styles.productDetailPrice}>₱{selectedProduct.price.toFixed(2)}</Text>
                   </View>
 
@@ -845,7 +861,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                       ? <Image source={{uri: item.product.image}} style={styles.cartItemImage} />
                       : <Icon name="image-outline" size={28} color={COLORS.textMuted} style={styles.cartItemEmoji} />}
                     <View style={styles.cartItemInfo}>
-                      <Text style={styles.cartItemName}>{item.product.name}</Text>
+                      <Text style={styles.cartItemName}>{item.product.name}{item.product.size ? ` · ${item.product.size}` : ''}</Text>
                       <Text style={styles.cartItemQty}>Qty: {item.quantity}</Text>
                       {ingredientUsageForCartLine(item).map(ingredient => (
                         <Text key={ingredient.stockId} style={styles.cartItemIngredient}>
@@ -1126,6 +1142,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 8,
   },
+  sizeRow: {marginTop: 8},
+  sizeChip: {minHeight: 40},
   categoryChip: {
     minHeight: 48,
     justifyContent: 'center',

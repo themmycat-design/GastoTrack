@@ -59,7 +59,7 @@ const pressByLabel = async (screen, label) => {
   await ReactTestRenderer.act(async () => button.props.onPress());
 };
 
-const setup = ({cart = [], selectedProduct = product} = {}) => {
+const setup = ({cart = [], selectedProduct = product, products = [selectedProduct]} = {}) => {
   const setCart = jest.fn();
   const fetchProducts = jest.fn().mockResolvedValue({success: true});
   const fetchTransactionOptions = jest.fn().mockResolvedValue({success: true});
@@ -73,7 +73,7 @@ const setup = ({cart = [], selectedProduct = product} = {}) => {
   });
   let notificationListener;
 
-  useProducts.mockReturnValue({products: [selectedProduct], isLoading: false, fetchProducts});
+  useProducts.mockReturnValue({products, isLoading: false, fetchProducts});
   useTransactions.mockReturnValue({PRODUCT_CATEGORIES: ['Milktea'], fetchTransactionOptions});
   useOrders.mockReturnValue({
     createOrder,
@@ -100,6 +100,17 @@ const setup = ({cart = [], selectedProduct = product} = {}) => {
 };
 
 describe('OrderQueueScreen ordering flow', () => {
+  it('shows only configured sizes under the category and filters the order list', async () => {
+    const small = {...product, id: 8, size: 'Small'};
+    const medium = {...product, id: 9, size: 'Medium'};
+    const {screen} = setup({products: [small, medium]});
+
+    await pressByLabel(screen, 'Filter products by Milktea');
+    expect(screen.root.findAllByType(TouchableOpacity).some(node => node.props.accessibilityLabel === 'Filter Milktea by Large')).toBe(false);
+    await pressByLabel(screen, 'Filter Milktea by Medium');
+    expect(screen.root.findAllByType(FlatList).find(list => list.props.numColumns === 2).props.data).toEqual([medium]);
+  });
+
   it('reloads products and categories when the catalog is pulled down', async () => {
     const {screen, fetchProducts, fetchTransactionOptions} = setup();
     const productList = screen.root.findAllByType(FlatList).find(list => list.props.numColumns === 2);

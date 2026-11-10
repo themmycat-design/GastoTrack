@@ -191,6 +191,17 @@
                 <input type="hidden" id="userId" name="user_id">
                 <input type="hidden" id="formMethod" name="_method">
 
+                @if ($errors->any())
+                    <div role="alert" class="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        <p class="font-bold">Could not save this user.</p>
+                        <ul class="mt-2 list-disc space-y-1 pl-5">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
                     <!-- Name -->
                     <div class="sm:col-span-2">
@@ -287,6 +298,14 @@
         function closeModal() {
             document.getElementById('userModal').classList.add('hidden');
         }
+
+        @if ($errors->any())
+            @if (old('user_id'))
+                openEditModal(@json(old('user_id')), @json(old('name')), @json(old('email')), @json(old('phone')), @json(old('role')));
+            @else
+                openAddModal();
+            @endif
+        @endif
 
         function deleteUser(id) {
             if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {

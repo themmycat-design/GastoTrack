@@ -32,6 +32,7 @@ const extractProducts = data => (
 const toApiPayload = product => ({
   name: product.name?.trim(),
   category: product.category,
+  size: product.size || null,
   price: Number(product.price),
   description: product.description?.trim() || null,
   emoji: product.emoji?.trim() || '☕',
@@ -48,6 +49,7 @@ const toMultipartPayload = (product, method) => {
   if (method) form.append('_method', method);
   form.append('name', payload.name);
   form.append('category', payload.category);
+  form.append('size', payload.size || '');
   form.append('price', String(payload.price));
   form.append('description', payload.description || '');
   form.append('emoji', payload.emoji);
