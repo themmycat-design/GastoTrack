@@ -287,6 +287,41 @@ class OwnerProductsTest extends TestCase
         $this->assertSame('kg', $stock->fresh()->unit);
     }
 
+    public function test_owner_can_enter_adjustments_in_compatible_units(): void
+    {
+        $business = $this->business('Unit Conversion Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $flour = StockItem::create([
+            'business_id' => $business->id, 'name' => 'Flour', 'unit' => 'kg',
+            'current_quantity' => 2, 'minimum_quantity' => 0, 'unit_cost' => 50,
+        ]);
+        $milk = StockItem::create([
+            'business_id' => $business->id, 'name' => 'Milk', 'unit' => 'ml',
+            'current_quantity' => 2000, 'minimum_quantity' => 0, 'unit_cost' => 0.1,
+        ]);
+
+        $this->actingAs($owner)->postJson(route('stock.adjust', $flour), [
+            'type' => 'add', 'quantity' => 500, 'unit' => 'g',
+        ])->assertOk()->assertJsonPath('new_quantity', '2.5000');
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_item_id' => $flour->id, 'quantity' => 0.5, 'type' => 'in',
+        ]);
+        $this->assertSame('kg', $flour->fresh()->unit);
+
+        $this->actingAs($owner)->postJson(route('stock.adjust', $milk), [
+            'type' => 'subtract', 'quantity' => 0.5, 'unit' => 'L',
+        ])->assertOk()->assertJsonPath('new_quantity', '1500.0000');
+        $this->assertSame('ml', $milk->fresh()->unit);
+
+        $this->actingAs($owner)->postJson(route('stock.adjust', $flour), [
+            'type' => 'add', 'quantity' => 1, 'unit' => 'ml',
+        ])->assertUnprocessable()->assertJsonValidationErrors('unit');
+        $this->actingAs($owner)->postJson(route('stock.adjust', $flour), [
+            'type' => 'add', 'quantity' => 0.0001, 'unit' => 'g',
+        ])->assertUnprocessable()->assertJsonValidationErrors('quantity');
+        $this->assertSame('2.5000', $flour->fresh()->current_quantity);
+    }
+
     private function business(string $name): Business
     {
         return Business::create(['name' => $name, 'status' => 'active', 'active' => true]);

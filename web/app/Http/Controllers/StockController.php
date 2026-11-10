@@ -213,6 +213,7 @@ class StockController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:add,subtract,set',
             'quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit' => 'nullable|string|max:50',
             'reason' => 'nullable|string|max:500',
             'movement_category' => 'nullable|in:adjustment,waste',
         ]);
@@ -225,7 +226,11 @@ class StockController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($stock->id);
             $quantityBefore = (float) $lockedStock->current_quantity;
-            $quantity = (float) $validated['quantity'];
+            $quantity = StockUnitPolicy::adjustmentQuantity(
+                (float) $validated['quantity'],
+                $validated['unit'] ?? $lockedStock->unit,
+                $lockedStock->unit,
+            );
 
             $quantityAfter = match ($validated['type']) {
                 'add' => round($quantityBefore + $quantity, 4),

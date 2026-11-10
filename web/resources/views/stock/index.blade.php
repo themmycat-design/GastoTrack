@@ -312,7 +312,7 @@
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
                         <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
                         <datalist id="stock-unit-options"><option value="pcs"><option value="g"><option value="kg"><option value="ml"><option value="L"></datalist>
-                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">This unit is fixed. Add more stock using the same unit.</p>
+                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">This saved unit is fixed. Use Add / adjust to enter a compatible unit.</p>
                     </div>
 
                     <!-- Unit Cost -->
@@ -397,8 +397,12 @@
 
                 <!-- Quantity -->
                 <div class="mb-4">
-                    <label for="adjust_quantity" class="gt-label">Quantity (<span id="adjust_unit_label"></span>) <span class="text-rose-600">*</span></label>
-                    <input type="number" id="adjust_quantity" name="quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
+                    <label for="adjust_quantity" class="gt-label">Quantity <span class="text-rose-600">*</span></label>
+                    <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
+                        <input type="number" id="adjust_quantity" name="quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
+                        <select id="adjust_unit" name="unit" aria-label="Adjustment unit" class="gt-field"></select>
+                    </div>
+                    <p id="adjust_unit_help" class="mt-1 text-xs text-slate-500"></p>
                 </div>
 
                 <!-- Reason -->
@@ -486,7 +490,13 @@
             document.getElementById('adjust_stock_id').value = id;
             document.getElementById('adjust_item_name').textContent = name;
             document.getElementById('adjust_current_qty').textContent = `${parseFloat(currentQty).toFixed(2)} ${unit}`;
-            document.getElementById('adjust_unit_label').textContent = unit;
+            const alternateUnit = ({kg: 'g', kilogram: 'g', kilograms: 'g', g: 'kg', gram: 'kg', grams: 'kg', l: 'ml', liter: 'ml', liters: 'ml', litre: 'ml', litres: 'ml', ml: 'L', milliliter: 'L', milliliters: 'L', millilitre: 'L', millilitres: 'L'})[unit.toLowerCase()];
+            const unitSelect = document.getElementById('adjust_unit');
+            unitSelect.replaceChildren(new Option(unit, unit));
+            if (alternateUnit) unitSelect.add(new Option(alternateUnit, alternateUnit));
+            document.getElementById('adjust_unit_help').textContent = alternateUnit
+                ? `Enter the amount in ${unit} or ${alternateUnit}. Stock is saved in ${unit}.`
+                : `Stock is saved in ${unit}.`;
             document.getElementById('adjust_type').value = 'add';
             document.getElementById('adjust_movement_category').value = 'adjustment';
             updateAdjustmentCategoryVisibility();
@@ -505,6 +515,7 @@
             const stockId = document.getElementById('adjust_stock_id').value;
             const type = document.getElementById('adjust_type').value;
             const quantity = document.getElementById('adjust_quantity').value;
+            const unit = document.getElementById('adjust_unit').value;
             const reason = document.getElementById('adjust_reason').value;
             const movementCategory = document.getElementById('adjust_movement_category').value;
             
@@ -518,6 +529,7 @@
                 body: JSON.stringify({
                     type: type,
                     quantity: quantity,
+                    unit: unit,
                     reason: reason,
                     movement_category: movementCategory
                 })
