@@ -312,7 +312,7 @@
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
                         <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
                         <datalist id="stock-unit-options"><option value="pcs"><option value="g"><option value="kg"><option value="ml"><option value="L"></datalist>
-                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">Changing the unit converts current stock, minimum stock, recipes, and past movements. Unit cost is converted to preserve stock value. Save the unit change before editing minimum stock or unit cost.</p>
+                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">Change the unit of the stock</p>
                         <div id="unit_conversion_wrapper" class="mt-3 hidden">
                             <label for="conversion_factor" class="gt-label">Old units in 1 new unit <span class="text-rose-600">*</span></label>
                             <input type="number" id="conversion_factor" name="conversion_factor" step="0.0001" min="0.0001" max="99999999.9999" class="gt-field" placeholder="e.g. 12">
