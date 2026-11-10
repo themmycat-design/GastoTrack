@@ -403,12 +403,19 @@
                         <select id="adjust_unit" name="unit" aria-label="Adjustment unit" class="gt-field"></select>
                     </div>
                     <p id="adjust_unit_help" class="mt-1 text-xs text-slate-500"></p>
+                    <div id="adjust_custom_unit_fields" class="mt-3 hidden rounded-xl border border-[#DDE9E5] bg-[#F4F8F7] p-3">
+                        <label for="adjust_custom_unit" class="gt-label">Another unit</label>
+                        <input type="text" id="adjust_custom_unit" maxlength="50" class="gt-field" placeholder="e.g. box, pack, bottle">
+                        <label for="adjust_conversion_factor" class="gt-label mt-3">How many saved units are in 1 of this unit?</label>
+                        <input type="number" id="adjust_conversion_factor" step="0.0001" min="0.0001" max="99999999.9999" class="gt-field" placeholder="e.g. 12">
+                        <p id="adjust_conversion_help" class="mt-1 text-xs text-slate-500"></p>
+                    </div>
                 </div>
 
                 <!-- Reason -->
                 <div class="mb-6">
                     <label for="adjust_reason" class="gt-label">Reason</label>
-                    <textarea id="adjust_reason" name="reason" rows="3" class="gt-field" placeholder="Optional notes..."></textarea>
+                    <textarea id="adjust_reason" name="reason" rows="3" maxlength="500" class="gt-field" placeholder="Optional notes..."></textarea>
                 </div>
 
                 <!-- Buttons -->
@@ -494,9 +501,14 @@
             const unitSelect = document.getElementById('adjust_unit');
             unitSelect.replaceChildren(new Option(unit, unit));
             if (alternateUnit) unitSelect.add(new Option(alternateUnit, alternateUnit));
+            unitSelect.add(new Option('Another unit...', '__other__'));
+            unitSelect.dataset.savedUnit = unit;
             document.getElementById('adjust_unit_help').textContent = alternateUnit
                 ? `Enter the amount in ${unit} or ${alternateUnit}. Stock is saved in ${unit}.`
                 : `Stock is saved in ${unit}.`;
+            document.getElementById('adjust_custom_unit').value = '';
+            document.getElementById('adjust_conversion_factor').value = '';
+            updateAdjustmentUnitVisibility();
             document.getElementById('adjust_type').value = 'add';
             document.getElementById('adjust_movement_category').value = 'adjustment';
             updateAdjustmentCategoryVisibility();
@@ -515,7 +527,11 @@
             const stockId = document.getElementById('adjust_stock_id').value;
             const type = document.getElementById('adjust_type').value;
             const quantity = document.getElementById('adjust_quantity').value;
-            const unit = document.getElementById('adjust_unit').value;
+            const isCustomUnit = document.getElementById('adjust_unit').value === '__other__';
+            const unit = isCustomUnit
+                ? document.getElementById('adjust_custom_unit').value.trim()
+                : document.getElementById('adjust_unit').value;
+            const conversionFactor = isCustomUnit ? document.getElementById('adjust_conversion_factor').value : null;
             const reason = document.getElementById('adjust_reason').value;
             const movementCategory = document.getElementById('adjust_movement_category').value;
             
@@ -530,6 +546,7 @@
                     type: type,
                     quantity: quantity,
                     unit: unit,
+                    ...(isCustomUnit ? { conversion_factor: conversionFactor } : {}),
                     reason: reason,
                     movement_category: movementCategory
                 })
@@ -560,7 +577,19 @@
             if (!isDeduction) document.getElementById('adjust_movement_category').value = 'adjustment';
         }
 
+        function updateAdjustmentUnitVisibility() {
+            const unitSelect = document.getElementById('adjust_unit');
+            const isCustom = unitSelect.value === '__other__';
+            document.getElementById('adjust_custom_unit_fields').classList.toggle('hidden', !isCustom);
+            document.getElementById('adjust_custom_unit').required = isCustom;
+            document.getElementById('adjust_conversion_factor').required = isCustom;
+            document.getElementById('adjust_reason').maxLength = isCustom ? 300 : 500;
+            document.getElementById('adjust_conversion_help').textContent =
+                `For example, if 1 box contains 12 ${unitSelect.dataset.savedUnit}, enter 12. Adjustments are saved in ${unitSelect.dataset.savedUnit}.`;
+        }
+
         document.getElementById('adjust_type').addEventListener('change', updateAdjustmentCategoryVisibility);
+        document.getElementById('adjust_unit').addEventListener('change', updateAdjustmentUnitVisibility);
 
         function deleteStock(id) {
             if (confirm('Are you sure you want to delete this stock item? This action cannot be undone.')) {
