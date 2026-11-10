@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import {Modal, Text, TouchableOpacity} from 'react-native';
+import {FlatList, Modal, Text, TouchableOpacity} from 'react-native';
 import OrderQueueScreen from '../src/screens/staff/OrderQueueScreen';
 import {useProducts} from '../src/context/ProductContext';
 import {useTransactions} from '../src/context/TransactionContext';
@@ -61,6 +61,8 @@ const pressByLabel = async (screen, label) => {
 
 const setup = ({cart = [], selectedProduct = product} = {}) => {
   const setCart = jest.fn();
+  const fetchProducts = jest.fn().mockResolvedValue({success: true});
+  const fetchTransactionOptions = jest.fn().mockResolvedValue({success: true});
   const createOrder = jest.fn().mockResolvedValue(pendingOrder);
   const confirmPaymentFromNotification = jest.fn().mockResolvedValue({
     order: {...pendingOrder, status: 'completed', paymentStatus: 'confirmed'},
@@ -71,8 +73,8 @@ const setup = ({cart = [], selectedProduct = product} = {}) => {
   });
   let notificationListener;
 
-  useProducts.mockReturnValue({products: [selectedProduct], isLoading: false});
-  useTransactions.mockReturnValue({PRODUCT_CATEGORIES: ['Milktea']});
+  useProducts.mockReturnValue({products: [selectedProduct], isLoading: false, fetchProducts});
+  useTransactions.mockReturnValue({PRODUCT_CATEGORIES: ['Milktea'], fetchTransactionOptions});
   useOrders.mockReturnValue({
     createOrder,
     confirmPaymentFromNotification,
@@ -94,10 +96,20 @@ const setup = ({cart = [], selectedProduct = product} = {}) => {
     );
   });
   mountedScreens.push(screen);
-  return {screen, setCart, createOrder, confirmPaymentFromNotification, cancelOrder, getNotificationListener: () => notificationListener};
+  return {screen, setCart, createOrder, confirmPaymentFromNotification, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
 };
 
 describe('OrderQueueScreen ordering flow', () => {
+  it('reloads products and categories when the catalog is pulled down', async () => {
+    const {screen, fetchProducts, fetchTransactionOptions} = setup();
+    const productList = screen.root.findAllByType(FlatList).find(list => list.props.numColumns === 2);
+
+    await ReactTestRenderer.act(async () => productList.props.refreshControl.props.onRefresh());
+
+    expect(fetchProducts).toHaveBeenCalledTimes(1);
+    expect(fetchTransactionOptions).toHaveBeenCalledTimes(1);
+  });
+
   it('opens product details before adding the selected product to the cart', async () => {
     const {screen, setCart} = setup();
 

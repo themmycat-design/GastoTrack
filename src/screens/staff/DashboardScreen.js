@@ -131,8 +131,8 @@ const DashboardScreen = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchTransactions(), fetchProducts(), fetchDailyIncome(),
-        offlineAccount ? syncStaffOfflineActions(offlineAccount).catch(() => {}) : Promise.resolve()]);
+      if (offlineAccount) await syncStaffOfflineActions(offlineAccount).catch(() => {});
+      await Promise.all([fetchTransactions(), fetchProducts(), fetchDailyIncome()]);
     } finally {
       setRefreshing(false);
     }
@@ -164,10 +164,6 @@ const DashboardScreen = ({ navigation }) => {
   const hasDashboardData = availableProducts.length > 0 || transactions.length > 0 || todayIncome !== null;
   const showGettingStarted = !dataUnavailable && !incomeLoading && !transactionsLoading && !productsLoading
     && (transactions.length === 0 || availableProducts.length === 0);
-
-  const retryDashboard = () => Promise.allSettled([
-    fetchDailyIncome(), fetchTransactions(), fetchProducts(),
-  ]);
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -207,10 +203,8 @@ const DashboardScreen = ({ navigation }) => {
           </View>
           <Text style={styles.incomeDescription}>{incomeLoading ? 'Loading today’s income records…'
             : todayIncome !== null ? `Income entries today: ${todayIncomeCount ?? 0}${pendingIncomeCount ? ` · ${pendingIncomeCount} pending sync` : ''}`
-              : 'Could not load today’s income'}</Text>
+              : 'Pull down to refresh today’s income'}</Text>
         </View>
-
-        <ApiErrorBanner message={dashboardError} onRetry={retryDashboard} />
 
         {showGettingStarted ? (
           <View style={styles.gettingStartedCard}>
@@ -307,7 +301,7 @@ const DashboardScreen = ({ navigation }) => {
                 />
                 <Text style={styles.emptyProductsTitle}>{productError ? 'Products unavailable' : 'No products available'}</Text>
                 <Text style={styles.emptyProductsText}>
-                  {productError ? 'Check your internet connection, then retry.' : selectedCategory === 'All'
+                  {productError ? 'Pull down to refresh.' : selectedCategory === 'All'
                     ? 'Add or enable products from Inventory.'
                     : `No available products in ${selectedCategory}.`}
                 </Text>
@@ -353,7 +347,7 @@ const DashboardScreen = ({ navigation }) => {
           {recentTransactions.length === 0 ? (
             <View style={styles.emptyTransactions}>
               <Image source={transactionError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={transactionError ? 'Gasto could not load transactions' : 'Gasto beside an empty tray'} />
-              <Text style={styles.emptyText}>{transactionError ? 'Transactions unavailable' : 'No transactions today'}</Text>
+              <Text style={styles.emptyText}>{transactionError ? 'Transactions unavailable. Pull down to refresh.' : 'No transactions today'}</Text>
             </View>
           ) : (
             recentTransactions.map((transaction) => (

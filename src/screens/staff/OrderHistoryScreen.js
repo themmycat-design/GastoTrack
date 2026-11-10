@@ -6,7 +6,6 @@ import GastoModalMascot from '../../components/staff/GastoModalMascot';
 
 import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
-import ApiErrorBanner from '../../components/ApiErrorBanner';
 import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {useOrders} from '../../context/OrderContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
@@ -272,7 +271,6 @@ const OrderHistoryScreen = ({navigation}) => {
         </TouchableOpacity>
       </View>
       {!showHistory ? <Text style={styles.historyHint}>Cancelled and older orders remain in History for review.</Text> : null}
-      <ApiErrorBanner message={loadError} onRetry={() => fetchOrders({page: 1})} />
       {isLoading && !orders.length ? (
         <OrderHistorySkeleton />
       ) : (
@@ -287,8 +285,8 @@ const OrderHistoryScreen = ({navigation}) => {
           ListEmptyComponent={(
             <View style={styles.centerState}>
               <Image source={loadError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={loadError ? 'Gasto could not load orders' : 'Gasto beside an empty tray'} />
-              <Text style={styles.emptyTitle}>{showHistory ? 'No previous orders' : 'No orders today'}</Text>
-              <Text style={styles.stateText}>{showHistory ? 'Completed orders will appear here.' : 'Older and cancelled orders remain available in History.'}</Text>
+              <Text style={styles.emptyTitle}>{loadError ? 'Orders unavailable' : showHistory ? 'No previous orders' : 'No orders today'}</Text>
+              <Text style={styles.stateText}>{loadError ? 'Pull down to refresh.' : showHistory ? 'Completed orders will appear here.' : 'Older and cancelled orders remain available in History.'}</Text>
             </View>
           )}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footer} color={COLORS.accent} /> : null}

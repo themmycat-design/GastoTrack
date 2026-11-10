@@ -123,10 +123,6 @@ const BugReportsScreen = ({navigation}) => {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        <View style={styles.notice}>
-          <Icon name="wifi" size={19} color={COLORS.accentDark} />
-          <Text style={styles.noticeText}>Bug reports need an internet connection. If a submission fails, your form stays here so you can retry.</Text>
-        </View>
         {successMessage ? <View style={styles.successBox}>
           <Text accessibilityLiveRegion="polite" style={styles.successMessage}>{successMessage}</Text>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="View your reports" onPress={() => navigation.navigate('YourReports')} style={styles.reportsLink}><Text style={styles.reportsLinkText}>View your reports</Text></TouchableOpacity>
@@ -180,8 +176,6 @@ const styles = StyleSheet.create({
   submittingRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
   container: {flex: 1, backgroundColor: COLORS.background},
   content: {padding: 16, paddingBottom: 32},
-  notice: {flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: COLORS.surfaceMuted, padding: 11, marginBottom: 10},
-  noticeText: {flex: 1, color: COLORS.textDark, fontSize: 12, lineHeight: 18},
   successBox: {marginBottom: 12, borderRadius: 11, backgroundColor: COLORS.surfaceMuted, padding: 12},
   successMessage: {color: COLORS.success, fontSize: 12, fontWeight: '700'},
   reportsLink: {alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginTop: 4},

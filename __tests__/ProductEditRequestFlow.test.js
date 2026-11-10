@@ -1,5 +1,6 @@
 import React from 'react';
 import TestRenderer, {act} from 'react-test-renderer';
+import {AppState} from 'react-native';
 import api from '../src/services/api';
 import {AuthContext} from '../src/context/AuthContext';
 import {ProductProvider, useProducts} from '../src/context/ProductContext';
@@ -26,6 +27,11 @@ const Consumer = () => {
   productContext = useProducts();
   return null;
 };
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  api.get.mockReset();
+});
 
 it('keeps the live product unchanged while an owner edit request is pending', async () => {
   const oldProduct = {id: 7, name: 'Tea', category: 'Drinks', price: '100.00',
@@ -56,5 +62,31 @@ it('keeps the live product unchanged while an owner edit request is pending', as
   );
   expect(result).toMatchObject({name: 'Tea', price: 100, approvalPending: true});
   expect(productContext.products[0]).toMatchObject({name: 'Tea', price: 100, approvalPending: true});
+  act(() => tree.unmount());
+});
+
+it('loads the approved product when staff returns to the app', async () => {
+  const pending = {id: 7, name: 'Tea', price: '100.00', approval_pending: true, product_ingredients: []};
+  const approved = {id: 7, name: 'Iced Tea', price: '120.00', approval_pending: false, product_ingredients: []};
+  api.get.mockResolvedValueOnce({data: {products: [pending]}})
+    .mockResolvedValueOnce({data: {products: [approved]}});
+  let appStateChange;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((event, callback) => {
+    appStateChange = callback;
+    return {remove: jest.fn()};
+  });
+
+  let tree;
+  await act(async () => {
+    tree = TestRenderer.create(
+      <AuthContext.Provider value={{userToken: 'token', user: {id: 3, role: 'staff', business_id: 1}, business: {id: 1}}}>
+        <ProductProvider><Consumer /></ProductProvider>
+      </AuthContext.Provider>,
+    );
+  });
+  expect(productContext.products[0]).toMatchObject({name: 'Tea', approvalPending: true});
+
+  await act(async () => appStateChange('active'));
+  expect(productContext.products[0]).toMatchObject({name: 'Iced Tea', price: 120, approvalPending: false});
   act(() => tree.unmount());
 });

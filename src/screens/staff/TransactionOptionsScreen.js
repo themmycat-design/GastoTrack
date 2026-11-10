@@ -1,6 +1,7 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +16,6 @@ import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import {useTransactions} from '../../context/TransactionContext';
 import {useProducts} from '../../context/ProductContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
-import ApiErrorBanner from '../../components/ApiErrorBanner';
 import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 
@@ -29,7 +29,6 @@ const TransactionOptionsScreen = ({navigation, route}) => {
     TRANSACTION_SOURCES,
     transactionOptions,
     optionsLoading,
-    optionsError,
     fetchTransactionOptions,
     addTransactionOption,
     updateTransactionOption,
@@ -39,12 +38,19 @@ const TransactionOptionsScreen = ({navigation, route}) => {
   const [name, setName] = useState('');
   const [transactionType, setTransactionType] = useState('expense');
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [editingOption, setEditingOption] = useState(null);
 
   useFocusEffect(useCallback(() => {
     fetchTransactionOptions();
   }, [fetchTransactionOptions]));
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await fetchTransactionOptions(); }
+    finally { setRefreshing(false); }
+  };
 
   const groups = useMemo(() => isCategory ? [
     {key: 'income', title: 'Income categories', values: INCOME_CATEGORIES},
@@ -136,7 +142,8 @@ const TransactionOptionsScreen = ({navigation, route}) => {
         onLeftPress={() => navigation.goBack()}
         centered
       />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[COLORS.accent]} />}>
         <View style={styles.addCard}>
           <View style={styles.cardHeading}>
             <View style={styles.headingIcon}><Icon name={isCategory ? 'shape-outline' : 'wallet-outline'} size={22} color={COLORS.accentDark} /></View>
@@ -173,7 +180,6 @@ const TransactionOptionsScreen = ({navigation, route}) => {
           </View>
         </View>
 
-        <ApiErrorBanner message={optionsError} onRetry={fetchTransactionOptions} />
         {optionsLoading && !groups.some(group => group.values.length) ? <OptionsSkeleton groupCount={groups.length} /> : groups.map(group => (
           <View key={group.key} style={styles.listCard}>
             <Text style={styles.sectionTitle}>{group.title}</Text>
@@ -218,7 +224,7 @@ const OptionsSkeleton = ({groupCount}) => (
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  content: {padding: 16, paddingBottom: 28},
+  content: {flexGrow: 1, padding: 16, paddingBottom: 28},
   addCard: {backgroundColor: COLORS.surface, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: 16, ...SHADOWS.card},
   cardHeading: {flexDirection: 'row', alignItems: 'center'}, headingIcon: {width: 44, height: 44, borderRadius: 13, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center'}, headingCopy: {flex: 1, marginLeft: 11}, cardTitle: {fontSize: 16, fontWeight: '700', color: COLORS.textDark},
   typeSelector: {flexDirection: 'row', backgroundColor: COLORS.surfaceMuted, borderRadius: RADIUS.pill, padding: 4, marginTop: 12}, typeButton: {flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill}, typeButtonActive: {backgroundColor: COLORS.accentDark}, typeText: {fontSize: 13, fontWeight: '700', color: COLORS.textGray}, typeTextActive: {color: '#FFFFFF'},

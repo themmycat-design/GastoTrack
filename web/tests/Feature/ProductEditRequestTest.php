@@ -57,6 +57,14 @@ class ProductEditRequestTest extends TestCase
         ]);
         $this->assertSame('approved', $editRequest->fresh()->status);
         $this->assertNotNull(Notification::where('user_id', $owner->id)->firstOrFail()->read_at);
+        $this->actingAs($owner)->get(route('products.index'))
+            ->assertOk()->assertSee('Iced Milk Tea')->assertSee('120.00');
+        $this->actingAs($staff)->getJson('/api/v1/products', $headers)
+            ->assertOk()
+            ->assertJsonPath('products.0.name', 'Iced Milk Tea')
+            ->assertJsonPath('products.0.price', '120.00')
+            ->assertJsonPath('products.0.approval_pending', false)
+            ->assertJsonPath('products.0.product_ingredients.0.quantity', '0.2500');
     }
 
     public function test_only_the_business_owner_can_reject_a_pending_photo_edit(): void

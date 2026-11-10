@@ -6,7 +6,6 @@ import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {useAuth} from '../../context/AuthContext';
 import api, {API_URL} from '../../services/api';
-import {getApiErrorMessage} from '../../services/apiErrors';
 import {COLORS, SHADOWS} from '../../theme';
 
 const label = value => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
@@ -20,14 +19,14 @@ const YourReportsScreen = ({navigation}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const loadReports = useCallback(async ({refresh = false, more = false} = {}) => {
     if (!userToken) return;
     if (refresh) setIsRefreshing(true);
     else if (more) setIsLoadingMore(true);
     else setIsLoading(true);
-    setLoadError('');
+    setLoadFailed(false);
     const requestedPage = more ? pageRef.current + 1 : 1;
 
     try {
@@ -38,8 +37,8 @@ const YourReportsScreen = ({navigation}) => {
       pageRef.current = loadedPage;
       setPage(loadedPage);
       setLastPage(response.data?.meta?.last_page || 1);
-    } catch (error) {
-      setLoadError(getApiErrorMessage(error) || 'Could not load your reports. Check your connection and try again.');
+    } catch {
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -71,13 +70,9 @@ const YourReportsScreen = ({navigation}) => {
         {isLoading && reports.length === 0 ? <SkeletonPlaceholder accessibilityLabel="Loading your reports" style={styles.skeleton}>
           {[0, 1].map(item => <View key={item} style={styles.skeletonCard}><SkeletonBlock width="72%" height={16} /><SkeletonBlock width="100%" height={12} style={styles.skeletonLine} /></View>)}
         </SkeletonPlaceholder> : null}
-        {!isLoading && loadError ? <View style={styles.errorCard}>
-          <Text accessibilityRole="alert" style={styles.errorText}>{loadError}</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry loading reports" onPress={() => loadReports()} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
-        </View> : null}
-        {!isLoading && !loadError && reports.length === 0 ? <View style={styles.emptyState}>
+        {!isLoading && reports.length === 0 ? <View style={styles.emptyState}>
           <Image source={require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel="Gasto beside an empty tray" />
-          <Text style={styles.emptyText}>You have not submitted any reports yet.</Text>
+          <Text style={styles.emptyText}>{loadFailed ? 'Reports unavailable. Pull down to refresh.' : 'You have not submitted any reports yet.'}</Text>
         </View> : null}
 
         {reports.map(report => (
@@ -106,16 +101,12 @@ const YourReportsScreen = ({navigation}) => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
-  content: {padding: 16, paddingBottom: 32},
+  content: {flexGrow: 1, padding: 16, paddingBottom: 32},
   newReportButton: {minHeight: 48, borderRadius: 12, backgroundColor: COLORS.accentDark, alignItems: 'center', justifyContent: 'center', marginBottom: 14},
   newReportText: {color: COLORS.textWhite, fontWeight: '700', fontSize: 14},
   skeleton: {marginBottom: 12},
   skeletonCard: {padding: 14, marginBottom: 10, borderRadius: 15, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border},
   skeletonLine: {marginTop: 14},
-  errorCard: {borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, padding: 14},
-  errorText: {color: COLORS.danger, fontSize: 12, lineHeight: 18},
-  retryButton: {alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, marginTop: 7},
-  retryText: {fontSize: 13, fontWeight: '700', color: COLORS.accentDark},
   emptyState: {alignItems: 'center', justifyContent: 'center', paddingVertical: 24},
   emptyMascot: {width: 120, height: 120},
   emptyText: {marginTop: 10, textAlign: 'center', color: COLORS.textGray, fontSize: 13},

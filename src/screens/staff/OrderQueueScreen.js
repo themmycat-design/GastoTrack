@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   FlatList,
+  RefreshControl,
   ActivityIndicator,
   Image,
 } from 'react-native';
@@ -27,8 +28,8 @@ import {productCategoryTabs, productsInCategory} from '../../constants/productCa
 import {ingredientUsageForCartLine} from '../../utils/orderIngredientUsage';
 
 const OrderQueueScreen = ({navigation, route}) => {
-  const {products, isLoading: productsLoading} = useProducts();
-  const {PRODUCT_CATEGORIES} = useTransactions();
+  const {products, isLoading: productsLoading, loadError: productError, fetchProducts} = useProducts();
+  const {PRODUCT_CATEGORIES, fetchTransactionOptions} = useTransactions();
   const {createOrder, confirmPaymentFromNotification, markPaymentFailed, cancelOrder, cart, setCart, cartHydrated} = useOrders();
   const submittingOrder = useRef(false);
   const autoConfirmAttemptRef = useRef(null);
@@ -60,6 +61,13 @@ const OrderQueueScreen = ({navigation, route}) => {
   const [ingredientAmounts, setIngredientAmounts] = useState({});
   const [ingredientError, setIngredientError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshProducts = async () => {
+    setRefreshing(true);
+    try { await Promise.all([fetchProducts(), fetchTransactionOptions()]); }
+    finally { setRefreshing(false); }
+  };
 
   const availableProducts = useMemo(
     () => products.filter(product => product.is_available !== false),
@@ -600,6 +608,7 @@ const OrderQueueScreen = ({navigation, route}) => {
       {/* Products Grid */}
       <FlatList
         data={filteredProducts}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshProducts} colors={[COLORS.accent]} />}
         keyExtractor={item => item.id}
         renderItem={renderProduct}
         numColumns={2}
@@ -609,14 +618,16 @@ const OrderQueueScreen = ({navigation, route}) => {
           <View style={styles.emptyProductsState}>
             <Image source={require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyProductsMascot} resizeMode="contain" accessibilityLabel="Gasto beside an empty tray" />
             <Text style={styles.emptyProductsTitle}>
-              {availableProducts.length ? 'No products in this category' : 'No products available yet'}
+              {productError && !availableProducts.length ? 'Products unavailable' : availableProducts.length ? 'No products in this category' : 'No products available yet'}
             </Text>
             <Text style={styles.emptyProductsText}>
-              {availableProducts.length
+              {productError && !availableProducts.length
+                ? 'Pull down to refresh.'
+                : availableProducts.length
                 ? 'Choose another category to see available products.'
                 : 'Add products in Inventory before creating an order.'}
             </Text>
-            {!availableProducts.length ? (
+            {!availableProducts.length && !productError ? (
               <TouchableOpacity style={styles.inventoryButton} onPress={() => navigation.navigate('Stock')}>
                 <Text style={styles.inventoryButtonText}>Open Inventory</Text>
               </TouchableOpacity>
@@ -1139,6 +1150,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   productsList: {
+    flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 22,

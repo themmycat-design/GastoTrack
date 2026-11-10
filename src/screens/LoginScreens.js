@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  View,
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -28,6 +29,7 @@ const LoginScreen = () => {
   const {login, loginOffline, offlineLoginAvailable, startupError} = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
@@ -198,20 +200,29 @@ const LoginScreen = () => {
                 editable={!loading}
               />
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                returnKeyType="done"
-                onSubmitEditing={handleLogin}
-                selectionColor="#00AE84"
-                underlineColorAndroid="transparent"
-                autoComplete="current-password"
-                editable={!loading}
-                placeholder="Enter your password"
-                placeholderTextColor="#869D96"
-              />
+              <View style={styles.passwordField}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!passwordVisible}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                  selectionColor="#00AE84"
+                  underlineColorAndroid="transparent"
+                  autoComplete="current-password"
+                  editable={!loading}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#869D96"
+                />
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                  onPress={() => setPasswordVisible(visible => !visible)}
+                  style={styles.passwordToggle}>
+                  <Text style={styles.passwordToggleText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.helpText}>Need a password reset? Contact your business owner.</Text>
               <TouchableOpacity
                 accessibilityRole="button"
@@ -252,6 +263,10 @@ const styles = StyleSheet.create({
   formCard: {padding: 22, borderWidth: 1, borderColor: '#D7ECE0', borderRadius: 24, backgroundColor: '#FFFFFF'},
   label: {marginBottom: 7, color: '#365B51', fontSize: 13, fontWeight: '700'},
   input: {minHeight: 50, marginBottom: 17, paddingHorizontal: 14, borderWidth: 1, borderColor: '#D7ECE0', borderRadius: 13, backgroundColor: '#F7FBF8', color: '#0A2E2A', fontSize: 15},
+  passwordField: {position: 'relative', marginBottom: 17},
+  passwordInput: {marginBottom: 0, paddingRight: 70},
+  passwordToggle: {position: 'absolute', right: 3, top: 2, minWidth: 60, minHeight: 46, alignItems: 'center', justifyContent: 'center'},
+  passwordToggleText: {color: '#08745D', fontSize: 13, fontWeight: '700'},
   helpText: {marginBottom: 18, color: '#647A73', fontSize: 12, lineHeight: 18},
   buttonDisabled: {opacity: 0.6},
   startupError: {marginBottom: 16, padding: 11, borderRadius: 10, backgroundColor: '#FFF1EE', color: '#9C2F24', fontSize: 13, lineHeight: 19},

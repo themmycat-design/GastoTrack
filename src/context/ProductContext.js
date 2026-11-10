@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
+import {AppState} from 'react-native';
 import api, {API_URL} from '../services/api';
 import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
@@ -65,6 +66,7 @@ export const ProductProvider = ({ children }) => {
   const [localActions, setLocalActions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const latestFetchId = useRef(0);
   const {userToken, user, business} = useContext(AuthContext);
   const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
     ? {userId: user.id, businessId: user.business_id || business.id} : null,
@@ -76,25 +78,29 @@ export const ProductProvider = ({ children }) => {
 
   const fetchProducts = useCallback(async () => {
     if (!userToken) return;
+    const fetchId = ++latestFetchId.current;
     setIsLoading(true);
     try {
       const response = await api.get('/products');
+      if (fetchId !== latestFetchId.current) return {success: false, superseded: true};
       const fetched = extractProducts(response.data);
       setProducts(fetched);
       if (offlineAccount) saveStaffSnapshot(offlineAccount, 'products', fetched).catch(() => {});
       setLoadError(null);
       return {success: true};
     } catch (error) {
+      if (fetchId !== latestFetchId.current) return {success: false, superseded: true};
       if (offlineAccount) {
         try {
           const cached = await getStaffSnapshot(offlineAccount, 'products');
-          if (cached) setProducts(cached);
+          if (cached && fetchId === latestFetchId.current) setProducts(cached);
         } catch {}
       }
+      if (fetchId !== latestFetchId.current) return {success: false, superseded: true};
       setLoadError(getApiErrorMessage(error));
       return {success: false, error};
     } finally {
-      setIsLoading(false);
+      if (fetchId === latestFetchId.current) setIsLoading(false);
     }
   }, [userToken, offlineAccount]);
 
@@ -102,10 +108,27 @@ export const ProductProvider = ({ children }) => {
     if (userToken) {
       fetchProducts();
     } else {
+      latestFetchId.current += 1;
       setProducts([]);
       setLoadError(null);
+      setIsLoading(false);
     }
   }, [userToken, fetchProducts]);
+
+  useEffect(() => {
+    if (!userToken) return undefined;
+    const onAppStateChange = state => {
+      if (state === 'active') fetchProducts();
+    };
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') fetchProducts();
+    }, 30000);
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [fetchProducts, userToken]);
 
   useEffect(() => subscribeStaffOffline(event => {
     if (['queued', 'synced', 'rejected'].includes(event)) refreshLocalActions();

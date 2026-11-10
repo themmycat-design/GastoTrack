@@ -13,7 +13,6 @@ import {useTransactions} from '../../context/TransactionContext';
 import {COLORS} from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import GastoModalMascot from '../../components/staff/GastoModalMascot';
-import ApiErrorBanner from '../../components/ApiErrorBanner';
 import SkeletonPlaceholder, {SkeletonBlock} from '../../components/SkeletonPlaceholder';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
@@ -79,7 +78,6 @@ const StockScreen = () => {
   const [alternativeItems, setAlternativeItems] = useState([]);
   const [alternativesLoading, setAlternativesLoading] = useState(false);
   const [alternativesStatus, setAlternativesStatus] = useState(null);
-  const [alternativesError, setAlternativesError] = useState(null);
   const alternativeRequestId = useRef(0);
   const lastStockSignature = useRef(null);
 
@@ -88,6 +86,11 @@ const StockScreen = () => {
     const term = search.trim().toLowerCase();
     return term ? source.filter(item => item.name?.toLowerCase().includes(term)) : source;
   }, [activeTab, products, search, stockItems]);
+  useEffect(() => {
+    setSelectedProduct(current => current
+      ? products.find(product => String(product.id) === String(current.id)) || current
+      : null);
+  }, [products]);
   const listLoading = activeTab === 'stock' ? isLoading : productsLoading;
 
   const statusCounts = useMemo(() => stockItems.filter(item => !item.offlinePending && !item.offlineRejected).reduce((counts, item) => {
@@ -107,23 +110,21 @@ const StockScreen = () => {
       alternativeRequestId.current += 1;
       setAlternativeItems([]);
       setAlternativesStatus('not_needed');
-      setAlternativesError(null);
       setAlternativesLoading(false);
       return;
     }
     const requestId = ++alternativeRequestId.current;
     setAlternativesLoading(true);
-    setAlternativesError(null);
     setAlternativeItems([]);
     setAlternativesStatus(null);
     api.get('/ai/stock-alternatives').then(response => {
       if (requestId !== alternativeRequestId.current) return;
       setAlternativeItems(response.data?.items || []);
       setAlternativesStatus(response.data?.suggestion_status || 'unavailable');
-    }).catch(error => {
+    }).catch(() => {
       if (requestId !== alternativeRequestId.current) return;
       setAlternativeItems([]);
-      setAlternativesError(getApiErrorMessage(error, 'Could not load ingredient alternatives.'));
+      setAlternativesStatus('unavailable');
     }).finally(() => {
       if (requestId === alternativeRequestId.current) setAlternativesLoading(false);
     });
@@ -132,6 +133,7 @@ const StockScreen = () => {
   const refresh = async () => {
     setIsRefreshing(true);
     try {
+      lastStockSignature.current = null;
       await Promise.all([fetchStock(), fetchProducts()]);
     }
     finally { setIsRefreshing(false); }
@@ -469,15 +471,6 @@ const StockScreen = () => {
         {!!search && <TouchableOpacity style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Clear inventory search" onPress={() => setSearch('')}><Icon name="close" size={20} color={COLORS.textGray} /></TouchableOpacity>}
       </View>
 
-      <ApiErrorBanner
-        message={activeTab === 'stock' ? stockError : productError}
-        onRetry={() => activeTab === 'stock' ? fetchStock() : fetchProducts()}
-      />
-      {activeTab === 'stock' ? <ApiErrorBanner message={alternativesError} onRetry={() => {
-        lastStockSignature.current = null;
-        fetchStock();
-      }} /> : null}
-
       {listLoading && !isRefreshing && filteredItems.length === 0 ? (
         <StockListSkeleton products={activeTab === 'products'} />
       ) : (
@@ -515,7 +508,7 @@ const StockScreen = () => {
           ListEmptyComponent={<View style={styles.centerState}>
             <Image source={(activeTab === 'stock' ? stockError : productError) ? require('../../../assets/mascot/gasto-error.png') : activeTab === 'stock' ? require('../../../assets/mascot/gasto-low-stock.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={(activeTab === 'stock' ? stockError : productError) ? 'Gasto showing an error' : activeTab === 'stock' ? 'Gasto checking an empty stock box' : 'Gasto beside an empty tray'} />
             <Text style={styles.emptyTitle}>{(activeTab === 'stock' ? stockError : productError) ? 'Inventory unavailable' : 'No ' + (activeTab === 'stock' ? 'stock items' : 'products') + ' found'}</Text>
-            <Text style={styles.stateText}>{(activeTab === 'stock' ? stockError : productError) ? 'Pull down to refresh or use Retry above.' : search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
+            <Text style={styles.stateText}>{(activeTab === 'stock' ? stockError : productError) ? 'Pull down to refresh.' : search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
           </View>}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
           onEndReached={activeTab === 'stock' && hasMoreStock ? loadMoreStock : undefined}

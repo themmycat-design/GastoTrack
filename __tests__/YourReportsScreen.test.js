@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, {act} from 'react-test-renderer';
-import {Text, TouchableOpacity} from 'react-native';
+import {ScrollView, Text, TouchableOpacity} from 'react-native';
 import YourReportsScreen from '../src/screens/staff/YourReportsScreen';
 import api from '../src/services/api';
 
@@ -23,5 +23,21 @@ it('shows submitted reports and opens the separate submission form', async () =>
   const reportButton = screen.root.findAllByType(TouchableOpacity).find(node => node.props.accessibilityLabel === 'Report a problem');
   act(() => reportButton.props.onPress());
   expect(navigation.navigate).toHaveBeenCalledWith('BugReports');
+  act(() => screen.unmount());
+});
+
+it('uses pull to refresh after a failed load without showing a retry banner', async () => {
+  api.get.mockReset().mockRejectedValueOnce(new Error('Network error')).mockResolvedValue({
+    data: {bug_reports: [{id: 5, title: 'Stock issue', description: 'Count mismatch'}], meta: {current_page: 1, last_page: 1}},
+  });
+  let screen;
+  await act(async () => { screen = TestRenderer.create(<YourReportsScreen navigation={{navigate: jest.fn(), goBack: jest.fn()}} />); });
+
+  expect(screen.root.findAllByType(Text).map(node => node.props.children)).toContain('Reports unavailable. Pull down to refresh.');
+  expect(screen.root.findAllByType(TouchableOpacity).some(node => node.props.accessibilityLabel === 'Retry loading reports')).toBe(false);
+
+  const list = screen.root.findByType(ScrollView);
+  await act(async () => list.props.refreshControl.props.onRefresh());
+  expect(screen.root.findAllByType(Text).map(node => node.props.children)).toContain('Stock issue');
   act(() => screen.unmount());
 });
