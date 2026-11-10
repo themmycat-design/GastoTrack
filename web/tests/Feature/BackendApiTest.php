@@ -21,7 +21,7 @@ class BackendApiTest extends TestCase
         $this->assertSame('/staff', parse_url(route('staff.index'), PHP_URL_PATH));
     }
 
-    public function test_staff_summary_counts_their_income_records_for_the_selected_day(): void
+    public function test_staff_summary_counts_business_income_records_for_the_selected_day(): void
     {
         $business = Business::create(['name' => 'Daily Income Cafe', 'status' => 'active', 'active' => true]);
         $staff = User::factory()->staff()->create(['business_id' => $business->id]);
@@ -52,7 +52,7 @@ class BackendApiTest extends TestCase
         $headers = ['Authorization' => 'Bearer '.$staff->createToken('daily-income-test')->plainTextToken];
         $response = $this->getJson('/api/v1/transactions/summary?from='.$today.'&to='.$today, $headers)
             ->assertOk()
-            ->assertJsonPath('income_count', 2);
+            ->assertJsonPath('income_count', 3);
 
         $this->assertEquals(60, (float) $response->json('income'));
     }
@@ -143,10 +143,21 @@ class BackendApiTest extends TestCase
 
         $ownerHeaders = ['Authorization' => 'Bearer '.$owner->createToken('backend-api-test')->plainTextToken];
 
-        $stock = $this->postJson('/api/v1/stock', [
+        $volumeStock = $this->postJson('/api/v1/stock', [
             'name' => 'Milk', 'unit' => 'ml', 'current_quantity' => 1000,
             'minimum_quantity' => 100, 'unit_cost' => 0.08,
         ], $ownerHeaders)->assertCreated()->json('item');
+
+        $this->putJson('/api/v1/stock/'.$volumeStock['id'], ['unit' => 'L'], $ownerHeaders)
+            ->assertUnprocessable()->assertJsonValidationErrors('unit');
+
+        $stock = $this->postJson('/api/v1/stock', [
+            'name' => 'Milk powder', 'unit' => 'g', 'current_quantity' => 1000,
+            'minimum_quantity' => 100, 'unit_cost' => 0.08,
+        ], $ownerHeaders)->assertCreated()->json('item');
+
+        $this->putJson('/api/v1/stock/'.$stock['id'], ['unit' => 'kg'], $ownerHeaders)
+            ->assertUnprocessable()->assertJsonValidationErrors('unit');
 
         $product = $this->postJson('/api/v1/products', [
             'name' => 'Latte', 'category' => 'Coffee', 'price' => 120,
@@ -196,12 +207,17 @@ class BackendApiTest extends TestCase
         ], $staffHeaders)->assertCreated()->json('product');
         Storage::disk('public')->assertExists($staffProduct['image']);
         $this->get('/api/v1/product-images/'.$staffProduct['id'])->assertOk();
-        $this->putJson('/api/v1/products/'.$staffProduct['id'], [
+        $editRequestId = $this->putJson('/api/v1/products/'.$staffProduct['id'], [
             'price' => 105, 'is_available' => false,
             'ingredients' => [['stock_id' => $stock['id'], 'quantity' => 60]],
-        ], $staffHeaders)->assertOk()
-            ->assertJsonPath('product.price', '105.00')
-            ->assertJsonPath('product.is_available', false);
+        ], $staffHeaders)->assertStatus(202)
+            ->assertJsonPath('approval_pending', true)
+            ->assertJsonPath('product.price', '95.00')
+            ->json('edit_request_id');
+        $this->assertDatabaseHas('product_edit_requests', ['id' => $editRequestId, 'status' => 'pending']);
+        $this->actingAs($owner)->post(route('products.edit-requests.approve', $editRequestId))
+            ->assertRedirect(route('products.index'));
+        $this->actingAs($staff);
         $this->getJson('/api/v1/products', $staffHeaders)->assertOk()
             ->assertJsonFragment(['name' => 'Staff Special', 'is_available' => false]);
         $this->deleteJson('/api/v1/products/'.$staffProduct['id'], [], $staffHeaders)->assertOk();

@@ -10,6 +10,7 @@ export const ProductContext = createContext();
 
 const normalizeProduct = product => ({
   ...product,
+  approvalPending: Boolean(product.approvalPending || product.approval_pending),
   price: Number(product.price || 0),
   image: product.image
     ? `${API_URL}/product-images/${product.id}?v=${encodeURIComponent(product.updated_at || '')}`
@@ -135,8 +136,9 @@ export const ProductProvider = ({ children }) => {
 
   const updateProduct = async (id, productData) => {
     const hasImage = Boolean(productData.imageAsset?.uri);
+    const original = serverProducts.find(item => Number(item.id) === Number(id));
+    if (original?.approvalPending) throw new Error('This product already has an edit awaiting owner review.');
     if (offlineAccount && !hasImage) {
-      const original = serverProducts.find(item => Number(item.id) === Number(id));
       if (!original?.updated_at || !Number.isInteger(Number(original.revision))) throw new Error('Refresh products online once before editing this product offline.');
       if (localActions.some(action => action.status === 'pending' && ['product_update', 'product_delete'].includes(action.kind)
         && Number(action.payload.target_id) === Number(id))) {
@@ -148,7 +150,7 @@ export const ProductProvider = ({ children }) => {
       });
       await refreshLocalActions();
       if (!result.synced) return {...original, offlinePending: true};
-      const product = normalizeProduct(result.data.product);
+      const product = normalizeProduct({...result.data.product, approvalPending: result.data.approval_pending});
       setProducts(current => current.map(item => item.id === product.id ? product : item));
       return product;
     }
@@ -158,7 +160,7 @@ export const ProductProvider = ({ children }) => {
         timeout: 60000,
       })
       : await api.put(`/products/${id}`, toApiPayload(productData));
-    const product = normalizeProduct(response.data.product);
+    const product = normalizeProduct({...response.data.product, approvalPending: response.data.approval_pending});
     setProducts(current => current.map(item => item.id === product.id ? product : item));
     return product;
   };

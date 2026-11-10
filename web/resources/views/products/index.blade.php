@@ -19,7 +19,7 @@
             <div>
                 <p class="text-sm font-semibold text-[#00A87E]">Menu management</p>
                 <h1 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Products</h1>
-                <p class="mt-2 text-sm leading-6 text-slate-500">Manage your menu, prices, categories, and availability.</p>
+                <p class="mt-2 text-sm leading-6 text-slate-500">Manage your menu and per-product recipes. Products do not hold finished stock; completed sales deduct their ingredients.</p>
             </div>
             <button type="button" onclick="openAddModal()" class="gt-focus gt-btn-primary">
                 <span aria-hidden="true">+</span> Add product
@@ -74,6 +74,71 @@
                 </div>
             </article>
         </div>
+
+        <section id="product-edit-requests" class="gt-card scroll-mt-20 p-5 sm:p-6" aria-label="Staff product edit requests">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-lg font-extrabold text-[#0A2E2A]">Staff product edit requests</h2>
+                <span class="rounded-full bg-[#EAF8F2] px-3 py-1 text-xs font-bold text-[#08745D]">{{ $pendingEditRequests->count() }} pending</span>
+            </div>
+            @forelse($pendingEditRequests as $editRequest)
+                @php
+                    $changes = $editRequest->changes;
+                    $currentProduct = $editRequest->product;
+                    $stale = !$currentProduct || (int) $currentProduct->revision !== $editRequest->expected_revision;
+                @endphp
+                <article class="mt-4 rounded-xl border border-[#DDE9E5] bg-[#F8FCFA] p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                            <h3 class="font-bold text-[#0A2E2A]">{{ $currentProduct?->name ?? 'Removed product' }}</h3>
+                            <p class="mt-1 text-xs text-slate-500">Requested by {{ $editRequest->requester?->name ?? 'Staff member' }} · {{ $editRequest->created_at?->format('M j, Y g:i A') }}</p>
+                        </div>
+                        @if($stale)<span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">Product changed since request</span>@endif
+                    </div>
+                    <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                        @foreach(['name' => 'Name', 'category' => 'Category', 'price' => 'Price', 'description' => 'Description', 'emoji' => 'Icon', 'is_available' => 'Availability', 'display_order' => 'Menu order'] as $field => $label)
+                            @if(array_key_exists($field, $changes))
+                                <div class="rounded-lg bg-white px-3 py-2">
+                                    <dt class="text-xs font-bold text-slate-500">{{ $label }}</dt>
+                                    <dd class="mt-1 break-words text-xs text-slate-500">Current:
+                                        @if($field === 'is_available'){{ $currentProduct?->is_available ? 'Available' : 'Unavailable' }}
+                                        @elseif($field === 'price'){{ number_format((float) $currentProduct?->price, 2) }}
+                                        @else{{ data_get($currentProduct, $field) ?: '—' }}@endif
+                                    </dd>
+                                    <dd class="mt-1 break-words text-[#173F39]">
+                                        Proposed:
+                                        @if($field === 'is_available'){{ $changes[$field] ? 'Available' : 'Unavailable' }}
+                                        @elseif($field === 'price'){{ number_format((float) $changes[$field], 2) }}
+                                        @else{{ $changes[$field] ?: '—' }}@endif
+                                    </dd>
+                                </div>
+                            @endif
+                        @endforeach
+                    </dl>
+                    @if(array_key_exists('ingredients', $changes) || !empty($changes['replace_ingredients']))
+                        <div class="mt-3 text-sm text-[#173F39]">
+                            <p class="text-xs font-bold text-slate-500">Proposed recipe per product</p>
+                            @forelse($changes['ingredients'] ?? [] as $ingredient)
+                                @php $stockItem = $stockItems->firstWhere('id', $ingredient['stock_id']); @endphp
+                                <p class="mt-1">{{ $stockItem?->name ?? 'Removed stock item' }}: {{ $ingredient['quantity'] }} {{ $stockItem?->unit ?? '' }}</p>
+                            @empty
+                                <p class="mt-1">No ingredients</p>
+                            @endforelse
+                        </div>
+                    @endif
+                    @if($editRequest->image_path)
+                        <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($editRequest->image_path) }}" target="_blank" rel="noopener" class="mt-3 inline-block text-sm font-bold text-[#08745D] underline">View proposed photo</a>
+                    @endif
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        @unless($stale)
+                            <form method="POST" action="{{ route('products.edit-requests.approve', $editRequest) }}">@csrf<button type="submit" class="gt-focus gt-btn-primary">Approve and apply</button></form>
+                        @endunless
+                        <form method="POST" action="{{ route('products.edit-requests.reject', $editRequest) }}">@csrf<button type="submit" class="gt-focus gt-btn-secondary">Reject request</button></form>
+                    </div>
+                </article>
+            @empty
+                <p class="mt-3 text-sm text-slate-500">No product edits are waiting for review.</p>
+            @endforelse
+        </section>
 
         <!-- Filters -->
         <section class="gt-card p-5 sm:p-6" aria-label="Filter products">
@@ -156,15 +221,17 @@
                             @php
                                 $recipeUnit = $ingredient->stockItem?->unit ?? '';
                                 $recipeQuantity = (float) $ingredient->quantity;
-                                if ($recipeQuantity > 0 && $recipeQuantity < 1) {
-                                    $smallerUnit = match (strtolower(trim($recipeUnit))) {
-                                        'l', 'liter', 'liters', 'litre', 'litres' => 'ml',
-                                        'kg', 'kilogram', 'kilograms' => 'g',
-                                        default => null,
-                                    };
-                                    if ($smallerUnit) {
-                                        $recipeQuantity *= 1000;
-                                        $recipeUnit = $smallerUnit;
+                                $alternateUnit = match (strtolower(trim($recipeUnit))) {
+                                    'kg', 'kilogram', 'kilograms' => ['unit' => 'g', 'factor' => 0.001],
+                                    'l', 'liter', 'liters', 'litre', 'litres' => ['unit' => 'ml', 'factor' => 0.001],
+                                    'ml', 'milliliter', 'milliliters', 'millilitre', 'millilitres' => ['unit' => 'L', 'factor' => 1000],
+                                    default => null,
+                                };
+                                if ($alternateUnit && (($alternateUnit['factor'] < 1 && $recipeQuantity > 0 && $recipeQuantity < 1) || ($alternateUnit['factor'] > 1 && $recipeQuantity >= 1000))) {
+                                    $displayQuantity = round($recipeQuantity / $alternateUnit['factor'], 4);
+                                    if (abs($displayQuantity * $alternateUnit['factor'] - $recipeQuantity) < 0.0000001) {
+                                        $recipeQuantity = $displayQuantity;
+                                        $recipeUnit = $alternateUnit['unit'];
                                     }
                                 }
                             @endphp
@@ -312,7 +379,7 @@
                     <div class="sm:col-span-2">
                         <div class="mb-3">
                             <label class="gt-label mb-1">Recipe ingredients</label>
-                            <p class="text-xs leading-5 text-slate-500">Choose each ingredient and the amount used by one product. For liquids, choose ml or L; the amount is converted to the stock unit before deduction. Selling two products deducts twice each amount.</p>
+                            <p class="text-xs leading-5 text-slate-500">Set the amount of each ingredient used by one product. For liquid stock, choose ml or L. A completed sale deducts that amount multiplied by the number sold. Creating a product does not add stock; record deliveries in Inventory.</p>
                         </div>
                         <input type="hidden" name="replace_ingredients" value="1">
                         @if($stockItems->isEmpty())
@@ -329,9 +396,9 @@
                                         </label>
                                         <select class="recipe-unit gt-field w-24 !px-2 !py-1.5 text-sm" name="ingredients[{{ $stockItem->id }}][unit]" aria-label="Unit for {{ $stockItem->name }}" disabled>
                                             <option value="{{ $stockItem->unit }}" data-to-stock-factor="1">{{ $stockItem->unit }}</option>
-                                            @if(in_array(strtolower(trim($stockItem->unit)), ['l', 'liter', 'liters', 'litre', 'litres'], true))<option value="ml" data-to-stock-factor="0.001">ml</option>@endif
-                                            @if(strtolower(trim($stockItem->unit)) === 'ml')<option value="L" data-to-stock-factor="1000">L</option>@endif
                                             @if(in_array(strtolower(trim($stockItem->unit)), ['kg', 'kilogram', 'kilograms'], true))<option value="g" data-to-stock-factor="0.001">g</option>@endif
+                                            @if(in_array(strtolower(trim($stockItem->unit)), ['l', 'liter', 'liters', 'litre', 'litres'], true))<option value="ml" data-to-stock-factor="0.001">ml</option>@endif
+                                            @if(in_array(strtolower(trim($stockItem->unit)), ['ml', 'milliliter', 'milliliters', 'millilitre', 'millilitres'], true))<option value="L" data-to-stock-factor="1000">L</option>@endif
                                         </select>
                                     </div>
                                 @endforeach
@@ -400,10 +467,17 @@
                 quantity.disabled = !isSelected;
                 unit.disabled = !isSelected;
                 const stockQuantity = Number(selected.get(row.dataset.stockId));
-                const smallerUnit = unit.options.length > 1 && Number(unit.options[1].dataset.toStockFactor) === 0.001 ? unit.options[1].value : null;
-                if (isSelected && smallerUnit && stockQuantity > 0 && stockQuantity < 1) {
-                    unit.value = smallerUnit;
-                    quantity.value = String(Number((stockQuantity * 1000).toFixed(4)));
+                const alternate = unit.options.length > 1 ? unit.options[1] : null;
+                const factor = Number(alternate?.dataset.toStockFactor);
+                if (isSelected && alternate && ((factor < 1 && stockQuantity > 0 && stockQuantity < 1) || (factor > 1 && stockQuantity >= 1000))) {
+                    const displayed = Number((stockQuantity / factor).toFixed(4));
+                    if (Math.abs(displayed * factor - stockQuantity) < 0.0000001) {
+                        unit.value = alternate.value;
+                        quantity.value = String(displayed);
+                    } else {
+                        unit.value = row.dataset.stockUnit;
+                        quantity.value = selected.get(row.dataset.stockId);
+                    }
                 } else {
                     unit.value = row.dataset.stockUnit;
                     quantity.value = isSelected ? selected.get(row.dataset.stockId) : '';

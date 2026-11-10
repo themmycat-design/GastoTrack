@@ -14,6 +14,7 @@ use App\Http\Controllers\OwnerReportsController;
 use App\Http\Controllers\OwnerOrderController;
 use App\Http\Controllers\OwnerBugReportController;
 use App\Http\Controllers\OwnerNotificationController;
+use App\Http\Controllers\OwnerProductEditRequestController;
 use App\Http\Controllers\OwnerLiveStateController;
 use App\Http\Controllers\PlatformReportController;
 use App\Http\Controllers\SuperAdminController;
@@ -78,6 +79,10 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscri
     // Product management existed in Blade/controller code but was not routed.
     Route::resource('products', ProductController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+    Route::post('/products/edit-requests/{editRequest}/approve', [OwnerProductEditRequestController::class, 'approve'])
+        ->name('products.edit-requests.approve');
+    Route::post('/products/edit-requests/{editRequest}/reject', [OwnerProductEditRequestController::class, 'reject'])
+        ->name('products.edit-requests.reject');
     Route::post('/products/{product}/toggle', [ProductController::class, 'toggleAvailability'])
         ->name('products.toggle');
 

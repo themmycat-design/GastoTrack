@@ -24,22 +24,18 @@ class RecipeIngredientNormalizer
 
             $stockUnit = trim($stock->unit);
             $chosenUnit = trim((string) ($ingredient['unit'] ?? $stockUnit));
-            $smallerUnit = match (strtolower($stockUnit)) {
-                'l', 'liter', 'liters', 'litre', 'litres' => 'ml',
-                'kg', 'kilogram', 'kilograms' => 'g',
+            $alternate = match (strtolower($stockUnit)) {
+                'kg', 'kilogram', 'kilograms' => ['unit' => 'g', 'factor' => 0.001],
+                'l', 'liter', 'liters', 'litre', 'litres' => ['unit' => 'ml', 'factor' => 0.001],
+                'ml', 'milliliter', 'milliliters', 'millilitre', 'millilitres' => ['unit' => 'L', 'factor' => 1000],
                 default => null,
             };
-            $largerVolumeUnit = strtolower($stockUnit) === 'ml' ? 'L' : null;
-            if ($chosenUnit !== $stockUnit && $chosenUnit !== $smallerUnit && $chosenUnit !== $largerVolumeUnit) {
+            if ($chosenUnit !== $stockUnit && $chosenUnit !== ($alternate['unit'] ?? null)) {
                 throw ValidationException::withMessages(["ingredients.$index.unit" => 'Choose a unit compatible with this stock item.']);
             }
 
             $quantity = (float) $ingredient['quantity'];
-            $canonical = match ($chosenUnit) {
-                $stockUnit => $quantity,
-                $largerVolumeUnit => $quantity * 1000,
-                default => $quantity / 1000,
-            };
+            $canonical = $chosenUnit === $stockUnit ? $quantity : $quantity * $alternate['factor'];
             $rounded = round($canonical, 4);
             if ($canonical <= 0 || $canonical > 99999999.9999 || $rounded < 0.0001 || abs($canonical - $rounded) >= 0.0000001) {
                 throw ValidationException::withMessages(["ingredients.$index.quantity" => 'Enter an amount representable in the stock unit, with up to four decimal places.']);

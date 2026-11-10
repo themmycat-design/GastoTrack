@@ -36,7 +36,11 @@ class DatabaseAlignmentTest extends TestCase
             'movement_category' => 'waste',
         ])->assertOk()->assertJsonPath('new_quantity', '1.1250');
 
-        $movement = StockMovement::where('stock_item_id', $stock->id)->firstOrFail();
+        $opening = StockMovement::where('stock_item_id', $stock->id)
+            ->where('movement_category', 'opening')->firstOrFail();
+        $this->assertSame('1.2500', $opening->quantity);
+        $movement = StockMovement::where('stock_item_id', $stock->id)
+            ->where('movement_category', 'waste')->firstOrFail();
         $this->assertSame($reason, $movement->reason);
         $this->assertSame('0.0001', $movement->unit_cost_at_movement);
         $this->assertSame('1.1250', $stock->fresh()->current_quantity);
@@ -44,7 +48,7 @@ class DatabaseAlignmentTest extends TestCase
         $this->post(route('stock.adjust', $stock), [
             'type' => 'add', 'quantity' => '0.00001',
         ])->assertSessionHasErrors('quantity');
-        $this->assertSame(1, StockMovement::where('stock_item_id', $stock->id)->count());
+        $this->assertSame(2, StockMovement::where('stock_item_id', $stock->id)->count());
     }
 
     public function test_staff_stock_cost_validation_matches_database_precision(): void

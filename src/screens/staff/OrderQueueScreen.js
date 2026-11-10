@@ -24,6 +24,7 @@ import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import GastoModalMascot from '../../components/staff/GastoModalMascot';
 import {productCategoryTabs, productsInCategory} from '../../constants/productCategories';
+import {ingredientUsageForCartLine} from '../../utils/orderIngredientUsage';
 
 const OrderQueueScreen = ({navigation, route}) => {
   const {products, isLoading: productsLoading} = useProducts();
@@ -826,6 +827,7 @@ const OrderQueueScreen = ({navigation, route}) => {
               {/* Cart Items */}
               <View style={styles.detailSection}>
                 <Text style={styles.detailSectionTitle}>Order Items</Text>
+                <Text style={styles.ingredientHint}>Estimated ingredient use: amount per product × quantity. Stock is deducted once the sale is completed.</Text>
                 {cart.map((item, idx) => (
                   <View key={idx} style={styles.cartItemRow}>
                     {item.product.image
@@ -834,14 +836,12 @@ const OrderQueueScreen = ({navigation, route}) => {
                     <View style={styles.cartItemInfo}>
                       <Text style={styles.cartItemName}>{item.product.name}</Text>
                       <Text style={styles.cartItemQty}>Qty: {item.quantity}</Text>
-                      {(item.ingredientOverrides || []).map(override => {
-                        const ingredient = (item.product.ingredients || []).find(value => Number(value.stockId) === Number(override.stock_item_id));
-                        return ingredient ? (
-                          <Text key={override.stock_item_id} style={styles.cartItemIngredient}>
-                            {Number(override.quantity) === 0 ? `No ${ingredient.name}` : `${ingredient.name}: ${override.quantity} ${ingredient.unit || ''} (regular ${ingredient.quantity})`}
-                          </Text>
-                        ) : null;
-                      })}
+                      {ingredientUsageForCartLine(item).map(ingredient => (
+                        <Text key={ingredient.stockId} style={styles.cartItemIngredient}>
+                          {ingredient.name}: {item.quantity} × {ingredient.perProduct} {ingredient.unit} = {ingredient.total} {ingredient.unit}
+                        </Text>
+                      ))}
+                      {!(item.product.ingredients || []).length ? <Text style={styles.cartItemIngredient}>No recipe: no ingredient stock will be deducted.</Text> : null}
                       <TouchableOpacity onPress={() => handleEditCartItem(idx)} disabled={isPlacingOrder} accessibilityRole="button" accessibilityLabel={`Edit ${item.product.name} cart item`}>
                         <Text style={styles.cartItemEdit}>Edit ingredients</Text>
                       </TouchableOpacity>

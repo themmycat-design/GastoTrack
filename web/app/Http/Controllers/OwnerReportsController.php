@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\ActivityLog;
 use App\Models\StockItem;
 use App\Models\Transaction;
 use App\Models\User;
@@ -313,6 +314,20 @@ class OwnerReportsController extends Controller
             ->get();
 
         $staffActivity = $this->staffActivity($businessId, $start, $end, $eligibleOrders);
+        $staffActions = null;
+        if ($request->routeIs('owner.reports.show') && $request->route('section') === 'staff-activity') {
+            $staffIds = User::withTrashed()->where('business_id', $businessId)
+                ->where('role', 'staff')->pluck('id');
+            $staffActions = ActivityLog::query()
+                ->where('business_id', $businessId)
+                ->whereIn('user_id', $staffIds)
+                ->whereBetween('created_at', [$start, $end])
+                ->with('user:id,name')
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->paginate(25, ['*'], 'activity_page')
+                ->withQueryString();
+        }
 
         return [
             'business' => $owner->business,
@@ -345,6 +360,7 @@ class OwnerReportsController extends Controller
             ],
             'walletCaptures' => $walletCaptures,
             'staffActivity' => $staffActivity,
+            'staffActions' => $staffActions,
         ];
     }
 

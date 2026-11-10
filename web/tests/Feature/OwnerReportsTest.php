@@ -142,6 +142,40 @@ class OwnerReportsTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_owner_sees_staff_stock_creation_and_product_edit_request_in_activity_order(): void
+    {
+        $business = Business::create(['name' => 'Activity Cafe', 'status' => 'active', 'active' => true]);
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id, 'name' => 'Sam Worker']);
+        $product = Product::create(['business_id' => $business->id, 'name' => 'Tea', 'category' => 'Drinks', 'price' => 80]);
+        $otherBusiness = Business::create(['name' => 'Other Cafe', 'status' => 'active', 'active' => true]);
+        $otherStaff = User::factory()->staff()->create(['business_id' => $otherBusiness->id, 'name' => 'Other Worker']);
+        $this->actingAs($otherStaff)->postJson('/api/v1/stock', [
+            'name' => 'Private Flour', 'unit' => 'kg', 'current_quantity' => 2,
+            'minimum_quantity' => 0, 'unit_cost' => 10,
+        ])->assertCreated();
+
+        $this->actingAs($staff)->postJson('/api/v1/stock', [
+            'name' => 'Milk', 'unit' => 'L', 'current_quantity' => 5,
+            'minimum_quantity' => 1, 'unit_cost' => 40,
+        ])->assertCreated();
+        $this->assertDatabaseHas('stock_movements', [
+            'movement_category' => 'opening', 'quantity' => 5, 'user_id' => $staff->id,
+        ]);
+        $this->actingAs($staff)->putJson('/api/v1/products/'.$product->id, ['price' => 90])
+            ->assertStatus(202);
+
+        $this->actingAs($owner)->get(route('owner.reports.show', ['section' => 'staff-activity']))
+            ->assertOk()
+            ->assertSee('Staff actions in time order')
+            ->assertSee('Stock item created')
+            ->assertSee('Stock added')
+            ->assertSee('Product edit requested')
+            ->assertSee('Sam Worker')
+            ->assertDontSee('Private Flour')
+            ->assertDontSee('Other Worker');
+    }
+
     public function test_each_report_submenu_opens_its_own_screen(): void
     {
         $business = Business::create(['name' => 'Separate Reports Cafe', 'status' => 'active', 'active' => true]);

@@ -6,6 +6,9 @@ use App\Models\ActivityLog;
 use App\Models\Order;
 use App\Models\Notification;
 use App\Models\Product;
+use App\Models\ProductEditRequest;
+use App\Models\StockItem;
+use App\Models\StockMovement;
 use App\Models\Transaction;
 use App\Services\OwnerStockAlerts;
 use App\Services\NotificationService;
@@ -83,18 +86,42 @@ class AppServiceProvider extends ServiceProvider
             $model::updated(fn ($record) => $this->logActivity('updated', $record));
             $model::deleted(fn ($record) => $this->logActivity('deleted', $record));
         }
+        StockItem::created(fn (StockItem $item) => $this->logActivity('created', $item));
+        StockItem::updated(function (StockItem $item): void {
+            if ($item->wasChanged(['name', 'unit', 'minimum_quantity', 'unit_cost', 'active'])) {
+                $this->logActivity('updated', $item);
+            }
+        });
+        StockItem::deleted(fn (StockItem $item) => $this->logActivity('deleted', $item));
+        StockMovement::created(fn (StockMovement $movement) => $this->logActivity('created', $movement));
+        ProductEditRequest::created(fn (ProductEditRequest $editRequest) => $this->logActivity('created', $editRequest));
+        ProductEditRequest::updated(fn (ProductEditRequest $editRequest) => $this->logActivity('updated', $editRequest));
     }
 
     private function logActivity(string $action, object $record): void
     {
+        $movementStock = $record instanceof StockMovement
+            ? StockItem::withTrashed()->find($record->stock_item_id) : null;
+        $businessId = $record instanceof StockMovement
+            ? $movementStock?->business_id
+            : ($record->business_id ?? auth()->user()?->business_id);
+        $actorId = $record instanceof StockMovement ? $record->user_id
+            : ($record instanceof ProductEditRequest
+                ? ($action === 'created' ? $record->requested_by : $record->reviewed_by)
+                : auth()->id());
         ActivityLog::create([
-            'business_id' => $record->business_id ?? auth()->user()?->business_id,
-            'user_id' => auth()->id(),
+            'business_id' => $businessId,
+            'user_id' => $actorId,
             'action' => $action,
             'subject_type' => $record::class,
             'subject_id' => $record->id,
-            'old_values' => $action === 'updated' ? $record->getOriginal() : null,
-            'new_values' => $action === 'deleted' ? null : $record->getAttributes(),
+            'old_values' => $action === 'updated' ? $record->getOriginal()
+                : ($action === 'deleted' ? $record->getAttributes() : null),
+            'new_values' => $action === 'deleted' ? null : ($record instanceof StockMovement
+                ? array_merge($record->getAttributes(), [
+                    'stock_name' => $movementStock?->name,
+                    'stock_unit' => $movementStock?->unit,
+                ]) : $record->getAttributes()),
             'ip_address' => request()?->ip(),
         ]);
     }

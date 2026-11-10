@@ -194,11 +194,7 @@ class TransactionController extends Controller
 
         $incomeTransactions = (clone $base)->where('type', 'income');
         $income = (clone $incomeTransactions)->sum('amount');
-        $incomeCountQuery = clone $incomeTransactions;
-        if ($request->user()->isStaff()) {
-            $incomeCountQuery->where('user_id', $request->user()->id);
-        }
-        $incomeCount = $incomeCountQuery->count();
+        $incomeCount = (clone $incomeTransactions)->count();
 
         $expense = (clone $base)
             ->where('type', 'expense')

@@ -57,6 +57,8 @@
                                             <a href="{{ route('orders.show', ['order' => $notification->data['order_id']]) }}" class="gt-focus rounded-md py-1 text-xs font-bold text-[#08745D] hover:underline">View order</a>
                                         @elseif($notification->type === 'bug_report_update')
                                             <a href="{{ route('owner.bug-reports.index') }}" class="gt-focus rounded-md py-1 text-xs font-bold text-[#08745D] hover:underline">View bug reports</a>
+                                        @elseif($notification->type === 'product_edit_request' && empty($notification->data['resolved_at']))
+                                            <a href="{{ route('products.index') }}#product-edit-requests" class="gt-focus rounded-md py-1 text-xs font-bold text-[#08745D] hover:underline">Review product edit</a>
                                         @else
                                             <span class="text-xs text-slate-400">{{ $notification->created_at?->diffForHumans() }}</span>
                                         @endif

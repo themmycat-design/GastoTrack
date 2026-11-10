@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ProductEditRequest;
 use App\Models\StockItem;
 use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\Request;
@@ -67,9 +68,15 @@ class ProductController extends Controller
             ->where('business_id', $businessId)
             ->orderBy('name')
             ->get(['id', 'name', 'unit']);
+        $pendingEditRequests = ProductEditRequest::query()
+            ->where('business_id', $businessId)
+            ->where('status', 'pending')
+            ->with(['product', 'requester'])
+            ->latest()
+            ->get();
 
         return view('products.index', compact(
-            'products', 'categories', 'totalProducts', 'availableProducts', 'categoriesCount', 'stockItems'
+            'products', 'categories', 'totalProducts', 'availableProducts', 'categoriesCount', 'stockItems', 'pendingEditRequests'
         ));
     }
 

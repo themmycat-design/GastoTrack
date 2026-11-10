@@ -333,8 +333,8 @@ const StockScreen = () => {
       setProductEditorVisible(false);
       setEditingProduct(null);
       setSelectedProduct(saved);
-      Alert.alert(saved.offlinePending ? 'Saved on this device' : 'Product saved', saved.offlinePending
-        ? 'Product available for orders after sync.' : '');
+      Alert.alert(saved.offlinePending ? 'Saved on this device' : saved.approvalPending ? 'Request sent to owner' : 'Product saved', saved.offlinePending
+        ? editingProduct ? 'The edit request will be sent when the device syncs.' : 'The product will sync when the device reconnects.' : '');
     } catch (error) {
       Alert.alert('Could not save product', apiErrorMessage(error));
     } finally {
@@ -349,6 +349,8 @@ const StockScreen = () => {
         isAvailable: product.is_available === false,
       });
       setSelectedProduct(updated);
+      if (updated.offlinePending) Alert.alert('Saved on this device', 'The edit request will be sent when the device syncs.');
+      else if (updated.approvalPending) Alert.alert('Request sent to owner');
     } catch (error) {
       Alert.alert('Could not update product', apiErrorMessage(error));
     }
@@ -555,7 +557,7 @@ const StockScreen = () => {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}><View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <GastoModalMascot variant="stock" />
-            <View style={styles.headerCopy}><Text style={styles.modalTitle}>{selectedItem?.name}</Text><Text style={styles.modalSubtitle}>Adjust the physical stock count</Text></View>
+            <View style={styles.headerCopy}><Text style={styles.modalTitle}>{selectedItem?.name}</Text><Text style={styles.modalSubtitle}>Record a delivery, waste, or count correction</Text></View>
             <TouchableOpacity style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close stock adjustment" onPress={() => setSelectedItem(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
           {selectedItem && <ScrollView keyboardShouldPersistTaps="handled">
@@ -569,6 +571,7 @@ const StockScreen = () => {
                 <Text style={[styles.toggleText, adjustType === value && styles.toggleTextActive]}>{value === 'add' ? 'Add stock' : 'Deduct stock'}</Text>
               </TouchableOpacity>
             ))}</View>
+            {adjustType === 'add' ? <Text style={styles.ownerNote}>Use Add stock when ingredients are received.</Text> : null}
             {adjustType === 'deduct' ? <>
               <Text style={styles.fieldLabel}>Deduction type</Text>
               <View style={styles.adjustToggle}>{[
@@ -601,6 +604,7 @@ const StockScreen = () => {
             <TouchableOpacity onPress={() => setSelectedProduct(null)}><Icon name="close" size={24} color={COLORS.textGray} /></TouchableOpacity>
           </View>
           {selectedProduct && <ScrollView>
+            {selectedProduct.approvalPending ? <Text style={styles.ownerNote}>An edit is waiting for owner review. The current product details remain in use.</Text> : null}
             <View style={styles.productHero}>
               {selectedProduct.image
                 ? <Image source={{uri: selectedProduct.image}} style={styles.productHeroImage} />
@@ -626,11 +630,11 @@ const StockScreen = () => {
               </View>
             ))}
             <View style={styles.productActions}>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => openEditProduct(selectedProduct)}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => openEditProduct(selectedProduct)} disabled={selectedProduct.approvalPending}>
                 <Icon name="pencil-outline" size={18} color={COLORS.accentDark} />
                 <Text style={styles.secondaryButtonText}>Edit product</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => toggleProductAvailability(selectedProduct)}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => toggleProductAvailability(selectedProduct)} disabled={selectedProduct.approvalPending}>
                 <Icon name={selectedProduct.is_available === false ? 'eye-outline' : 'eye-off-outline'} size={18} color={COLORS.accentDark} />
                 <Text style={styles.secondaryButtonText}>{selectedProduct.is_available === false ? 'Make available' : 'Make unavailable'}</Text>
               </TouchableOpacity>
@@ -691,7 +695,7 @@ const StockScreen = () => {
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>Recipe ingredients</Text>
-            <Text style={styles.recipeHint}>Choose the amount used by one product. For liquids, use ml or L; two products deduct twice this amount.</Text>
+            <Text style={styles.recipeHint}>Set the amount used by one product. A completed sale deducts that amount times the number sold. Creating a product does not add stock; record deliveries in Stock Items.</Text>
             {stockItems.length ? stockItems.map(stock => {
               const ingredient = productForm.ingredients.find(item => item.stockId === Number(stock.id));
               return (

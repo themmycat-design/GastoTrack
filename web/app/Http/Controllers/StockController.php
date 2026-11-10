@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\StockItem;
+use App\Services\StockUnitPolicy;
 use App\Models\StockMovement;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -121,15 +122,31 @@ class StockController extends Controller
         
         $user = auth()->user();
         
-        $stock = StockItem::create([
-            'business_id' => $user->business_id,
-            'name' => $validated['name'],
-            'unit' => $validated['unit'],
-            'current_quantity' => $validated['current_quantity'],
-            'minimum_quantity' => $validated['minimum_quantity'],
-            'unit_cost' => $validated['unit_cost'],
-            'active' => $validated['active'] ?? true,
-        ]);
+        $stock = DB::transaction(function () use ($user, $validated): StockItem {
+            $stock = StockItem::create([
+                'business_id' => $user->business_id,
+                'name' => $validated['name'],
+                'unit' => $validated['unit'],
+                'current_quantity' => $validated['current_quantity'],
+                'minimum_quantity' => $validated['minimum_quantity'],
+                'unit_cost' => $validated['unit_cost'],
+                'active' => $validated['active'] ?? true,
+            ]);
+            if ((float) $stock->current_quantity > 0) {
+                StockMovement::create([
+                    'stock_item_id' => $stock->id,
+                    'user_id' => $user->id,
+                    'type' => 'in',
+                    'quantity' => $stock->current_quantity,
+                    'previous_quantity' => 0,
+                    'new_quantity' => $stock->current_quantity,
+                    'reason' => 'Opening stock',
+                    'movement_category' => 'opening',
+                    'unit_cost_at_movement' => $stock->unit_cost,
+                ]);
+            }
+            return $stock;
+        });
         app(NotificationService::class)->notifyLowStock($stock);
         
         return redirect()->route('stock.index')
@@ -153,15 +170,10 @@ class StockController extends Controller
             'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
-        if ($validated['unit'] !== $stock->unit && $stock->ingredients()->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'unit' => 'This stock item is used in a product recipe. Keep its unit so existing recipe quantities stay correct.',
-            ]);
-        }
+        StockUnitPolicy::ensureUnchanged($validated['unit'], $stock->unit);
         
         $stock->update([
             'name' => $validated['name'],
-            'unit' => $validated['unit'],
             'minimum_quantity' => $validated['minimum_quantity'],
             'unit_cost' => $validated['unit_cost'],
             'active' => $validated['active'] ?? true,

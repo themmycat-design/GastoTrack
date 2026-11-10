@@ -276,11 +276,50 @@
 
             @if($activeReportSection === 'staff')
             <section id="report-staff" class="gt-scroll-reveal scroll-mt-5 space-y-4" data-gt-reveal-once="true" style="--gt-reveal-delay: 110ms">
-                <div><p class="text-sm text-slate-500">Counts for completed paid orders, saved ledger entries, and recorded stock movements during {{ $rangeLabel }}.</p></div>
+                <div><p class="text-sm text-slate-500">Counts and recorded staff actions during {{ $rangeLabel }}. Offline actions appear after they sync.</p></div>
                 <article class="gt-card overflow-hidden">
                     @if(count($staffActivity))<div class="overflow-x-auto"><table class="w-full min-w-[700px] text-left text-sm"><thead class="bg-[#F8FBFA] text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Staff member</th><th class="px-5 py-3 text-right">Completed orders</th><th class="px-5 py-3 text-right">Confirmed order sales</th><th class="px-5 py-3 text-right">Ledger entries</th><th class="px-5 py-3 text-right">Stock changes</th></tr></thead><tbody class="divide-y divide-[#EAF2EF]">@foreach($staffActivity as $staff)<tr><td class="px-5 py-3.5 font-bold">{{ $staff['name'] }}</td><td class="px-5 py-3.5 text-right">{{ number_format($staff['orders']) }}</td><td class="px-5 py-3.5 text-right font-extrabold">{{ $currencyPrefix }}{{ number_format($staff['confirmedSales'], 2) }}</td><td class="px-5 py-3.5 text-right">{{ number_format($staff['ledgerEntries']) }}</td><td class="px-5 py-3.5 text-right">{{ number_format($staff['stockChanges']) }}</td></tr>@endforeach</tbody></table></div>
                     @else<p class="px-5 py-8 text-center text-sm text-slate-500">No staff accounts are registered for this business.</p>@endif
                     <p class="border-t border-[#EAF2EF] px-5 py-3 text-xs leading-5 text-slate-500">Staff order sales follow the same confirmed-sale rule as the sales section. Ledger entries include linked order entries and are activity counts only; ledger and sales totals are not combined.</p>
+                </article>
+                <article class="gt-card overflow-hidden">
+                    <div class="border-b border-[#EAF2EF] px-5 py-4">
+                        <h3 class="font-extrabold">Staff actions in time order</h3>
+                        <p class="mt-1 text-xs text-slate-500">Orders, transactions, stock, products, and product edit requests.</p>
+                    </div>
+                    @forelse($staffActions as $activity)
+                        @php
+                            $kind = class_basename($activity->subject_type);
+                            $values = $activity->new_values ?: $activity->old_values ?: [];
+                            $actionLabel = match ($kind) {
+                                'Order' => 'Order '.$activity->action,
+                                'Transaction' => 'Transaction '.$activity->action,
+                                'StockItem' => 'Stock item '.$activity->action,
+                                'StockMovement' => 'Stock '.(($values['type'] ?? '') === 'in' ? 'added' : 'deducted'),
+                                'Product' => 'Product '.$activity->action,
+                                'ProductEditRequest' => 'Product edit requested',
+                                default => 'Record '.$activity->action,
+                            };
+                            $detail = match ($kind) {
+                                'Order' => $values['order_number'] ?? 'Order #'.$activity->subject_id,
+                                'Transaction' => ($values['category'] ?? 'Entry').' · '.($values['amount'] ?? '0'),
+                                'StockItem', 'Product' => $values['name'] ?? 'Item #'.$activity->subject_id,
+                                'StockMovement' => ($values['stock_name'] ?? 'Stock item').' · '.($values['quantity'] ?? '0').' '.($values['stock_unit'] ?? '').' · '.($values['reason'] ?? 'Adjustment'),
+                                'ProductEditRequest' => 'Request #'.$activity->subject_id,
+                                default => 'Record #'.$activity->subject_id,
+                            };
+                        @endphp
+                        <div class="flex flex-wrap items-start justify-between gap-2 border-b border-[#EAF2EF] px-5 py-3.5">
+                            <div>
+                                <p class="text-sm font-bold text-[#0A2E2A]">{{ $actionLabel }}</p>
+                                <p class="mt-1 text-xs text-slate-600">{{ $detail }} · {{ $activity->user?->name ?? 'Former staff' }}</p>
+                            </div>
+                            <time datetime="{{ $activity->created_at?->toIso8601String() }}" class="text-xs text-slate-500">{{ $activity->created_at?->format('M j, Y g:i A') }}</time>
+                        </div>
+                    @empty
+                        <p class="px-5 py-6 text-sm text-slate-500">No recorded staff actions in this period.</p>
+                    @endforelse
+                    @if($staffActions->hasPages())<div class="px-5 py-4">{{ $staffActions->links() }}</div>@endif
                 </article>
             </section>
             @endif

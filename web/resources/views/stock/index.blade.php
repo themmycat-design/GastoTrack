@@ -19,7 +19,7 @@
         <section class="gt-enter flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
                 <h2 class="text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Inventory</h2>
-                <p class="mt-2 text-sm leading-6 text-slate-500">Track ingredient quantities, review stock changes, and spot items that need restocking.</p>
+                <p class="mt-2 text-sm leading-6 text-slate-500">Add received ingredients here. Completed sales subtract the recipe amount per product times the number sold; waste and physical counts are recorded separately.</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <button type="button" onclick="openAddModal()" class="gt-focus inline-flex items-center justify-center gap-2 rounded-xl bg-[#00A87E] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#08745D]">
@@ -28,6 +28,13 @@
                 <a href="{{ route('products.index', ['add' => 1]) }}" class="gt-focus inline-flex items-center justify-center rounded-xl border border-[#C8DED7] bg-white px-5 py-3 text-sm font-bold text-[#08745D] transition hover:bg-[#EAF8F2]">Add products</a>
             </div>
         </section>
+
+        @if($errors->any())
+            <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <p class="font-bold">Please correct the stock details:</p>
+                <ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            </div>
+        @endif
 
         @php
             $currencyCode = strtoupper((string) (Auth::user()->business?->currency ?: 'PHP'));
@@ -194,7 +201,7 @@
                         </td>
                         <td class="px-3 py-4 whitespace-nowrap text-xs text-slate-500"><time datetime="{{ $item->updated_at?->toIso8601String() }}">{{ $item->updated_at?->format('M j, Y') ?: '—' }}</time></td>
                         <td class="px-5 py-4 whitespace-nowrap text-right text-xs sm:px-6">
-                            <button type="button" data-stock-adjust data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-current="{{ $item->current_quantity }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-[#08745D] hover:bg-[#EAF8F2]">Adjust</button>
+                            <button type="button" data-stock-adjust data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-current="{{ $item->current_quantity }}" data-unit="{{ $item->unit }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-[#08745D] hover:bg-[#EAF8F2]">Add / adjust</button>
                             <button type="button" data-stock-edit data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-unit="{{ $item->unit }}" data-current="{{ $item->current_quantity }}" data-minimum="{{ $item->minimum_quantity }}" data-cost="{{ $item->unit_cost }}" data-active="{{ $item->active ? '1' : '0' }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-slate-600 hover:bg-[#F4F8F7]">Edit</button>
                             <button type="button" data-stock-delete data-id="{{ $item->id }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-rose-600 hover:bg-rose-50">Delete</button>
                         </td>
@@ -304,14 +311,8 @@
                     <div>
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
                         <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
-                        <datalist id="stock-unit-options">
-                            <option value="ml">Millilitres</option>
-                            <option value="L">Litres</option>
-                            <option value="g">Grams</option>
-                            <option value="kg">Kilograms</option>
-                            <option value="pcs">Pieces</option>
-                        </datalist>
-                        <p class="mt-1 text-xs text-slate-500">For liquids, use ml or L. Recipe amounts can use either unit.</p>
+                        <datalist id="stock-unit-options"><option value="pcs"><option value="g"><option value="kg"><option value="ml"><option value="L"></datalist>
+                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">This unit is fixed. Add more stock using the same unit.</p>
                     </div>
 
                     <!-- Unit Cost -->
@@ -324,7 +325,7 @@
                     <div>
                         <label for="current_quantity" class="gt-label">Current quantity <span class="text-rose-600">*</span></label>
                         <input type="number" id="current_quantity" name="current_quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
-                        <p id="quantity_help" class="mt-1 hidden text-xs text-slate-500">Use Adjust to change quantity after an item has been created.</p>
+                        <p id="quantity_help" class="mt-1 hidden text-xs text-slate-500">Use Add Stock for deliveries after this item has been created.</p>
                     </div>
 
                     <!-- Minimum Quantity -->
@@ -382,6 +383,7 @@
                         <option value="subtract">Subtract Stock</option>
                         <option value="set">Set Quantity</option>
                     </select>
+                    <p class="mt-1 text-xs text-slate-500">Use Add Stock for deliveries, Subtract Stock for waste, and Set Quantity after a physical count.</p>
                 </div>
 
                 <div id="adjust_category_wrapper" class="mb-4 hidden">
@@ -395,7 +397,7 @@
 
                 <!-- Quantity -->
                 <div class="mb-4">
-                    <label for="adjust_quantity" class="gt-label">Quantity <span class="text-rose-600">*</span></label>
+                    <label for="adjust_quantity" class="gt-label">Quantity (<span id="adjust_unit_label"></span>) <span class="text-rose-600">*</span></label>
                     <input type="number" id="adjust_quantity" name="quantity" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
                 </div>
 
@@ -418,7 +420,7 @@
         document.addEventListener('click', (event) => {
             const adjustButton = event.target.closest('[data-stock-adjust]');
             if (adjustButton) {
-                openAdjustModal(adjustButton.dataset.id, adjustButton.dataset.name, adjustButton.dataset.current);
+                openAdjustModal(adjustButton.dataset.id, adjustButton.dataset.name, adjustButton.dataset.current, adjustButton.dataset.unit);
                 return;
             }
             const editButton = event.target.closest('[data-stock-edit]');
@@ -445,6 +447,8 @@
             document.getElementById('formMethod').value = '';
             document.getElementById('name').value = '';
             document.getElementById('unit').value = '';
+            document.getElementById('unit').readOnly = false;
+            document.getElementById('unit_help').classList.add('hidden');
             document.getElementById('current_quantity').value = '';
             document.getElementById('current_quantity').disabled = false;
             document.getElementById('current_quantity').required = true;
@@ -462,6 +466,8 @@
             document.getElementById('formMethod').value = 'PUT';
             document.getElementById('name').value = name;
             document.getElementById('unit').value = unit;
+            document.getElementById('unit').readOnly = true;
+            document.getElementById('unit_help').classList.remove('hidden');
             document.getElementById('current_quantity').value = currentQty;
             document.getElementById('current_quantity').disabled = true;
             document.getElementById('current_quantity').required = false;
@@ -476,10 +482,11 @@
             document.getElementById('stockModal').classList.add('hidden');
         }
 
-        function openAdjustModal(id, name, currentQty) {
+        function openAdjustModal(id, name, currentQty, unit) {
             document.getElementById('adjust_stock_id').value = id;
             document.getElementById('adjust_item_name').textContent = name;
-            document.getElementById('adjust_current_qty').textContent = parseFloat(currentQty).toFixed(2);
+            document.getElementById('adjust_current_qty').textContent = `${parseFloat(currentQty).toFixed(2)} ${unit}`;
+            document.getElementById('adjust_unit_label').textContent = unit;
             document.getElementById('adjust_type').value = 'add';
             document.getElementById('adjust_movement_category').value = 'adjustment';
             updateAdjustmentCategoryVisibility();

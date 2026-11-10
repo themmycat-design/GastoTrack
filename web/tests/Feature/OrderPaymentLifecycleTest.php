@@ -107,7 +107,7 @@ class OrderPaymentLifecycleTest extends TestCase
         $product = $this->postJson('/api/v1/products', [
             'name' => 'Mountain Dew', 'category' => 'Drinks', 'price' => 85,
             'ingredients' => [
-                ['stock_id' => $water->id, 'quantity' => 10, 'unit' => 'ml'],
+                ['stock_id' => $water->id, 'quantity' => 0.01, 'unit' => 'L'],
                 ['stock_id' => $sugar->id, 'quantity' => 10, 'unit' => 'g'],
             ],
         ])->assertCreated()->json('product');
@@ -115,6 +115,8 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->assertDatabaseHas('product_ingredients', [
             'product_id' => $product['id'], 'stock_item_id' => $water->id, 'quantity' => 0.01,
         ]);
+        $this->assertSame(1.0, (float) $water->fresh()->current_quantity);
+        $this->assertSame(1.0, (float) $sugar->fresh()->current_quantity);
         $this->postJson('/api/v1/orders', [
             'payment_method' => 'cash',
             'items' => [['product_id' => $product['id'], 'quantity' => 2]],
@@ -122,6 +124,11 @@ class OrderPaymentLifecycleTest extends TestCase
 
         $this->assertSame(0.98, (float) $water->fresh()->current_quantity);
         $this->assertSame(0.98, (float) $sugar->fresh()->current_quantity);
+
+        $this->postJson('/api/v1/stock/'.$water->id.'/adjust', [
+            'type' => 'add', 'quantity' => 0.5, 'reason' => 'Delivery',
+        ])->assertOk();
+        $this->assertSame(1.48, (float) $water->fresh()->current_quantity);
     }
 
     public function test_order_rejects_ingredient_increases_and_unknown_recipe_ingredients(): void

@@ -4,7 +4,10 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\ProductEditRequest;
 use App\Models\ProductIngredient;
+use App\Models\Notification;
+use App\Models\User;
 use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +27,16 @@ class ProductController extends Controller
             ->when(! $canManageProducts, fn ($query) => $query->where('is_available', true))
             ->orderBy('display_order')
             ->get();
+
+        if ($request->user()->isStaff()) {
+            $pendingProductIds = ProductEditRequest::query()
+                ->where('business_id', $request->user()->business_id)
+                ->where('status', 'pending')
+                ->pluck('product_id')->map(fn ($id) => (int) $id)->all();
+            foreach ($products as $product) {
+                $product->approval_pending = in_array($product->id, $pendingProductIds, true);
+            }
+        }
 
         return response()->json(['products' => $products]);
     }
@@ -115,6 +128,10 @@ class ProductController extends Controller
         $product = Product::where('business_id', $request->user()->business_id)
             ->findOrFail($id);
 
+        if ($request->user()->isStaff()) {
+            return $this->submitEditRequest($request, $product, $validated, $ingredients);
+        }
+
         $imagePath = $this->storePhoto($request);
         $oldImage = $product->image;
         try {
@@ -194,6 +211,64 @@ class ProductController extends Controller
             403,
             'Only business owners and staff can manage products.'
         );
+    }
+
+    private function submitEditRequest(Request $request, Product $product, array $validated, array $ingredients)
+    {
+        $changes = $validated;
+        unset($changes['image']);
+        if (array_key_exists('ingredients', $changes)) {
+            $changes['ingredients'] = $ingredients;
+        }
+
+        $imagePath = $this->storePhoto($request);
+        try {
+            $editRequest = DB::transaction(function () use ($request, $product, $changes, $imagePath): ProductEditRequest {
+                $lockedProduct = Product::query()
+                    ->where('business_id', $request->user()->business_id)
+                    ->lockForUpdate()
+                    ->findOrFail($product->id);
+                abort_if(ProductEditRequest::query()
+                    ->where('product_id', $lockedProduct->id)
+                    ->where('status', 'pending')->exists(), 409,
+                    'This product already has an edit awaiting owner review.');
+
+                $editRequest = ProductEditRequest::create([
+                    'business_id' => $lockedProduct->business_id,
+                    'product_id' => $lockedProduct->id,
+                    'requested_by' => $request->user()->id,
+                    'expected_revision' => (int) $lockedProduct->revision,
+                    'status' => 'pending',
+                    'changes' => $changes,
+                    'image_path' => $imagePath,
+                ]);
+
+                User::query()->where('business_id', $lockedProduct->business_id)
+                    ->where('role', 'owner')->where('status', 'active')
+                    ->each(fn (User $owner) => Notification::create([
+                        'user_id' => $owner->id,
+                        'business_id' => $lockedProduct->business_id,
+                        'type' => 'product_edit_request',
+                        'title' => 'Product edit needs review',
+                        'message' => "{$request->user()->name} requested changes to {$lockedProduct->name}.",
+                        'data' => ['request_id' => $editRequest->id, 'product_id' => $lockedProduct->id],
+                    ]));
+
+                return $editRequest;
+            });
+        } catch (Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
+            throw $exception;
+        }
+
+        return response()->json([
+            'message' => 'Product edit sent to the owner for review',
+            'approval_pending' => true,
+            'edit_request_id' => $editRequest->id,
+            'product' => $product->load('productIngredients.stockItem'),
+        ], 202);
     }
 
     private function storePhoto(Request $request): ?string

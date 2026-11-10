@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Transaction;
+use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -60,8 +61,8 @@ class OfflineMutationController extends Controller
                 : ($editing ? 'PUT' : 'POST'), $input['data']);
             $subrequest->setUserResolver(fn () => $request->user());
             $response = match ($kind) {
-                'product_create' => app(ProductController::class)->store($subrequest),
-                'product_update' => app(ProductController::class)->update($subrequest, $input['target_id']),
+                'product_create' => app(ProductController::class)->store($subrequest, app(RecipeIngredientNormalizer::class)),
+                'product_update' => app(ProductController::class)->update($subrequest, $input['target_id'], app(RecipeIngredientNormalizer::class)),
                 'product_delete' => app(ProductController::class)->destroy($subrequest, $input['target_id']),
                 'stock_create' => app(StockController::class)->store($subrequest),
                 'transaction_update' => app(TransactionController::class)->update($subrequest, $input['target_id']),

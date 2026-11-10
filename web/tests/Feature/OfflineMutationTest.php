@@ -27,15 +27,38 @@ class OfflineMutationTest extends TestCase
         $staff = $this->staff($business);
         $headers = ['Authorization' => 'Bearer '.$staff->createToken('offline')->plainTextToken];
         $payload = ['client_id' => (string) Str::uuid(), 'kind' => 'stock_create',
-            'data' => ['name' => 'Milk', 'unit' => 'L', 'current_quantity' => 4,
+            'data' => ['name' => 'Milk powder', 'unit' => 'kg', 'current_quantity' => 4,
                 'minimum_quantity' => 1, 'unit_cost' => 30]];
 
         $first = $this->postJson('/api/v1/offline/mutations', $payload, $headers)->assertCreated();
         $second = $this->postJson('/api/v1/offline/mutations', $payload, $headers)->assertCreated();
         $this->assertSame($first->json('item.id'), $second->json('item.id'));
         $this->assertSame(1, StockItem::where('business_id', $business->id)->count());
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_item_id' => $first->json('item.id'),
+            'user_id' => $staff->id,
+            'movement_category' => 'opening',
+            'quantity' => 4,
+        ]);
         $this->postJson('/api/v1/offline/mutations', array_replace($payload, ['data' => array_replace($payload['data'], ['current_quantity' => 8])]), $headers)
             ->assertStatus(409);
+    }
+
+    public function test_offline_product_creation_passes_its_recipe_to_the_normalizer(): void
+    {
+        $business = Business::create(['name' => 'Demo', 'status' => 'active', 'active' => true]);
+        $staff = $this->staff($business);
+        $stock = StockItem::create(['business_id' => $business->id, 'name' => 'Milk', 'unit' => 'L',
+            'current_quantity' => 5, 'minimum_quantity' => 0, 'unit_cost' => 80]);
+        $headers = ['Authorization' => 'Bearer '.$staff->createToken('offline')->plainTextToken];
+
+        $this->postJson('/api/v1/offline/mutations', [
+            'client_id' => (string) Str::uuid(), 'kind' => 'product_create',
+            'data' => ['name' => 'Milk tea', 'category' => 'Drinks', 'price' => 100,
+                'ingredients' => [['stock_id' => $stock->id, 'quantity' => 250, 'unit' => 'ml']]],
+        ], $headers)->assertCreated()->assertJsonPath('product.name', 'Milk tea');
+        $this->assertDatabaseHas('product_ingredients', ['stock_item_id' => $stock->id, 'quantity' => 0.25]);
     }
 
     public function test_stale_product_edit_is_rejected_without_overwriting_newer_changes(): void
@@ -98,6 +121,7 @@ class OfflineMutationTest extends TestCase
     {
         $business = Business::create(['name' => 'Demo', 'status' => 'active', 'active' => true]);
         $staff = $this->staff($business);
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
         $headers = ['Authorization' => 'Bearer '.$staff->createToken('offline')->plainTextToken];
         $product = Product::create(['business_id' => $business->id, 'name' => 'Tea',
             'category' => 'Drinks', 'price' => 80]);
@@ -105,11 +129,16 @@ class OfflineMutationTest extends TestCase
             'target_id' => $product->id, 'expected_updated_at' => $product->updated_at->toIso8601String(),
             'expected_revision' => 0, 'data' => ['price' => 85]];
 
-        $first = $this->postJson('/api/v1/offline/mutations', $payload, $headers)->assertOk();
-        $this->assertSame('85.00', $product->fresh()->price);
-        $this->assertSame(1, $product->fresh()->revision);
-        $second = $this->postJson('/api/v1/offline/mutations', $payload, $headers)->assertOk();
+        $first = $this->postJson('/api/v1/offline/mutations', $payload, $headers)
+            ->assertStatus(202)->assertJsonPath('approval_pending', true);
+        $this->assertSame('80.00', $product->fresh()->price);
+        $this->assertSame(0, $product->fresh()->revision);
+        $second = $this->postJson('/api/v1/offline/mutations', $payload, $headers)->assertStatus(202);
         $this->assertSame($first->json(), $second->json());
+        $this->assertDatabaseCount('product_edit_requests', 1);
+        $this->actingAs($owner)->post(route('products.edit-requests.approve', $first->json('edit_request_id')))
+            ->assertRedirect(route('products.index'));
+        $this->assertSame('85.00', $product->fresh()->price);
         $this->assertSame(1, $product->fresh()->revision);
     }
 

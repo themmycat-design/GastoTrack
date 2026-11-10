@@ -169,7 +169,7 @@ class OwnerProductsTest extends TestCase
                 'cost' => 40,
                 'is_available' => '1',
                 'replace_ingredients' => '1',
-                'ingredients' => [0 => ['stock_id' => $stock->id, 'quantity' => '300']],
+                'ingredients' => [0 => ['stock_id' => $stock->id, 'quantity' => '0.3', 'unit' => 'L']],
             ])
             ->assertRedirect(route('products.index'));
 
@@ -202,7 +202,7 @@ class OwnerProductsTest extends TestCase
             ->assertSessionHasErrors('ingredients.0.stock_id');
     }
 
-    public function test_owner_recipe_converts_milliliters_to_liters_and_rejects_wrong_units(): void
+    public function test_owner_edits_volume_recipe_in_ml_while_stock_remains_in_liters(): void
     {
         $business = $this->business('Unit Cafe');
         $owner = User::factory()->owner()->create(['business_id' => $business->id]);
@@ -212,13 +212,23 @@ class OwnerProductsTest extends TestCase
         ]);
         $product = [
             'name' => 'Mountain Dew', 'category' => 'Drinks', 'price' => 85,
-            'ingredients' => [['stock_id' => $water->id, 'quantity' => 10, 'unit' => 'ml']],
+            'replace_ingredients' => '1',
+            'ingredients' => [['stock_id' => $water->id, 'quantity' => 0.5, 'unit' => 'L']],
         ];
 
         $this->actingAs($owner)->post(route('products.store'), $product)
             ->assertRedirect(route('products.index'));
+        $savedProduct = Product::where('business_id', $business->id)->firstOrFail();
         $this->assertDatabaseHas('product_ingredients', [
-            'stock_item_id' => $water->id, 'quantity' => 0.01,
+            'product_id' => $savedProduct->id, 'stock_item_id' => $water->id, 'quantity' => 0.5,
+        ]);
+
+        $product['ingredients'][0]['quantity'] = 250;
+        $product['ingredients'][0]['unit'] = 'ml';
+        $this->actingAs($owner)->put(route('products.update', $savedProduct), $product)
+            ->assertRedirect(route('products.index'));
+        $this->assertDatabaseHas('product_ingredients', [
+            'product_id' => $savedProduct->id, 'stock_item_id' => $water->id, 'quantity' => 0.25,
         ]);
 
         $this->actingAs($owner)->put(route('stock.update', $water), [
@@ -226,30 +236,55 @@ class OwnerProductsTest extends TestCase
             'unit_cost' => 10, 'active' => 1,
         ])->assertSessionHasErrors('unit');
         $this->assertSame('L', $water->fresh()->unit);
+        $this->actingAs($owner)->put(route('stock.update', $water), [
+            'name' => 'Water', 'unit' => 'L', 'minimum_quantity' => 0,
+            'unit_cost' => 10, 'active' => 1,
+        ])->assertRedirect(route('stock.index'));
 
         $product['ingredients'][0]['unit'] = 'g';
-        $this->actingAs($owner)->post(route('products.store'), $product)
+        $this->actingAs($owner)->put(route('products.update', $savedProduct), $product)
             ->assertSessionHasErrors('ingredients.0.unit');
         $this->assertDatabaseCount('products', 1);
     }
 
-    public function test_owner_recipe_converts_liters_to_milliliters_when_stock_uses_ml(): void
+    public function test_owner_can_create_new_stock_items_in_metric_volume_units(): void
     {
         $business = $this->business('Volume Cafe');
         $owner = User::factory()->owner()->create(['business_id' => $business->id]);
-        $milk = StockItem::create([
-            'business_id' => $business->id, 'name' => 'Milk', 'unit' => 'ml',
-            'current_quantity' => 2000, 'minimum_quantity' => 0, 'unit_cost' => 0.1, 'active' => true,
-        ]);
 
-        $this->actingAs($owner)->post(route('products.store'), [
-            'name' => 'Latte', 'category' => 'Coffee', 'price' => 150,
-            'ingredients' => [['stock_id' => $milk->id, 'quantity' => 0.25, 'unit' => 'L']],
-        ])->assertRedirect(route('products.index'));
+        $this->actingAs($owner)->post(route('stock.store'), [
+            'name' => 'Milk', 'unit' => 'ml', 'current_quantity' => 2000,
+            'minimum_quantity' => 0, 'unit_cost' => 0.1,
+        ])->assertRedirect(route('stock.index'));
+        $this->actingAs($owner)->post(route('stock.store'), [
+            'name' => 'Water', 'unit' => 'L', 'current_quantity' => 10,
+            'minimum_quantity' => 0, 'unit_cost' => 50,
+        ])->assertRedirect(route('stock.index'));
+        $this->assertDatabaseHas('stock_items', ['business_id' => $business->id, 'name' => 'Milk', 'unit' => 'ml']);
+        $this->assertDatabaseHas('stock_items', ['business_id' => $business->id, 'name' => 'Water', 'unit' => 'L']);
+    }
 
-        $this->assertDatabaseHas('product_ingredients', [
-            'stock_item_id' => $milk->id, 'quantity' => 250,
-        ]);
+    public function test_owner_adds_stock_in_its_saved_unit_without_changing_that_unit(): void
+    {
+        $business = $this->business('Stock Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+
+        $this->actingAs($owner)->post(route('stock.store'), [
+            'name' => 'Flour', 'unit' => 'kg', 'current_quantity' => 10,
+            'minimum_quantity' => 2, 'unit_cost' => 50,
+        ])->assertRedirect(route('stock.index'));
+
+        $stock = StockItem::where('business_id', $business->id)->firstOrFail();
+        $this->actingAs($owner)->postJson(route('stock.adjust', $stock), [
+            'type' => 'add', 'quantity' => 5,
+        ])->assertOk()->assertJsonPath('new_quantity', '15.0000');
+        $this->assertSame('kg', $stock->fresh()->unit);
+
+        $this->actingAs($owner)->put(route('stock.update', $stock), [
+            'name' => 'Flour', 'unit' => 'g', 'minimum_quantity' => 2,
+            'unit_cost' => 50, 'active' => 1,
+        ])->assertSessionHasErrors('unit');
+        $this->assertSame('kg', $stock->fresh()->unit);
     }
 
     private function business(string $name): Business
