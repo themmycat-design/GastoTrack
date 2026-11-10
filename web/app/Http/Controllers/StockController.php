@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\StockItem;
 use App\Services\StockUnitPolicy;
+use App\Services\StockUnitChangeService;
 use App\Models\StockMovement;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -166,18 +167,18 @@ class StockController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'unit' => 'required|string|max:50',
+            'conversion_factor' => 'nullable|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
             'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
-        StockUnitPolicy::ensureUnchanged($validated['unit'], $stock->unit);
-        
-        $stock->update([
+        $stock = app(StockUnitChangeService::class)->update($stock, [
             'name' => $validated['name'],
+            'unit' => $validated['unit'],
             'minimum_quantity' => $validated['minimum_quantity'],
             'unit_cost' => $validated['unit_cost'],
             'active' => $validated['active'] ?? true,
-        ]);
+        ], isset($validated['conversion_factor']) ? (float) $validated['conversion_factor'] : null);
         app(NotificationService::class)->notifyLowStock($stock);
         
         return redirect()->route('stock.index')

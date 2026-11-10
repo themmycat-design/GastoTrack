@@ -312,7 +312,12 @@
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
                         <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
                         <datalist id="stock-unit-options"><option value="pcs"><option value="g"><option value="kg"><option value="ml"><option value="L"></datalist>
-                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">This saved unit is fixed. Use Add / adjust to enter a compatible unit.</p>
+                        <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">Changing the unit converts current stock, minimum stock, recipes, and past movements. Unit cost is converted to preserve stock value. Save the unit change before editing minimum stock or unit cost.</p>
+                        <div id="unit_conversion_wrapper" class="mt-3 hidden">
+                            <label for="conversion_factor" class="gt-label">Old units in 1 new unit <span class="text-rose-600">*</span></label>
+                            <input type="number" id="conversion_factor" name="conversion_factor" step="0.0001" min="0.0001" max="99999999.9999" class="gt-field" placeholder="e.g. 12">
+                            <p id="unit_conversion_help" class="mt-1 text-xs text-slate-500"></p>
+                        </div>
                     </div>
 
                     <!-- Unit Cost -->
@@ -453,12 +458,18 @@
             document.getElementById('unit').value = '';
             document.getElementById('unit').readOnly = false;
             document.getElementById('unit_help').classList.add('hidden');
+            document.getElementById('unit_conversion_wrapper').classList.add('hidden');
+            document.getElementById('conversion_factor').required = false;
+            document.getElementById('conversion_factor').value = '';
+            document.getElementById('conversion_factor').disabled = true;
             document.getElementById('current_quantity').value = '';
             document.getElementById('current_quantity').disabled = false;
             document.getElementById('current_quantity').required = true;
             document.getElementById('quantity_help').classList.add('hidden');
             document.getElementById('minimum_quantity').value = '';
+            document.getElementById('minimum_quantity').readOnly = false;
             document.getElementById('unit_cost').value = '';
+            document.getElementById('unit_cost').readOnly = false;
             document.getElementById('active').checked = true;
             document.getElementById('stockModal').classList.remove('hidden');
         }
@@ -470,8 +481,14 @@
             document.getElementById('formMethod').value = 'PUT';
             document.getElementById('name').value = name;
             document.getElementById('unit').value = unit;
-            document.getElementById('unit').readOnly = true;
+            document.getElementById('unit').readOnly = false;
             document.getElementById('unit_help').classList.remove('hidden');
+            document.getElementById('unit').dataset.originalUnit = unit;
+            document.getElementById('unit').dataset.wasChanged = 'false';
+            document.getElementById('conversion_factor').value = '';
+            document.getElementById('minimum_quantity').dataset.originalValue = minQty;
+            document.getElementById('unit_cost').dataset.originalValue = unitCost;
+            document.getElementById('current_quantity').dataset.originalValue = currentQty;
             document.getElementById('current_quantity').value = currentQty;
             document.getElementById('current_quantity').disabled = true;
             document.getElementById('current_quantity').required = false;
@@ -479,8 +496,52 @@
             document.getElementById('minimum_quantity').value = minQty;
             document.getElementById('unit_cost').value = unitCost;
             document.getElementById('active').checked = isActive;
+            updateStockUnitConversion();
             document.getElementById('stockModal').classList.remove('hidden');
         }
+
+        function updateStockUnitConversion() {
+            const unitInput = document.getElementById('unit');
+            const oldUnit = unitInput.dataset.originalUnit;
+            if (!document.getElementById('formMethod').value || !oldUnit) return;
+            const newUnit = unitInput.value.trim();
+            const changed = newUnit !== oldUnit;
+            const conversionInput = document.getElementById('conversion_factor');
+            const conversionWrapper = document.getElementById('unit_conversion_wrapper');
+            const baseUnits = {g: ['weight', 1], gram: ['weight', 1], grams: ['weight', 1], kg: ['weight', 1000], kilogram: ['weight', 1000], kilograms: ['weight', 1000], ml: ['volume', 1], milliliter: ['volume', 1], milliliters: ['volume', 1], millilitre: ['volume', 1], millilitres: ['volume', 1], l: ['volume', 1000], liter: ['volume', 1000], liters: ['volume', 1000], litre: ['volume', 1000], litres: ['volume', 1000]};
+            const oldMeasure = baseUnits[oldUnit.toLowerCase()];
+            const newMeasure = baseUnits[newUnit.toLowerCase()];
+            const automatic = oldMeasure && newMeasure && oldMeasure[0] === newMeasure[0];
+            const factor = automatic ? newMeasure[1] / oldMeasure[1] : Number(conversionInput.value);
+            conversionWrapper.classList.toggle('hidden', !changed || automatic);
+            conversionInput.required = !!(changed && !automatic);
+            conversionInput.disabled = !changed || !!automatic;
+            document.getElementById('unit_conversion_help').textContent = `For example, 1 ${newUnit || 'new unit'} = how many ${oldUnit}? Enter 1 to correct only the label.`;
+            for (const id of ['minimum_quantity', 'unit_cost']) document.getElementById(id).readOnly = changed;
+            const incompatible = !!(oldMeasure && newMeasure && oldMeasure[0] !== newMeasure[0]);
+            unitInput.setCustomValidity(incompatible ? 'Weight and volume units cannot be converted to each other.' : '');
+            if (!changed) {
+                if (unitInput.dataset.wasChanged === 'true') {
+                    for (const id of ['current_quantity', 'minimum_quantity', 'unit_cost']) {
+                        const input = document.getElementById(id);
+                        input.value = input.dataset.originalValue;
+                    }
+                }
+                unitInput.dataset.wasChanged = 'false';
+                return;
+            }
+            unitInput.dataset.wasChanged = 'true';
+            if (!Number.isFinite(factor) || factor <= 0 || incompatible) {
+                for (const id of ['current_quantity', 'minimum_quantity', 'unit_cost']) document.getElementById(id).value = '';
+                return;
+            }
+            document.getElementById('current_quantity').value = (Number(document.getElementById('current_quantity').dataset.originalValue) / factor).toFixed(4);
+            document.getElementById('minimum_quantity').value = (Number(document.getElementById('minimum_quantity').dataset.originalValue) / factor).toFixed(4);
+            document.getElementById('unit_cost').value = (Number(document.getElementById('unit_cost').dataset.originalValue) * factor).toFixed(4);
+        }
+
+        document.getElementById('unit').addEventListener('input', updateStockUnitConversion);
+        document.getElementById('conversion_factor').addEventListener('input', updateStockUnitConversion);
 
         function closeStockModal() {
             document.getElementById('stockModal').classList.add('hidden');

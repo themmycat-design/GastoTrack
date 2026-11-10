@@ -5,7 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\StockItem;
 use App\Models\StockMovement;
-use App\Services\StockUnitPolicy;
+use App\Services\StockUnitChangeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\NotificationService;
@@ -100,15 +100,16 @@ class StockController extends Controller
 
         $data = $request->validate([
             'name' => 'sometimes|string|max:255', 'unit' => 'sometimes|string|max:50',
+            'conversion_factor' => 'nullable|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
             'minimum_quantity' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
             'unit_cost' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
             'active' => 'sometimes|boolean',
         ]);
-        if (isset($data['unit'])) {
-            StockUnitPolicy::ensureUnchanged($data['unit'], $item->unit);
-            unset($data['unit']);
-        }
-        $item->update($data);
+        $item = app(StockUnitChangeService::class)->update(
+            $item,
+            $data,
+            isset($data['conversion_factor']) ? (float) $data['conversion_factor'] : null,
+        );
         app(NotificationService::class)->notifyLowStock($item);
 
         $item->status = $this->getStatus($item->current_quantity, $item->minimum_quantity);

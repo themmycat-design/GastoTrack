@@ -6,16 +6,6 @@ use Illuminate\Validation\ValidationException;
 
 class StockUnitPolicy
 {
-    public static function ensureUnchanged(string $unit, string $currentUnit): void
-    {
-        // A saved unit defines every stock movement and recipe quantity for this item.
-        if (trim($unit) !== trim($currentUnit)) {
-            throw ValidationException::withMessages([
-                'unit' => 'The saved stock unit cannot be changed. Choose a compatible unit when adding or adjusting stock.',
-            ]);
-        }
-    }
-
     public static function adjustmentQuantity(float $quantity, string $enteredUnit, string $stockUnit): float
     {
         $enteredUnit = trim($enteredUnit);

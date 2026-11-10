@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class OwnerProductsTest extends TestCase
@@ -243,12 +244,18 @@ class OwnerProductsTest extends TestCase
         $this->actingAs($owner)->put(route('stock.update', $water), [
             'name' => 'Water', 'unit' => 'ml', 'minimum_quantity' => 0,
             'unit_cost' => 10, 'active' => 1,
-        ])->assertSessionHasErrors('unit');
-        $this->assertSame('L', $water->fresh()->unit);
+        ])->assertRedirect(route('stock.index'));
+        $this->assertSame('ml', $water->fresh()->unit);
+        $this->assertSame('1000.0000', $water->fresh()->current_quantity);
+        $this->assertSame('0.0100', $water->fresh()->unit_cost);
+        $this->assertDatabaseHas('product_ingredients', [
+            'product_id' => $savedProduct->id, 'stock_item_id' => $water->id, 'quantity' => 250,
+        ]);
         $this->actingAs($owner)->put(route('stock.update', $water), [
             'name' => 'Water', 'unit' => 'L', 'minimum_quantity' => 0,
             'unit_cost' => 10, 'active' => 1,
         ])->assertRedirect(route('stock.index'));
+        $this->assertSame('L', $water->fresh()->unit);
 
         $product['ingredients'][0]['unit'] = 'g';
         $this->actingAs($owner)->put(route('products.update', $savedProduct), $product)
@@ -273,7 +280,7 @@ class OwnerProductsTest extends TestCase
         $this->assertDatabaseHas('stock_items', ['business_id' => $business->id, 'name' => 'Water', 'unit' => 'L']);
     }
 
-    public function test_owner_adds_stock_in_its_saved_unit_without_changing_that_unit(): void
+    public function test_owner_can_change_a_stock_unit_and_preserve_its_value_and_history(): void
     {
         $business = $this->business('Stock Cafe');
         $owner = User::factory()->owner()->create(['business_id' => $business->id]);
@@ -292,8 +299,68 @@ class OwnerProductsTest extends TestCase
         $this->actingAs($owner)->put(route('stock.update', $stock), [
             'name' => 'Flour', 'unit' => 'g', 'minimum_quantity' => 2,
             'unit_cost' => 50, 'active' => 1,
+        ])->assertRedirect(route('stock.index'));
+        $this->assertSame('g', $stock->fresh()->unit);
+        $this->assertSame('15000.0000', $stock->fresh()->current_quantity);
+        $this->assertSame('2000.0000', $stock->fresh()->minimum_quantity);
+        $this->assertSame('0.0500', $stock->fresh()->unit_cost);
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_item_id' => $stock->id, 'quantity' => 10000, 'unit_cost_at_movement' => 0.05,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_item_id' => $stock->id, 'quantity' => 5000, 'unit_cost_at_movement' => 0.05,
+        ]);
+    }
+
+    public function test_owner_can_change_a_custom_stock_unit_with_a_conversion_and_invalid_precision_rolls_back(): void
+    {
+        $business = $this->business('Pack Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $cups = StockItem::create([
+            'business_id' => $business->id, 'name' => 'Cups', 'unit' => 'pcs',
+            'current_quantity' => 24, 'minimum_quantity' => 12, 'unit_cost' => 2,
+        ]);
+        $product = Product::create([
+            'business_id' => $business->id, 'name' => 'Tea', 'category' => 'Drinks', 'price' => 50,
+        ]);
+        $product->productIngredients()->create(['stock_item_id' => $cups->id, 'quantity' => 6]);
+
+        $payload = ['name' => 'Cups', 'unit' => 'pack', 'minimum_quantity' => 12, 'unit_cost' => 2, 'active' => 1];
+        $this->actingAs($owner)->put(route('stock.update', $cups), $payload)
+            ->assertSessionHasErrors('conversion_factor');
+        $this->assertSame('pcs', $cups->fresh()->unit);
+
+        $this->actingAs($owner)->put(route('stock.update', $cups), $payload + ['conversion_factor' => 12])
+            ->assertRedirect(route('stock.index'));
+        $this->assertSame('pack', $cups->fresh()->unit);
+        $this->assertSame('2.0000', $cups->fresh()->current_quantity);
+        $this->assertSame('1.0000', $cups->fresh()->minimum_quantity);
+        $this->assertSame('24.0000', $cups->fresh()->unit_cost);
+        $this->assertSame('0.5000', $product->productIngredients()->firstOrFail()->quantity);
+
+        $this->actingAs($owner)->put(route('stock.update', $cups), [
+            'name' => 'Cups', 'unit' => 'pcs', 'minimum_quantity' => 1,
+            'unit_cost' => 24, 'active' => 1, 'conversion_factor' => 0.0003,
         ])->assertSessionHasErrors('unit');
-        $this->assertSame('kg', $stock->fresh()->unit);
+        $this->assertSame('pack', $cups->fresh()->unit);
+        $this->assertSame('0.5000', $product->productIngredients()->firstOrFail()->quantity);
+    }
+
+    public function test_owner_api_uses_the_same_stock_unit_conversion(): void
+    {
+        $business = $this->business('API Unit Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $milk = StockItem::create([
+            'business_id' => $business->id, 'name' => 'Milk', 'unit' => 'L',
+            'current_quantity' => 2, 'minimum_quantity' => 0.5, 'unit_cost' => 10,
+        ]);
+
+        Sanctum::actingAs($owner);
+        $this->putJson('/api/v1/stock/'.$milk->id, ['unit' => 'ml'])
+            ->assertOk()->assertJsonPath('item.unit', 'ml');
+        $this->assertSame('2000.0000', $milk->fresh()->current_quantity);
+        $this->assertSame('500.0000', $milk->fresh()->minimum_quantity);
+        $this->assertSame('0.0100', $milk->fresh()->unit_cost);
     }
 
     public function test_owner_can_enter_adjustments_in_compatible_units(): void
