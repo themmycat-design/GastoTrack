@@ -398,7 +398,10 @@ const OrderQueueScreen = ({navigation, route}) => {
         setQrPaymentModalVisible(false);
         setPaymentType(null);
         setSelectedEwallet(null);
-        Alert.alert('Saved on this device', 'Cash order pending sync; sale not yet completed.');
+        Alert.alert('Saved on this device', 'Cash order is in Order history, pending sync. Sale and stock update after the server accepts it.', [
+          {text: 'Continue ordering'},
+          {text: 'View order', onPress: () => navigation.navigate('OrderHistory')},
+        ]);
       } else if (orderPaymentType === 'cashless' && order.paymentStatus !== 'confirmed') {
         setQrPaymentModalVisible(true);
         setPaymentSignalDetected(false);

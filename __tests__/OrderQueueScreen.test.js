@@ -90,13 +90,14 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
   });
 
   let screen;
+  const navigation = {navigate: jest.fn(), setParams: jest.fn()};
   ReactTestRenderer.act(() => {
     screen = ReactTestRenderer.create(
-      <OrderQueueScreen navigation={{navigate: jest.fn(), setParams: jest.fn()}} route={{params: {}}} />,
+      <OrderQueueScreen navigation={navigation} route={{params: {}}} />,
     );
   });
   mountedScreens.push(screen);
-  return {screen, setCart, createOrder, confirmPaymentFromNotification, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
+  return {screen, navigation, setCart, createOrder, confirmPaymentFromNotification, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
 };
 
 describe('OrderQueueScreen ordering flow', () => {
@@ -271,6 +272,20 @@ describe('OrderQueueScreen ordering flow', () => {
     await pressByLabel(screen, 'Save cash order');
 
     expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({paymentMethod: 'cash'}));
+  });
+
+  it('offers the saved offline cash order in Order history', async () => {
+    const {screen, navigation, createOrder} = setup({cart: [{product, quantity: 1}]});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+    createOrder.mockResolvedValue({offlinePending: true, clientId: 'offline-order-1'});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cash payment method');
+    await pressByLabel(screen, 'Save cash order');
+
+    const [, , buttons] = alertSpy.mock.calls.find(([title]) => title === 'Saved on this device');
+    buttons.find(button => button.text === 'View order').onPress();
+    expect(navigation.navigate).toHaveBeenCalledWith('OrderHistory');
   });
 
   it('explains an insufficient-stock rejection and keeps checkout available', async () => {

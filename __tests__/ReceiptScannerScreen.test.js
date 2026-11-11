@@ -4,7 +4,7 @@ import {Image, Modal, PermissionsAndroid, Platform, Text, TextInput, TouchableOp
 import {launchImageLibrary} from 'react-native-image-picker';
 import ReceiptScannerScreen from '../src/screens/staff/ReceiptScannerScreen';
 import {useTransactions} from '../src/context/TransactionContext';
-import {buildReceiptCategoryDescription, parseReceiptData, scanReceipt} from '../src/services/OCRService';
+import {buildReceiptCategoryDescription, parseReceiptData, scanReceipt, suggestReceiptCategory} from '../src/services/OCRService';
 import api from '../src/services/api';
 
 jest.mock('react-native-image-picker', () => ({
@@ -20,6 +20,7 @@ jest.mock('../src/services/OCRService', () => ({
   scanReceipt: jest.fn(),
   parseReceiptData: jest.fn(),
   buildReceiptCategoryDescription: jest.fn(),
+  suggestReceiptCategory: jest.fn(),
 }));
 jest.mock('../src/services/api', () => ({__esModule: true, default: {post: jest.fn()}}));
 jest.mock('../src/services/apiErrors', () => ({
@@ -51,6 +52,7 @@ const setupScanner = addTransaction => {
     confidence: 95,
   });
   buildReceiptCategoryDescription.mockReturnValue('Brew Haven | Coffee beans');
+  suggestReceiptCategory.mockReturnValue('Ingredients');
 };
 
 const chooseReceiptPhoto = async screen => {
@@ -196,6 +198,7 @@ describe('ReceiptScannerScreen automatic transaction flow', () => {
   it('lets staff edit the receipt and save with a manually selected category after an AI error', async () => {
     const addTransaction = jest.fn().mockResolvedValue({success: true, transaction: {id: 24}});
     setupScanner(addTransaction);
+    suggestReceiptCategory.mockReturnValue('');
     api.post.mockRejectedValue({
       isAxiosError: true,
       response: {status: 503, data: {message: 'Gemini is temporarily unavailable.'}},

@@ -51,7 +51,11 @@ export const getStaffSnapshot = async (account, kind) => {
 
 const endpoints = {
   transaction: action => ['/transactions', action.payload],
-  cash_order: action => ['/orders', action.payload],
+  cash_order: action => {
+    const serverPayload = {...action.payload};
+    delete serverPayload._local_item_names;
+    return ['/orders', serverPayload];
+  },
   stock_adjustment: action => [`/stock/${action.payload.stock_id}/adjust`, action.payload],
   product_create: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],
   product_update: action => ['/offline/mutations', {kind: action.kind, ...action.payload}],

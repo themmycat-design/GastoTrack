@@ -34,6 +34,11 @@ export const pendingOrders = actions => actions
     offlineError: action.error || null,
     total: Number(action.payload.items?.reduce((sum, item) =>
       sum + Number(item.expected_unit_price || 0) * Number(item.quantity || 0), 0) || 0),
+    items: action.payload.items?.map((item, index) => ({
+      ...item,
+      product_name: action.payload._local_item_names?.[index] || 'Product',
+      unit_price: Number(item.expected_unit_price || 0),
+    })) || [],
     created_at: action.payload.offline_recorded_at || new Date(action.created_at || Date.now()).toISOString(),
   }));
 

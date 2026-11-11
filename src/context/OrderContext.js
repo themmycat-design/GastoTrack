@@ -90,7 +90,7 @@ export const OrderProvider = ({children}) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [pagination, setPagination] = useState({currentPage: 0, lastPage: 1, total: 0});
-  const {userToken, user, business} = useContext(AuthContext);
+  const {userToken, user, business, offlineMode} = useContext(AuthContext);
   const offlineAccount = useMemo(() => user?.role === 'staff' && user?.id && (user?.business_id || business?.id)
     ? {userId: user.id, businessId: user.business_id || business.id} : null,
   [user?.role, user?.id, user?.business_id, business?.id]);
@@ -205,6 +205,20 @@ export const OrderProvider = ({children}) => {
     const requestId = ++ordersRequestId.current;
     append ? setIsLoadingMore(true) : setIsLoading(true);
     try {
+      if (offlineAccount && page === 1) {
+        // Show the durable outbox and last server snapshot immediately. A
+        // network timeout must not hide cash orders saved on this phone.
+        const pending = pendingOrders(await readPendingActions(offlineAccount)).map(normalize);
+        let cached = [];
+        try { cached = await getStaffSnapshot(offlineAccount, 'orders') || []; } catch {}
+        if (requestId !== ordersRequestId.current) return {success: false, stale: true};
+        setOrders([...pending, ...cached.filter(remote => !pending.some(local => local.client_id === remote.client_id))]);
+        setPagination(normalizePagination(null, 1, pending.length + cached.length));
+      }
+      if (offlineMode) {
+        setLoadError(null);
+        return {success: true, offline: true};
+      }
       const response = await api.get('/orders', {params: {page}});
       if (requestId !== ordersRequestId.current) return {success: false, stale: true};
       const normalized = (response.data.orders || []).map(normalize);
@@ -234,7 +248,7 @@ export const OrderProvider = ({children}) => {
     } finally {
       append ? setIsLoadingMore(false) : setIsLoading(false);
     }
-  }, [userToken, offlineAccount]);
+  }, [userToken, offlineAccount, offlineMode]);
 
   const hasMoreOrders = pagination.currentPage < pagination.lastPage;
   const loadMoreOrders = useCallback(() => {
@@ -347,9 +361,11 @@ export const OrderProvider = ({children}) => {
       }
       // If a timeout/lost response occurs, this attempt stays persisted. Retrying
       // the same cart reuses this client_id and the server returns the same order.
+      const localItemNames = orderData.items.map(item => String(item.product?.name || 'Product'));
       const submitted = offlineAccount && payload.payment_method === 'cash'
         ? await recordStaffAction(offlineAccount, 'cash_order', {
           ...payload,
+          _local_item_names: localItemNames,
           offline_recorded_at: attempt.offlineRecordedAt,
           items: payload.items.map((item, index) => ({
             ...item,
@@ -360,11 +376,25 @@ export const OrderProvider = ({children}) => {
       if (!submitted.synced) {
         // The durable SQLite outbox now owns the retry. Clear this cart so the
         // cashier can record the next sale without presenting this one as paid.
+        const localOrder = pendingOrders([{
+          kind: 'cash_order',
+          status: 'pending',
+          client_id: clientId,
+          payload: {
+            ...payload,
+            _local_item_names: localItemNames,
+            offline_recorded_at: attempt.offlineRecordedAt,
+            items: payload.items.map((item, index) => ({
+              ...item,
+              expected_unit_price: Number(orderData.items[index].product.price).toFixed(2),
+            })),
+          },
+        }])[0];
+        mergeOrder(localOrder);
         setCartState([]);
         await AsyncStorage.setItem(cartStorageKey, JSON.stringify({day: staffDayKey(), items: []}));
         await AsyncStorage.removeItem(attemptStorageKey);
-        fetchOrders();
-        return {offlinePending: true, clientId, paymentStatus: 'offline_pending', status: 'queued'};
+        return {...normalize(localOrder), clientId};
       }
       const response = {data: submitted.data};
       if (!response?.data?.order?.id) {
@@ -401,7 +431,7 @@ export const OrderProvider = ({children}) => {
     } finally {
       if (activeSubmission.current?.promise === promise) activeSubmission.current = null;
     }
-  }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData, offlineAccount, fetchOrders]);
+  }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData, offlineAccount]);
 
   const postOrderAction = useCallback(async (orderId, path, body = {}, options = {}) => {
     const response = await api.post(`/orders/${orderId}/${path}`, body);

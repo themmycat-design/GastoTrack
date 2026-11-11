@@ -44,6 +44,25 @@ describe('receipt scanning and review suggestions', () => {
     expect(parseReceiptData('Cafe\nTOTAL 245.00').date).toBeNull();
   });
 
+  it('reads a dated receipt amount, type, category and payment source together', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-11T12:00:00'));
+    try {
+      const parsed = parseReceiptData('Milk Supply Shop\nDate: 10/12/2026\nSugar 1kg\nAmount: PHP 150.00\nPayment method: GCash');
+      expect(parsed).toMatchObject({
+        date: '2026-10-12', dateDetected: true, amount: 150,
+        type: 'Expense', category: 'Ingredients', source: 'GCash', sourceDetected: true,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not treat cashier or a merchant name as proof of payment source', () => {
+    const parsed = parseReceiptData('Maya Cafe\nCashier: Jane\nAmount: PHP 85.00');
+    expect(parsed.sourceDetected).toBe(false);
+    expect(parseReceiptData('GCash\nPayment receipt\nAmount: PHP 85.00').source).toBe('GCash');
+  });
+
   it('does not classify a bare wallet notification as an expense receipt', () => {
     const parsed = parseReceiptData('GCash\nYou have received PHP 1.00');
     expect(parsed.type).toBeNull();

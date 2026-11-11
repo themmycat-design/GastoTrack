@@ -17,7 +17,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {AppAlert as Alert} from '../../services/AppDialogService';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import ReceiptCamera from '../../components/staff/ReceiptCamera';
-import { scanReceipt, parseReceiptData, buildReceiptCategoryDescription } from '../../services/OCRService';
+import { scanReceipt, parseReceiptData, buildReceiptCategoryDescription, suggestReceiptCategory } from '../../services/OCRService';
 import { useTransactions } from '../../context/TransactionContext';
 import api from '../../services/api';
 import {getApiErrorMessage} from '../../services/apiErrors';
@@ -176,6 +176,9 @@ const ReceiptScannerScreen = ({ navigation }) => {
 
       const parsed = parseReceiptData(ocrResponse.text, ocrResponse.blocks);
       setParsedData(parsed);
+      const availableCategories = parsed.type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+      const locallySuggestedCategory = suggestReceiptCategory(parsed, availableCategories);
+      setCategorySuggestion(locallySuggestedCategory || null);
       const detectedName = parsed.merchant && parsed.merchant !== 'Unknown Merchant' ? parsed.merchant : '';
       setManualDraft({
         name: detectedName,
@@ -183,7 +186,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
         amount: parsed.amount == null ? '' : String(parsed.amount),
         type: parsed.type === 'Income' ? 'Income' : 'Expense',
         source: parsed.sourceDetected ? parsed.source : '',
-        category: '',
+        category: locallySuggestedCategory,
         ocrProvider: ocrResponse.provider || ocrResponse.method || 'device_ocr',
       });
       const numericAmount = Number(parsed.amount);
@@ -250,7 +253,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
         amount: String(numericAmount),
         type: transactionType,
         source,
-        category: '',
+        category: locallySuggestedCategory,
         ocrProvider: ocrResponse.provider || ocrResponse.method || 'device_ocr',
       });
 
@@ -525,7 +528,7 @@ const ReceiptScannerScreen = ({ navigation }) => {
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Category:</Text>
                 <Text style={styles.dataValue} numberOfLines={2}>
-                  {categorySuggestion || (scanning ? 'Assigning…' : 'Not assigned')}
+                  {categorySuggestion ? (scanSaved ? categorySuggestion : `${categorySuggestion} (suggested)`) : (scanning ? 'Assigning…' : 'Not assigned')}
                 </Text>
               </View>
               <View style={styles.dataRow}>

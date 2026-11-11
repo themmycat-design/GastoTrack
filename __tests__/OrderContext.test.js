@@ -4,10 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../src/services/api';
 import {AuthContext} from '../src/context/AuthContext';
 import {OrderProvider, useOrders} from '../src/context/OrderContext';
-import {recordStaffAction} from '../src/services/staffOffline';
+import {getStaffOfflineActions, recordStaffAction} from '../src/services/staffOffline';
 
 jest.mock('../src/services/staffOffline', () => ({
   recordStaffAction: jest.fn(),
+  getStaffOfflineActions: jest.fn().mockResolvedValue([]),
+  getStaffSnapshot: jest.fn().mockResolvedValue(null),
+  saveStaffSnapshot: jest.fn().mockResolvedValue(undefined),
   subscribeStaffOffline: jest.fn(() => () => {}),
 }));
 
@@ -56,6 +59,7 @@ describe('OrderProvider user-scoped storage', () => {
     AsyncStorage.removeMany.mockResolvedValue(undefined);
     api.get.mockResolvedValue({data: {orders: [], meta: {current_page: 1, last_page: 1, total: 0}}});
     recordStaffAction.mockReset();
+    getStaffOfflineActions.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -157,6 +161,12 @@ describe('OrderProvider user-scoped storage', () => {
       await flushEffects();
     });
     expect(result).toMatchObject({offlinePending: true, paymentStatus: 'offline_pending'});
+    expect(activeOrdersContext.orders).toEqual([expect.objectContaining({
+      id: `local:${result.clientId}`,
+      status: 'queued',
+      total: 85,
+      items: [expect.objectContaining({product_name: 'Product', quantity: 1})],
+    })]);
     expect(recordStaffAction).toHaveBeenCalledWith({userId: 17, businessId: 2}, 'cash_order',
       expect.objectContaining({
         payment_method: 'cash',
@@ -165,6 +175,29 @@ describe('OrderProvider user-scoped storage', () => {
       }), expect.any(String));
     expect(activeOrdersContext.cart).toEqual([]);
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('restores queued orders from SQLite without waiting for the server in offline mode', async () => {
+    getStaffOfflineActions.mockResolvedValue([{
+      kind: 'cash_order', status: 'pending', client_id: 'offline-1',
+      payload: {customer_name: 'Walk-in Customer', payment_method: 'cash',
+        offline_recorded_at: '2026-10-11T09:00:00.000Z', _local_item_names: ['Latte'],
+        items: [{product_id: 42, quantity: 2, expected_unit_price: '85.00'}]},
+    }]);
+    await act(async () => {
+      tree = TestRenderer.create(
+        <AuthContext.Provider value={{userToken: 'offline-token', offlineMode: true,
+          user: {id: 17, role: 'staff', business_id: 2}}}>
+          <OrderProvider><OrdersConsumer /></OrderProvider>
+        </AuthContext.Provider>,
+      );
+      await flushEffects();
+    });
+    expect(activeOrdersContext.orders).toEqual([expect.objectContaining({
+      id: 'local:offline-1', offlinePending: true, total: 170,
+      items: [expect.objectContaining({product_name: 'Latte', quantity: 2})],
+    })]);
+    expect(api.get).not.toHaveBeenCalledWith('/orders', expect.anything());
   });
 
   it('keeps edited ingredient amounts in the offline cash order outbox', async () => {

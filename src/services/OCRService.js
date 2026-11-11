@@ -5,17 +5,19 @@
  */
 
 // Common keywords found in receipts
-const AMOUNT_KEYWORDS = ['grand total', 'total due', 'amount due', 'total', 'amount paid'];
+const AMOUNT_KEYWORDS = ['grand total', 'total due', 'amount due', 'amount payable', 'amount to pay', 'net amount', 'total', 'amount paid', 'amount'];
 
 // E-wallet and payment source patterns
 const PAYMENT_SOURCES = {
-  gcash: /gcash|g-?cash/i,
-  maya: /maya|paymaya/i,
-  grabpay: /grab\s?pay|grabpay/i,
-  shopeepay: /shopee\s?pay|shopeepay/i,
-  cash: /cash/i,
+  gcash: /\bg-?cash\b/i,
+  maya: /\b(?:paymaya|maya)\b/i,
+  grabpay: /\bgrab\s?pay\b/i,
+  shopeepay: /\bshopee\s?pay\b/i,
+  bank: /\bbank\s*(?:transfer|payment)\b/i,
+  card: /\b(?:credit\s*card|card\s*payment)\b/i,
+  cash: /\bcash\b/i,
 };
-const PAYMENT_SOURCE_LABELS = {gcash: 'GCash', maya: 'Maya', grabpay: 'GrabPay', shopeepay: 'ShopeePay', cash: 'Cash'};
+const PAYMENT_SOURCE_LABELS = {gcash: 'GCash', maya: 'Maya', grabpay: 'GrabPay', shopeepay: 'ShopeePay', bank: 'Bank Transfer', card: 'Credit Card', cash: 'Cash'};
 
 // These are suggestions only; the review screen must match them against the
 // business's currently available categories before selecting one.
@@ -178,7 +180,10 @@ const extractDate = (lines) => {
       if (first > 12 && second <= 12) return validDate(year, second, first);
       if (second > 12 && first <= 12) return validDate(year, first, second);
       if (first === second) return validDate(year, first, second);
-      return null;
+      // Use a numeric date only when one interpretation is a real past date.
+      const dayFirst = validDate(year, second, first);
+      const monthFirst = validDate(year, first, second);
+      return dayFirst && !monthFirst ? dayFirst : monthFirst && !dayFirst ? monthFirst : null;
     }
     
     // Pattern: Month DD, YYYY
@@ -322,8 +327,10 @@ export const buildReceiptCategoryDescription = (parsed, transactionName = parsed
  * Detect payment source from text
  */
 const detectPaymentSource = (text) => {
-  const paymentLines = text.split('\n').filter(line => /\b(?:paid|payment|tendered|method|via|mode of payment)\b/i.test(line));
-  for (const candidate of [paymentLines.join('\n'), text.split('\n').slice(1).join('\n'), text]) {
+  const lines = text.split('\n').map(line => line.trim());
+  const paymentLines = lines.filter(line => /\b(?:paid|payment|tendered|method|mode|source|via|reference|ref)\b/i.test(line));
+  const standaloneSources = lines.filter(line => /^(?:g-?cash|paymaya|maya|grab\s?pay|shopee\s?pay|cash|bank\s*transfer|credit\s*card)$/i.test(line));
+  for (const candidate of [...paymentLines, ...standaloneSources]) {
     for (const [source, pattern] of Object.entries(PAYMENT_SOURCES)) {
       if (pattern.test(candidate)) return PAYMENT_SOURCE_LABELS[source];
     }
@@ -338,7 +345,7 @@ const detectCategory = (text) => {
   // A shop buying ingredients can have "received by" on its receipt; that
   // alone must never turn an expense into income.
   const type = /\b(?:sales report|daily sales|sales income|revenue report|income receipt|tips received|catering payout)\b/i.test(text)
-    ? 'Income' : /\b(?:receipt|invoice|bill|total|amount due)\b/i.test(text)
+    ? 'Income' : /\b(?:receipt|invoice|bill|total|amount(?:\s*(?:due|payable|to pay|paid))?)\b/i.test(text)
       ? 'Expense' : null;
   const itemText = text.split('\n').slice(1)
     .filter(line => !/\b(?:total|amount due|cash|gcash|maya|receipt|invoice)\b/i.test(line))

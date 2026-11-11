@@ -8,7 +8,7 @@
         <span class="rounded-full bg-[#F4F8F7] px-3 py-1.5 text-xs font-bold text-slate-500">{{ $viewMode === 'raw' ? $captures->total() : $transactions->total() }} records</span>
     </div>
     <nav class="flex gap-2 border-b border-[#EAF2EF] px-5 py-3 sm:px-6" aria-label="Activity views">
-        <a href="{{ route('transactions.index', array_merge(request()->except(['view', 'page', 'fragment', 'category']), ['view' => 'daily'])) }}" data-activity-view="daily" aria-current="{{ $viewMode === 'daily' ? 'page' : 'false' }}" class="gt-focus rounded-xl px-4 py-2 text-sm font-bold transition {{ $viewMode === 'daily' ? 'bg-[#00A87E] text-white' : 'border border-[#C8DED7] bg-white text-[#08745D] hover:bg-[#EAF8F2]' }}">Daily transaction</a>
+        <a href="{{ route('transactions.index', array_merge(request()->except(['view', 'page', 'fragment', 'category']), ['view' => 'daily'])) }}" data-activity-view="daily" aria-current="{{ $viewMode === 'daily' ? 'page' : 'false' }}" class="gt-focus rounded-xl px-4 py-2 text-sm font-bold transition {{ $viewMode === 'daily' ? 'bg-[#00A87E] text-white' : 'border border-[#C8DED7] bg-white text-[#08745D] hover:bg-[#EAF8F2]' }}">All transaction</a>
         <a href="{{ route('transactions.index', array_merge(request()->except(['view', 'page', 'fragment', 'category']), ['view' => 'raw'])) }}" data-activity-view="raw" aria-current="{{ $viewMode === 'raw' ? 'page' : 'false' }}" class="gt-focus rounded-xl px-4 py-2 text-sm font-bold transition {{ $viewMode === 'raw' ? 'bg-[#00A87E] text-white' : 'border border-[#C8DED7] bg-white text-[#08745D] hover:bg-[#EAF8F2]' }}">Raw transaction</a>
     </nav>
     @if($viewMode === 'raw')
