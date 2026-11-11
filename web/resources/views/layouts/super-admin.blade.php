@@ -123,6 +123,7 @@
                 $links = [
                     ['super-admin.dashboard', 'super-admin.dashboard', 'fa-chart-line', 'Overview'],
                     ['super-admin.businesses', 'super-admin.businesses*', 'fa-building', 'Businesses'],
+                    ['super-admin.subscription-requests.index', 'super-admin.subscription-requests.*', 'fa-credit-card', 'Subscription requests'],
                     ['super-admin.users.index', 'super-admin.users.*', 'fa-users', 'Users and staff'],
                     ['super-admin.activity-logs.index', 'super-admin.activity-logs.*', 'fa-list-check', 'Admin activity'],
                     ['super-admin.bug-reports.index', 'super-admin.bug-reports.*', 'fa-bug', 'Bug reports'],

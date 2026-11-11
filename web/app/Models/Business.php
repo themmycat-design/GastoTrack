@@ -85,6 +85,11 @@ class Business extends Model
         return $this->hasMany(BugReport::class);
     }
 
+    public function subscriptionRequests()
+    {
+        return $this->hasMany(SubscriptionRequest::class);
+    }
+
     // Status helper methods
     public function isPending()
     {

@@ -22,6 +22,8 @@ use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\PlatformUserController;
 use App\Http\Controllers\AdminActivityLogController;
 use App\Http\Controllers\BusinessSubscriptionController;
+use App\Http\Controllers\OwnerSubscriptionRequestController;
+use App\Http\Controllers\PlatformSubscriptionRequestController;
 use App\Http\Controllers\BusinessBulkActionController;
 use App\Http\Controllers\PublicContactController;
 use App\Models\BugReport;
@@ -52,6 +54,13 @@ Route::get('/business-status', function () {
 
     return view('auth.business-status', compact('business'));
 })->middleware(['auth', 'verified'])->name('business.status');
+
+// Renewal requests stay available even when the current subscription has expired.
+Route::middleware(['auth', 'verified', 'owner', 'owner.security'])->prefix('subscription')->name('owner.subscriptions.')->group(function () {
+    Route::get('/', [OwnerSubscriptionRequestController::class, 'index'])->name('index');
+    Route::post('/', [OwnerSubscriptionRequestController::class, 'store'])->name('store');
+    Route::get('/requests/{subscriptionRequest}/proof', [OwnerSubscriptionRequestController::class, 'proof'])->name('proof');
+});
 
 // Owner Dashboard routes
 Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscription.write'])->group(function () {
@@ -115,6 +124,13 @@ Route::middleware('auth')->group(function () {
 // Super Admin routes
 Route::middleware(['auth', 'super_admin', 'platform.account.active'])->prefix('super-admin')->name('super-admin.')->group(function () {
     Route::get('/dashboard', [SuperAdminController::class, 'dashboard'])->name('dashboard');
+    Route::prefix('subscription-requests')->name('subscription-requests.')->controller(PlatformSubscriptionRequestController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{subscriptionRequest}', 'show')->name('show');
+        Route::get('/{subscriptionRequest}/proof', 'proof')->name('proof');
+        Route::post('/{subscriptionRequest}/accept', 'accept')->name('accept');
+        Route::delete('/{subscriptionRequest}', 'destroy')->name('destroy');
+    });
     Route::get('/users', [PlatformUserController::class, 'index'])->name('users.index');
     Route::get('/users/{user}', [PlatformUserController::class, 'show'])->name('users.show');
     Route::post('/users/{user}/password-reset', [PlatformUserController::class, 'sendPasswordReset'])->name('users.password-reset');

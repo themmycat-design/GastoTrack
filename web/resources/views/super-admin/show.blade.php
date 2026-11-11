@@ -57,6 +57,7 @@
         </section>
         <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 class="text-lg font-bold">Subscription controls</h2>
+            <a href="{{ route('super-admin.subscription-requests.index') }}" class="mt-2 inline-flex text-sm font-semibold text-emerald-700 hover:underline">Review subscription requests &rarr;</a>
             <p class="mt-1 text-sm text-slate-600">Business approval is separate. Free allows two staff accounts. Paid plans need an end date.</p>
             <p class="mt-3 text-sm font-semibold">Subscription access: {{ $business->subscriptionIsCurrent() ? 'Current' : 'Expired or suspended' }} <span class="font-normal text-slate-600">(business status: {{ $business->status }})</span></p>
             <form method="POST" action="{{ route('super-admin.businesses.subscription.update', $business) }}" class="mt-4 grid gap-4 sm:grid-cols-3">
