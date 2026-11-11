@@ -26,6 +26,10 @@
             </button>
         </section>
 
+        <p class="gt-enter text-sm text-slate-600">Products: <strong>{{ $totalProducts }} / {{ $productCapacity ?? 'Unlimited' }}</strong> on your {{ ucfirst(auth()->user()->business?->plan_tier ?? 'free') }} plan.
+            @if($productCapacity !== null && $totalProducts >= $productCapacity)<a class="font-bold text-[#08745D] underline" href="{{ route('owner.subscriptions.index') }}">View plans</a>@endif
+        </p>
+
         @if(session('success'))
             <div role="status" class="rounded-xl border border-[#C8DED7] bg-[#EAF8F2] px-4 py-3 text-sm font-semibold text-[#08745D]">{{ session('success') }}</div>
         @endif

@@ -8,6 +8,7 @@ use App\Models\ProductEditRequest;
 use App\Models\ProductIngredient;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\BusinessPlanLimits;
 use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ class ProductController extends Controller
     }
 
     // POST /api/products
-    public function store(Request $request, RecipeIngredientNormalizer $normalizer)
+    public function store(Request $request, RecipeIngredientNormalizer $normalizer, BusinessPlanLimits $planLimits)
     {
         $this->ensureCanManageProducts($request);
         $validated = $request->validate([
@@ -65,16 +66,17 @@ class ProductController extends Controller
 
         $imagePath = $this->storePhoto($request);
         try {
-            return DB::transaction(function () use ($request, $imagePath, $ingredients) {
+            return DB::transaction(function () use ($request, $validated, $imagePath, $ingredients, $planLimits) {
+                $planLimits->assertCanAddProduct((int) $request->user()->business_id);
                 $product = Product::create([
                     'business_id' => $request->user()->business_id,
-                    'name' => $request->name,
-                    'category' => $request->category,
+                    'name' => $validated['name'],
+                    'category' => $validated['category'],
                     'size' => $validated['size'] ?? null,
-                    'price' => $request->price,
-                    'description' => $request->description,
-                    'emoji' => $request->emoji ?? '🍵',
-                    'is_available' => $request->is_available ?? true,
+                    'price' => $validated['price'],
+                    'description' => $validated['description'] ?? null,
+                    'emoji' => $validated['emoji'] ?? '🍵',
+                    'is_available' => $validated['is_available'] ?? true,
                     'image' => $imagePath,
                 ]);
 

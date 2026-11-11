@@ -27,6 +27,10 @@
             </button>
         </section>
 
+        <p class="gt-enter text-sm text-slate-600">Staff accounts: <strong>{{ $totalStaff }} / {{ $staffCapacity ?? 'Unlimited' }}</strong> on your {{ ucfirst(auth()->user()->business?->plan_tier ?? 'free') }} plan.
+            @if($staffCapacity !== null && $totalStaff >= $staffCapacity)<a class="font-bold text-[#08745D] underline" href="{{ route('owner.subscriptions.index') }}">View plans</a>@endif
+        </p>
+
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div class="gt-card gt-lift gt-enter gt-enter-1 p-5 sm:p-6">

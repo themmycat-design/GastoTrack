@@ -36,6 +36,21 @@
                 <div class="rounded-2xl border border-[#DDE9E5] bg-white p-5 shadow-sm"><p class="text-xs font-bold text-slate-500">Paid plan ends</p><p class="mt-2 text-xl font-extrabold">{{ $business->subscription_ends_at?->timezone('Asia/Manila')->format('M d, Y') ?? 'No end date' }}</p></div>
             </section>
 
+            <section class="rounded-2xl border border-[#DDE9E5] bg-white p-5 shadow-sm sm:p-6" aria-labelledby="plan-limits-title">
+                <h2 id="plan-limits-title" class="text-lg font-extrabold">Plan limits</h2>
+                <p class="mt-1 text-sm text-slate-600">Your business uses {{ $staffCount }} of {{ $currentLimits['staff'] ?? 'unlimited' }} staff accounts and {{ $productCount }} of {{ $currentLimits['products'] ?? 'unlimited' }} product slots. Existing records stay available if you switch to a smaller plan; new staff and products wait until you are below its limit.</p>
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full min-w-[420px] text-left text-sm">
+                        <thead><tr class="border-b border-[#DDE9E5] text-slate-600"><th scope="col" class="py-2 pr-4">Plan</th><th scope="col" class="py-2 pr-4">Staff accounts</th><th scope="col" class="py-2">Products</th></tr></thead>
+                        <tbody>
+                            @foreach($tiers as $tier => $limits)
+                                <tr class="border-b border-[#EAF2EF] last:border-0"><th scope="row" class="py-2 pr-4 font-bold capitalize">{{ $tier }}</th><td class="py-2 pr-4">{{ $limits['staff'] ?? 'Unlimited' }}</td><td class="py-2">{{ $limits['products'] ?? 'Unlimited' }}</td></tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,.9fr)]">
                 <section class="rounded-2xl border border-[#DDE9E5] bg-white p-5 shadow-sm sm:p-6">
                     <h2 class="text-lg font-extrabold">Request a subscription</h2>

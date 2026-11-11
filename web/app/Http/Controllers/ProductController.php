@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ProductEditRequest;
 use App\Models\StockItem;
+use App\Services\BusinessPlanLimits;
 use App\Services\RecipeIngredientNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ use Throwable;
 
 class ProductController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, BusinessPlanLimits $planLimits)
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -64,6 +65,7 @@ class ProductController extends Controller
             ->distinct()
             ->pluck('size');
         $totalProducts = Product::query()->where('business_id', $businessId)->count();
+        $productCapacity = $planLimits->forTier($request->user()->business?->plan_tier)['products'];
         $availableProducts = Product::query()
             ->where('business_id', $businessId)
             ->where('active', true)
@@ -86,26 +88,27 @@ class ProductController extends Controller
             ->get();
 
         return view('products.index', compact(
-            'products', 'categories', 'sizes', 'totalProducts', 'availableProducts', 'categoriesCount', 'stockItems', 'pendingEditRequests'
+            'products', 'categories', 'sizes', 'totalProducts', 'productCapacity', 'availableProducts', 'categoriesCount', 'stockItems', 'pendingEditRequests'
         ));
     }
 
-    public function store(Request $request, RecipeIngredientNormalizer $normalizer)
+    public function store(Request $request, RecipeIngredientNormalizer $normalizer, BusinessPlanLimits $planLimits)
     {
         $businessId = (int) $request->user()->business_id;
         $validated = $request->validate($this->productRules($businessId));
         $validated['ingredients'] = $normalizer->normalize($validated['ingredients'] ?? [], $businessId);
-        $maxOrder = Product::query()->where('business_id', $businessId)->max('display_order');
         $attributes = $this->productAttributes($validated);
         $attributes['business_id'] = $businessId;
         $attributes['active'] = true;
-        $attributes['display_order'] = ((int) $maxOrder) + 1;
         $imagePath = $request->file('image')?->store('products/'.$businessId, 'public');
         abort_unless(! $request->hasFile('image') || $imagePath, 503, 'The product photo could not be saved. Please try again.');
         $attributes['image'] = $imagePath;
 
         try {
-            DB::transaction(function () use ($attributes, $validated): void {
+            DB::transaction(function () use ($attributes, $validated, $businessId, $planLimits): void {
+                $planLimits->assertCanAddProduct($businessId);
+                $maxOrder = Product::query()->where('business_id', $businessId)->max('display_order');
+                $attributes['display_order'] = ((int) $maxOrder) + 1;
                 $product = Product::create($attributes);
                 $this->syncIngredients($product, $validated['ingredients'] ?? []);
             });

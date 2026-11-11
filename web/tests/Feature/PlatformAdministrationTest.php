@@ -118,7 +118,7 @@ class PlatformAdministrationTest extends TestCase
     {
         $business = $this->business();
         $owner = $business->owner_account;
-        User::factory()->count(2)->staff()->create(['business_id' => $business->id]);
+        User::factory()->staff()->create(['business_id' => $business->id]);
         $payload = [
             'name' => 'Additional Staff', 'email' => 'additional@example.test',
             'password' => 'StrongPassword1!', 'password_confirmation' => 'StrongPassword1!', 'role' => 'staff',
@@ -127,7 +127,7 @@ class PlatformAdministrationTest extends TestCase
         $this->actingAs($owner)->post(route('staff.store'), $payload)->assertSessionHasErrors('role');
         $business->update(['plan_tier' => 'pro', 'subscription_ends_at' => now()->addMonth()]);
         $this->post(route('staff.store'), $payload)->assertRedirect();
-        $this->assertSame(3, $business->users()->where('role', 'staff')->count());
+        $this->assertSame(2, $business->users()->where('role', 'staff')->count());
     }
 
     public function test_bulk_approval_is_all_or_nothing_and_records_each_change(): void

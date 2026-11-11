@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\SubscriptionRequest;
+use App\Services\BusinessPlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -13,13 +14,18 @@ use Throwable;
 
 class OwnerSubscriptionRequestController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, BusinessPlanLimits $planLimits)
     {
         $business = $request->user()->business;
         $requests = $business->subscriptionRequests()->latest()->paginate(10);
         $hasPendingRequest = $business->subscriptionRequests()->where('status', 'pending')->exists();
+        $staffCount = $business->users()->where('role', 'staff')->count();
+        $productCount = $business->products()->count();
+        $currentLimits = $planLimits->forTier($business->plan_tier);
+        $tiers = collect(['free', 'basic', 'pro', 'enterprise'])
+            ->mapWithKeys(fn (string $tier) => [$tier => $planLimits->forTier($tier)]);
 
-        return view('subscriptions.owner', compact('business', 'requests', 'hasPendingRequest'));
+        return view('subscriptions.owner', compact('business', 'requests', 'hasPendingRequest', 'staffCount', 'productCount', 'currentLimits', 'tiers'));
     }
 
     public function store(Request $request)

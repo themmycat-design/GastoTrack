@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Rules\PasswordStrength;
+use App\Services\BusinessPlanLimits;
 use App\Services\BusinessStaffLimit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +16,7 @@ class StaffController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request, BusinessPlanLimits $planLimits)
     {
         $user = auth()->user();
         $businessId = $user->business_id;
@@ -47,8 +48,9 @@ class StaffController extends Controller
         $totalStaff = User::where('business_id', $businessId)->where('role', 'staff')->count();
         $totalOwners = User::where('business_id', $businessId)->where('role', 'owner')->count();
         $totalUsers = User::where('business_id', $businessId)->count();
+        $staffCapacity = $planLimits->forTier($user->business?->plan_tier)['staff'];
         
-        return view('staff.index', compact('staff', 'totalStaff', 'totalOwners', 'totalUsers'));
+        return view('staff.index', compact('staff', 'totalStaff', 'totalOwners', 'totalUsers', 'staffCapacity'));
     }
 
     /**
