@@ -27,8 +27,11 @@ export const pendingOrders = actions => actions
     client_id: action.client_id,
     customer_name: action.payload.customer_name || 'Walk-in Customer',
     payment_method: 'cash',
-    payment_status: action.status === 'rejected' ? 'offline_rejected' : 'offline_pending',
-    status: action.status === 'rejected' ? 'rejected' : 'queued',
+    // Cash was received and the sale was completed on this phone. The server
+    // still has to accept the order before shared stock and reports change.
+    payment_status: action.status === 'rejected' ? 'offline_rejected' : 'confirmed',
+    status: action.status === 'rejected' ? 'rejected' : 'completed',
+    localCompleted: action.status === 'pending',
     offlinePending: true,
     offlineRejected: action.status === 'rejected',
     offlineError: action.error || null,
@@ -40,7 +43,36 @@ export const pendingOrders = actions => actions
       unit_price: Number(item.expected_unit_price || 0),
     })) || [],
     created_at: action.payload.offline_recorded_at || new Date(action.created_at || Date.now()).toISOString(),
+    completed_at: action.status === 'pending'
+      ? action.payload.offline_recorded_at || new Date(action.created_at || Date.now()).toISOString() : null,
   }));
+
+// Show locally completed cash orders in activity without recording a second
+// sale. The server creates the authoritative order transaction during sync.
+export const pendingOrderTransactions = actions => pendingOrders(actions).map(order => {
+  const recordedAt = new Date(order.created_at);
+  const date = Number.isNaN(recordedAt.getTime()) ? String(order.created_at).slice(0, 10)
+    : `${recordedAt.getFullYear()}-${String(recordedAt.getMonth() + 1).padStart(2, '0')}-${String(recordedAt.getDate()).padStart(2, '0')}`;
+  const description = order.items.map(item => `${item.quantity}× ${item.product_name}`).join(', ')
+    || order.customer_name;
+  return {
+    id: order.id,
+    client_id: order.client_id,
+    type: 'income',
+    source: 'Cash',
+    category: 'Sales',
+    amount: order.total,
+    transaction_date: date,
+    description,
+    entry_method: 'order_system',
+    offlinePending: true,
+    offlineRejected: order.offlineRejected,
+    localCompleted: order.localCompleted,
+    offlineError: order.offlineError,
+    offlineAction: 'Order',
+    created_at: order.created_at,
+  };
+});
 
 export const filterCachedTransactions = (records, {search, source, category, from, to} = {}) => {
   const term = String(search || '').trim().toLowerCase();

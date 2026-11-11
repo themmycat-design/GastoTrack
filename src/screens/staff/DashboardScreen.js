@@ -207,7 +207,7 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={[styles.incomeAmount, todayIncome === null && styles.incomeStatus]}>{incomeLoading ? 'Loading…' : todayIncome === null ? 'Unavailable' : todayIncome.toFixed(2)}</Text>
           </View>
           <Text style={styles.incomeDescription}>{incomeLoading ? 'Loading today’s income records…'
-            : todayIncome !== null ? `Income entries today: ${todayIncomeCount ?? 0}${pendingIncomeCount ? ` · ${pendingIncomeCount} pending sync` : ''}`
+            : todayIncome !== null ? `Income entries today: ${todayIncomeCount ?? 0}${pendingIncomeCount ? ` · ${pendingIncomeCount} completed on device, syncing` : ''}`
               : 'Pull down to refresh today’s income'}</Text>
         </View>
 

@@ -4,7 +4,7 @@ import { AuthContext } from './AuthContext';
 import {getApiErrorMessage} from '../services/apiErrors';
 import {productCategoriesFromOptions} from '../constants/productCategories';
 import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOffline} from '../services/staffOffline';
-import {filterCachedTransactions, overlayTransactionMutations, pendingTransactions, readPendingActions} from '../services/offlineRecords';
+import {filterCachedTransactions, overlayTransactionMutations, pendingOrderTransactions, pendingTransactions, readPendingActions} from '../services/offlineRecords';
 
 export const TransactionContext = createContext();
 
@@ -44,6 +44,8 @@ const normalizeTransaction = transaction => ({
   notes: transaction.description || transaction.notes,
   entryMethod: transaction.entry_method || transaction.entryMethod,
 });
+const pendingActivity = actions => [...pendingTransactions(actions), ...pendingOrderTransactions(actions)]
+  .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
 const normalizePagination = (meta, page, count) => ({
   currentPage: Number(meta?.current_page ?? page),
   lastPage: Number(meta?.last_page ?? page),
@@ -161,7 +163,7 @@ export const TransactionProvider = ({ children }) => {
       if (offlineAccount && page === 1) saveStaffSnapshot(offlineAccount, 'transactions', normalized).catch(() => {});
       const actions = offlineAccount && page === 1 ? await readPendingActions(offlineAccount) : [];
       const pending = offlineAccount && page === 1
-        ? pendingTransactions(actions).map(normalizeTransaction)
+        ? pendingActivity(actions).map(normalizeTransaction)
           .filter(local => !normalized.some(remote => remote.client_id === local.client_id)) : [];
       setTransactions(current => append
         ? [...current, ...normalized.filter(record => !current.some(item => item.id === record.id))]
@@ -175,7 +177,7 @@ export const TransactionProvider = ({ children }) => {
         try {
           const cached = await getStaffSnapshot(offlineAccount, 'transactions') || [];
           const actions = await readPendingActions(offlineAccount);
-          const pending = pendingTransactions(actions).map(normalizeTransaction);
+          const pending = pendingActivity(actions).map(normalizeTransaction);
           setTransactions([...pending, ...overlayTransactionMutations(cached, actions)]);
           setPagination(normalizePagination(null, 1, cached.length + pending.length));
         } catch {}
@@ -205,7 +207,7 @@ export const TransactionProvider = ({ children }) => {
       const normalized = records.map(normalizeTransaction);
       const actions = offlineAccount && page === 1 ? await readPendingActions(offlineAccount) : [];
       const pending = offlineAccount && page === 1
-        ? filterCachedTransactions(pendingTransactions(actions), {search, source, category, from, to})
+        ? filterCachedTransactions(pendingActivity(actions), {search, source, category, from, to})
           .map(normalizeTransaction).filter(local => !normalized.some(remote => remote.client_id === local.client_id)) : [];
       return {
         success: true,
@@ -217,7 +219,7 @@ export const TransactionProvider = ({ children }) => {
         try {
           const cached = await getStaffSnapshot(offlineAccount, 'transactions') || [];
           const actions = await readPendingActions(offlineAccount);
-          const pending = pendingTransactions(actions);
+          const pending = pendingActivity(actions);
           const filtered = filterCachedTransactions([...pending, ...cached], {search, source, category, from, to});
           return {
             success: true, offline: true,

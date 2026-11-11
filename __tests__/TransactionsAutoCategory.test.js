@@ -73,6 +73,20 @@ describe('staff expense category selection', () => {
     expect(addTransaction).toHaveBeenCalledWith(expect.objectContaining({category: 'Ingredients', notes: 'Coffee beans', amount: 85}));
   });
 
+  it('shows a device-completed cash order in activity with a sync label', async () => {
+    useTransactions().queryTransactions.mockResolvedValue({
+      success: true,
+      transactions: [{id: 'local:order-1', client_id: 'order-1', type: 'Income',
+        category: 'Sales', source: 'Cash', amount: 170, date: '2026-11-03',
+        notes: '2× Latte', entryMethod: 'order_system', offlinePending: true, localCompleted: true, offlineAction: 'Order'}],
+      pagination: {currentPage: 1, lastPage: 1},
+    });
+    await act(async () => { screen = TestRenderer.create(<TransactionsScreen route={{params: {}}} />); });
+    expect(screen.root.findAllByType(Text).some(node => node.props.children === '2× Latte')).toBe(true);
+    expect(screen.root.findAllByType(Text).some(node => String(node.props.children).includes('Completed on device · syncing when online'))).toBe(true);
+    expect(screen.root.findAllByType(Text).some(node => JSON.stringify(node.props.children).includes('170.00'))).toBe(true);
+  });
+
   it('shows categories for a blank expense name and saves the chosen category without AI', async () => {
     await act(async () => { screen = TestRenderer.create(<TransactionsScreen route={{params: {}}} />); });
     const form = await openExpenseForm(screen, {selectSource: false});

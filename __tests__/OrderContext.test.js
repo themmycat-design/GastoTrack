@@ -160,10 +160,10 @@ describe('OrderProvider user-scoped storage', () => {
       });
       await flushEffects();
     });
-    expect(result).toMatchObject({offlinePending: true, paymentStatus: 'offline_pending'});
+    expect(result).toMatchObject({offlinePending: true, localCompleted: true, paymentStatus: 'confirmed'});
     expect(activeOrdersContext.orders).toEqual([expect.objectContaining({
       id: `local:${result.clientId}`,
-      status: 'queued',
+      status: 'completed',
       total: 85,
       items: [expect.objectContaining({product_name: 'Product', quantity: 1})],
     })]);
@@ -194,7 +194,7 @@ describe('OrderProvider user-scoped storage', () => {
       await flushEffects();
     });
     expect(activeOrdersContext.orders).toEqual([expect.objectContaining({
-      id: 'local:offline-1', offlinePending: true, total: 170,
+      id: 'local:offline-1', offlinePending: true, localCompleted: true, status: 'completed', total: 170,
       items: [expect.objectContaining({product_name: 'Latte', quantity: 2})],
     })]);
     expect(api.get).not.toHaveBeenCalledWith('/orders', expect.anything());

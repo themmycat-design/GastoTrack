@@ -24,6 +24,7 @@ import {useAuth} from '../../context/AuthContext';
 import {useTransactions} from '../../context/TransactionContext';
 import {getApiErrorMessage} from '../../services/apiErrors';
 import api from '../../services/api';
+import {subscribeStaffOffline} from '../../services/staffOffline';
 import {COLORS, RADIUS, SHADOWS} from '../../theme';
 import {transactionDisplayName} from '../../utils/transactionDisplay';
 import {transactionCategoryIcon, transactionTypeIcon} from '../../utils/transactionIcons';
@@ -180,10 +181,10 @@ const TransactionActivityList = React.memo(({
             <Icon name={transactionTypeIcon(item.type)} size={13} color={income ? COLORS.success : COLORS.danger} />
             <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
           </View>
-          <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}</Text>
+          <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}{item.offlineRejected ? ` · ${item.offlineAction || 'Save'} sync failed` : item.localCompleted ? ' · Completed on device · syncing when online' : item.offlinePending ? ` · ${item.offlineAction || 'Save'} pending sync` : ''}</Text>
         </View>
-        <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
-          {income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
+        <Text style={[styles.amount, item.offlinePending && !item.localCompleted ? styles.pendingAmount : income ? styles.incomeAmount : styles.expenseAmount]}>
+          {item.offlinePending && !item.localCompleted ? '' : income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
         </Text>
       </TouchableOpacity>
     );
@@ -540,6 +541,12 @@ const TransactionsScreen = ({route}) => {
 
   refreshOnFocus.current = refreshFilteredActivity;
 
+  useEffect(() => subscribeStaffOffline(event => {
+    if (isFocused && ['queued', 'synced', 'rejected'].includes(event)) {
+      refreshOnFocus.current?.();
+    }
+  }), [isFocused]);
+
   useEffect(() => {
     if (!isFocused) {
       wasFocused.current = false;
@@ -564,10 +571,10 @@ const TransactionsScreen = ({route}) => {
             <Icon name={transactionTypeIcon(item.type)} size={13} color={income ? COLORS.success : COLORS.danger} />
             <Text style={styles.cardNote}>{item.entryMethod === 'order_system' ? 'Order' : income ? 'Income' : 'Expense'}</Text>
           </View>
-          <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}{item.offlineRejected ? ` · ${item.offlineAction || 'Save'} rejected: ${item.offlineError || 'Check this record'}` : item.offlinePending ? ` · ${item.offlineAction || 'Save'} pending sync` : ''}</Text>
+          <Text style={styles.cardSubtitle}>{item.source || 'Unknown source'} · {item.date}{item.offlineRejected ? ` · ${item.offlineAction || 'Save'} sync failed: ${item.offlineError || 'Check this record'}` : item.localCompleted ? ' · Completed on device · syncing when online' : item.offlinePending ? ` · ${item.offlineAction || 'Save'} pending sync` : ''}</Text>
         </View>
-        <Text style={[styles.amount, income ? styles.incomeAmount : styles.expenseAmount]}>
-          {income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
+        <Text style={[styles.amount, item.offlinePending && !item.localCompleted ? styles.pendingAmount : income ? styles.incomeAmount : styles.expenseAmount]}>
+          {item.offlinePending && !item.localCompleted ? '' : income ? '+' : '-'}₱{Number(item.amount || 0).toFixed(2)}
         </Text>
       </TouchableOpacity>
     );
@@ -730,10 +737,21 @@ const TransactionsScreen = ({route}) => {
 
               <View style={styles.detailTotalBox}>
                 <Text style={styles.detailTotalLabel}>Amount</Text>
-                <Text style={[styles.detailAmount, selectedTransaction.type?.toLowerCase() === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
-                  {selectedTransaction.type?.toLowerCase() === 'income' ? '+' : '-'}₱{Number(selectedTransaction.amount || 0).toFixed(2)}
+                <Text style={[styles.detailAmount, selectedTransaction.offlinePending && !selectedTransaction.localCompleted ? styles.pendingAmount : selectedTransaction.type?.toLowerCase() === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
+                  {selectedTransaction.offlinePending && !selectedTransaction.localCompleted ? '' : selectedTransaction.type?.toLowerCase() === 'income' ? '+' : '-'}₱{Number(selectedTransaction.amount || 0).toFixed(2)}
                 </Text>
               </View>
+
+              {selectedTransaction.offlinePending ? (
+                <View style={styles.protectedNotice}>
+                  <Icon name={selectedTransaction.offlineRejected ? 'alert-circle-outline' : 'cloud-upload-outline'} size={18} color={COLORS.warning} />
+                  <Text style={styles.protectedText}>{selectedTransaction.offlineRejected
+                    ? `${selectedTransaction.offlineAction || 'Record'} rejected during sync: ${selectedTransaction.offlineError || 'Review this record before retrying.'}`
+                    : selectedTransaction.localCompleted
+                      ? 'Cash sale completed on this device. It will sync when online. Shared stock and owner reports update after server acceptance.'
+                      : 'Saved on this phone. Waiting to sync with the server.'}</Text>
+                </View>
+              ) : null}
 
               {canEdit(selectedTransaction) ? (
                 <View style={styles.transactionActions}>
@@ -757,7 +775,7 @@ const TransactionsScreen = ({route}) => {
                     <Text style={styles.deleteButtonText}>{deleting ? 'Deleting…' : 'Delete'}</Text>
                   </TouchableOpacity>
                 </View>
-              ) : selectedTransaction.entryMethod !== 'order_system' ? (
+              ) : !selectedTransaction.offlinePending && selectedTransaction.entryMethod !== 'order_system' ? (
                 <View style={styles.protectedNotice}>
                   <Icon name="lock-outline" size={18} color="#8A5A00" />
                   <Text style={styles.protectedText}>You can only edit or delete transactions that you recorded.</Text>
@@ -862,7 +880,7 @@ const styles = StyleSheet.create({
   iconBox: {width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center'},
   incomeIcon: {backgroundColor: '#E8F5E9'}, expenseIcon: {backgroundColor: '#FFEBEE'},
   cardBody: {flex: 1, marginHorizontal: 10}, cardTitle: {fontSize: 15, fontWeight: '700', color: COLORS.textDark}, cardSubtitle: {fontSize: 12, color: COLORS.textGray, marginTop: 2}, cardNoteRow: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2}, cardNote: {fontSize: 11, color: COLORS.textMuted},
-  amount: {fontSize: 15, fontWeight: '700'}, incomeAmount: {color: COLORS.success}, expenseAmount: {color: COLORS.danger},
+  amount: {fontSize: 15, fontWeight: '700'}, incomeAmount: {color: COLORS.success}, expenseAmount: {color: COLORS.danger}, pendingAmount: {color: COLORS.textMuted},
   centerState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24}, emptyTitle: {fontSize: 17, fontWeight: '700', color: COLORS.textDark, marginTop: 10}, stateText: {fontSize: 13, color: COLORS.textGray, textAlign: 'center', marginTop: 5}, footerLoader: {paddingVertical: 14},
   emptyMascot: {width: 120, height: 120},
   loadMoreButton: {marginTop: 12, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.accent, backgroundColor: COLORS.surface},

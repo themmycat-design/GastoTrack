@@ -185,7 +185,7 @@ const OrderHistoryScreen = ({navigation}) => {
       && orderStatus !== 'cancelled'
       && (!item.financials_committed_at || rawPaymentStatus === 'detected');
     const needsPaymentReview = canManuallyConfirmOrderPayment(item);
-    const canRequestRefund = orderStatus === 'completed' && rawPaymentStatus === 'confirmed';
+    const canRequestRefund = !item.offlinePending && orderStatus === 'completed' && rawPaymentStatus === 'confirmed';
     const canConfirmRefund = rawPaymentStatus === 'refund_pending';
     const canRetryPayment = rawPaymentStatus === 'failed' && orderStatus === 'pending';
 
@@ -209,7 +209,7 @@ const OrderHistoryScreen = ({navigation}) => {
         </View>
         <Text style={styles.paymentStatus}>Payment: {paymentStatus}</Text>
         {item.offlineRejected ? <Text style={styles.paymentStatus}>Not saved on server: {item.offlineError || 'Review this order'}</Text>
-          : item.offlinePending ? <Text style={styles.paymentStatus}>Saved on this phone. Sale and stock will update after the server accepts it.</Text> : null}
+          : item.offlinePending ? <Text style={styles.paymentStatus}>Completed on this device · syncing when online. Shared stock and owner reports update after server acceptance.</Text> : null}
         {canCancel || needsPaymentReview || canRequestRefund || canConfirmRefund || canRetryPayment ? (
           <View style={styles.actionRow}>
             {canCancel ? (

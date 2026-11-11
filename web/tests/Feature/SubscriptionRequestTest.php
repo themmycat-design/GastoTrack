@@ -62,6 +62,27 @@ class SubscriptionRequestTest extends TestCase
         $this->get(route('super-admin.subscription-requests.show', $record))->assertForbidden();
     }
 
+    public function test_owner_can_submit_payment_proof_without_a_reference(): void
+    {
+        $business = $this->business('No Reference Shop');
+        $payload = array_replace($this->payload(), ['payment_reference' => '']);
+
+        $this->actingAs($business->owner_account)
+            ->post(route('owner.subscriptions.store'), $payload)
+            ->assertRedirect(route('owner.subscriptions.index'))
+            ->assertSessionHasNoErrors();
+
+        $request = SubscriptionRequest::firstOrFail();
+        $this->assertNull($request->payment_reference);
+        Storage::disk('local')->assertExists($request->proof_path);
+
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+        $this->actingAs($admin)
+            ->get(route('super-admin.subscription-requests.show', $request))
+            ->assertOk()
+            ->assertSee('Not provided');
+    }
+
     public function test_expired_owner_can_request_renewal_but_cannot_submit_duplicate_or_invalid_proof(): void
     {
         $business = $this->business('Expired Shop');

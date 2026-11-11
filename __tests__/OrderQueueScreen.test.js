@@ -283,7 +283,7 @@ describe('OrderQueueScreen ordering flow', () => {
     await pressByLabel(screen, 'Select Cash payment method');
     await pressByLabel(screen, 'Save cash order');
 
-    const [, , buttons] = alertSpy.mock.calls.find(([title]) => title === 'Saved on this device');
+    const [, , buttons] = alertSpy.mock.calls.find(([title]) => title === 'Order completed on this device');
     buttons.find(button => button.text === 'View order').onPress();
     expect(navigation.navigate).toHaveBeenCalledWith('OrderHistory');
   });

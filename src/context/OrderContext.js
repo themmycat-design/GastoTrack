@@ -374,8 +374,8 @@ export const OrderProvider = ({children}) => {
         }, clientId)
         : {synced: true, data: (await api.post('/orders', {...payload, client_id: clientId})).data};
       if (!submitted.synced) {
-        // The durable SQLite outbox now owns the retry. Clear this cart so the
-        // cashier can record the next sale without presenting this one as paid.
+        // Cash was received; the SQLite outbox now owns delivery to Laravel.
+        // Keep the locally completed sale visible while the cashier continues.
         const localOrder = pendingOrders([{
           kind: 'cash_order',
           status: 'pending',

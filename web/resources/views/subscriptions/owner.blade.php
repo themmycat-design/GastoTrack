@@ -81,7 +81,8 @@
                             </div>
                             <div>
                                 <label for="payment_reference" class="block text-sm font-bold">Payment reference <span class="font-normal text-slate-500">(optional)</span></label>
-                                <input id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}" maxlength="120" class="mt-1 w-full rounded-xl border-[#CBDDD7] text-sm" placeholder="Reference shown on your receipt">
+                                <input id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}" maxlength="120" class="mt-1 w-full rounded-xl border-[#CBDDD7] text-sm" placeholder="Enter a reference if your receipt has one" aria-describedby="payment-reference-help">
+                                <p id="payment-reference-help" class="mt-1 text-xs text-slate-500">Leave this blank if your payment has no reference number.</p>
                             </div>
                             <div>
                                 <label for="owner_note" class="block text-sm font-bold">Note for the Super Admin <span class="font-normal text-slate-500">(optional)</span></label>
