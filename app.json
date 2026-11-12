@@ -1,9 +1,10 @@
 {
   "name": "GastoTrack",
   "displayName": "GastoTrack",
+  "slug": "hga",
   "extra": {
     "eas": {
-      "projectId": "025102ea-ec6d-47ce-b545-9ece7f42030c"
+      "projectId": "5af7948e-34b5-4533-9916-a78eeedd23dd"
     }
   }
 }
