@@ -138,6 +138,40 @@ class SubscriptionRequestTest extends TestCase
         ]);
     }
 
+    public function test_super_admin_can_reject_a_pending_request_without_changing_the_plan(): void
+    {
+        $business = $this->business('Rejected Shop');
+        $owner = $business->owner_account;
+        $this->actingAs($owner)
+            ->post(route('owner.subscriptions.store'), $this->payload())->assertRedirect();
+        $record = SubscriptionRequest::firstOrFail();
+        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
+
+        $this->actingAs($admin)
+            ->post(route('super-admin.subscription-requests.reject', $record))
+            ->assertRedirect(route('super-admin.subscription-requests.show', $record));
+
+        $this->assertSame('rejected', $record->fresh()->status);
+        $this->assertSame($admin->id, $record->fresh()->reviewed_by);
+        $this->assertNotNull($record->fresh()->reviewed_at);
+        $this->assertSame('free', $business->fresh()->plan_tier);
+        Storage::disk('local')->assertExists($record->proof_path);
+        $this->assertDatabaseHas('admin_activity_logs', [
+            'action' => 'subscription_request.rejected', 'target_id' => $record->id,
+        ]);
+        $this->get(route('super-admin.subscription-requests.index', ['status' => 'rejected']))
+            ->assertOk()->assertSee('Rejected Shop');
+        $this->post(route('super-admin.subscription-requests.accept', $record))
+            ->assertSessionHasErrors('request');
+        $this->post(route('super-admin.subscription-requests.reject', $record))
+            ->assertSessionHasErrors('request');
+
+        $this->actingAs($owner)
+            ->get(route('owner.subscriptions.index'))->assertOk()->assertSee('Rejected');
+        $this->post(route('owner.subscriptions.store'), $this->payload())->assertRedirect();
+        $this->assertDatabaseCount('subscription_requests', 2);
+    }
+
     public function test_same_tier_renewal_extends_existing_end_date(): void
     {
         $business = $this->business('Renewal Shop');
@@ -164,10 +198,14 @@ class SubscriptionRequestTest extends TestCase
     public function test_staff_cannot_submit_or_review_subscription_requests(): void
     {
         $business = $this->business('Staff Shop');
+        $this->actingAs($business->owner_account)
+            ->post(route('owner.subscriptions.store'), $this->payload())->assertRedirect();
+        $record = SubscriptionRequest::firstOrFail();
         $staff = User::factory()->staff()->create(['business_id' => $business->id]);
 
         $this->actingAs($staff)->get(route('owner.subscriptions.index'))->assertForbidden();
         $this->post(route('owner.subscriptions.store'), $this->payload())->assertForbidden();
         $this->get(route('super-admin.subscription-requests.index'))->assertForbidden();
+        $this->post(route('super-admin.subscription-requests.reject', $record))->assertForbidden();
     }
 }

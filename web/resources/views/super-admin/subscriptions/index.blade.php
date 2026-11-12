@@ -10,7 +10,7 @@
 </header>
 
 <nav aria-label="Filter subscription requests" class="mb-5 flex flex-wrap gap-2">
-    @foreach(['pending' => 'Pending', 'accepted' => 'Accepted', 'all' => 'All'] as $key => $label)
+    @foreach(['pending' => 'Pending', 'accepted' => 'Accepted', 'rejected' => 'Rejected', 'all' => 'All'] as $key => $label)
         <a href="{{ route('super-admin.subscription-requests.index', ['status' => $key]) }}" aria-current="{{ $status === $key ? 'page' : 'false' }}" class="inline-flex min-h-10 items-center rounded-xl border px-4 text-sm font-bold {{ $status === $key ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}">
             {{ $label }} @if($key !== 'all')<span class="ml-2 text-xs">{{ $counts[$key] }}</span>@endif
         </a>
@@ -29,7 +29,7 @@
                         <td class="p-4 font-semibold capitalize">{{ $subscriptionRequest->plan_tier }}</td>
                         <td class="p-4 capitalize">{{ str_replace('_', ' ', $subscriptionRequest->payment_method) }}</td>
                         <td class="whitespace-nowrap p-4 text-slate-600">{{ $subscriptionRequest->created_at->timezone('Asia/Manila')->format('M d, Y') }}</td>
-                        <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-bold {{ $subscriptionRequest->status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800' }}">{{ ucfirst($subscriptionRequest->status) }}</span></td>
+                        <td class="p-4"><span class="rounded-full px-3 py-1 text-xs font-bold {{ $subscriptionRequest->status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : ($subscriptionRequest->status === 'rejected' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800') }}">{{ ucfirst($subscriptionRequest->status) }}</span></td>
                         <td class="p-4"><div class="flex items-center gap-2"><a href="{{ route('super-admin.subscription-requests.show', $subscriptionRequest) }}" class="rounded-lg px-3 py-2 font-bold text-emerald-700 hover:bg-emerald-50">View</a><form method="POST" action="{{ route('super-admin.subscription-requests.destroy', $subscriptionRequest) }}" onsubmit="return confirm('Delete this request and its payment proof? Any active plan will remain unchanged.');">@csrf @method('DELETE')<button class="rounded-lg px-3 py-2 font-bold text-rose-700 hover:bg-rose-50">Delete</button></form></div></td>
                     </tr>
                 @empty

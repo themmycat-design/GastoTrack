@@ -104,7 +104,7 @@
                         <article class="border-b border-[#EAF2EF] p-5 last:border-0">
                             <div class="flex items-start justify-between gap-3">
                                 <div><p class="font-bold capitalize">{{ $subscriptionRequest->plan_tier }} plan</p><p class="mt-1 text-xs text-slate-500">Sent {{ $subscriptionRequest->created_at->timezone('Asia/Manila')->format('M d, Y, g:i A') }}</p></div>
-                                <span class="rounded-full px-3 py-1 text-xs font-bold {{ $subscriptionRequest->status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800' }}">{{ ucfirst($subscriptionRequest->status) }}</span>
+                                <span class="rounded-full px-3 py-1 text-xs font-bold {{ $subscriptionRequest->status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : ($subscriptionRequest->status === 'rejected' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800') }}">{{ ucfirst($subscriptionRequest->status) }}</span>
                             </div>
                             <p class="mt-3 text-sm text-slate-600">{{ str_replace('_', ' ', ucfirst($subscriptionRequest->payment_method)) }} @if($subscriptionRequest->payment_reference)· Ref: {{ $subscriptionRequest->payment_reference }}@endif</p>
                             <a href="{{ route('owner.subscriptions.proof', $subscriptionRequest) }}" target="_blank" rel="noopener" class="mt-3 inline-flex text-sm font-bold text-[#08745D] underline underline-offset-2">View proof image</a>

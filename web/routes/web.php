@@ -129,6 +129,7 @@ Route::middleware(['auth', 'super_admin', 'platform.account.active'])->prefix('s
         Route::get('/{subscriptionRequest}', 'show')->name('show');
         Route::get('/{subscriptionRequest}/proof', 'proof')->name('proof');
         Route::post('/{subscriptionRequest}/accept', 'accept')->name('accept');
+        Route::post('/{subscriptionRequest}/reject', 'reject')->name('reject');
         Route::delete('/{subscriptionRequest}', 'destroy')->name('destroy');
     });
     Route::get('/users', [PlatformUserController::class, 'index'])->name('users.index');

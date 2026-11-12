@@ -6,7 +6,7 @@
 <div class="mb-6">
     <a href="{{ route('super-admin.subscription-requests.index') }}" class="text-sm font-bold text-emerald-700">&larr; Subscription requests</a>
     <h1 class="mt-3">Subscription request</h1>
-    <p class="mt-2 text-sm text-slate-600">Review the submitted information and proof before accepting.</p>
+    <p class="mt-2 text-sm text-slate-600">Review the submitted information and proof before deciding.</p>
 </div>
 
 <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.8fr)]">
@@ -39,6 +39,9 @@
             @endif
             @if($subscriptionRequest->status === 'pending' && $subscriptionRequest->business)
                 <form method="POST" action="{{ route('super-admin.subscription-requests.accept', $subscriptionRequest) }}" onsubmit="return confirm('Have you verified this payment? Accept and activate the paid plan?');" class="mt-5">@csrf<button class="min-h-11 w-full rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white hover:bg-emerald-800">Accept and activate</button></form>
+            @endif
+            @if($subscriptionRequest->status === 'pending')
+                <form method="POST" action="{{ route('super-admin.subscription-requests.reject', $subscriptionRequest) }}" onsubmit="return confirm('Reject this request? The current plan will stay unchanged and the owner can submit again.');" class="mt-3">@csrf<button class="min-h-11 w-full rounded-xl border border-amber-300 px-5 text-sm font-bold text-amber-800 hover:bg-amber-50">Reject request</button></form>
             @endif
             <form method="POST" action="{{ route('super-admin.subscription-requests.destroy', $subscriptionRequest) }}" onsubmit="return confirm('Delete this request and its payment proof? Any active plan will remain unchanged.');" class="mt-3">@csrf @method('DELETE')<button class="min-h-11 w-full rounded-xl border border-rose-200 px-5 text-sm font-bold text-rose-700 hover:bg-rose-50">Delete request</button></form>
         </section>

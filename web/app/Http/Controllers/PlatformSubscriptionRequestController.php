@@ -15,7 +15,7 @@ class PlatformSubscriptionRequestController extends Controller
     public function index(Request $request)
     {
         $status = $request->query('status', 'pending');
-        if (! in_array($status, ['pending', 'accepted', 'all'], true)) {
+        if (! in_array($status, ['pending', 'accepted', 'rejected', 'all'], true)) {
             $status = 'pending';
         }
 
@@ -29,6 +29,7 @@ class PlatformSubscriptionRequestController extends Controller
         $counts = [
             'pending' => SubscriptionRequest::where('status', 'pending')->count(),
             'accepted' => SubscriptionRequest::where('status', 'accepted')->count(),
+            'rejected' => SubscriptionRequest::where('status', 'rejected')->count(),
         ];
 
         return view('super-admin.subscriptions.index', compact('requests', 'status', 'counts'));
@@ -85,6 +86,26 @@ class PlatformSubscriptionRequestController extends Controller
 
         return redirect()->route('super-admin.subscription-requests.show', $subscriptionRequest)
             ->with('success', 'Request accepted. The paid plan is active for 30 days from today or its existing end date.');
+    }
+
+    public function reject(Request $request, SubscriptionRequest $subscriptionRequest, AdminActivityRecorder $audit)
+    {
+        DB::transaction(function () use ($request, $subscriptionRequest, $audit): void {
+            $record = SubscriptionRequest::whereKey($subscriptionRequest->id)->lockForUpdate()->firstOrFail();
+            if ($record->status !== 'pending') {
+                throw ValidationException::withMessages(['request' => 'This request has already been reviewed.']);
+            }
+
+            $record->update([
+                'status' => 'rejected',
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+            ]);
+            $audit->record($request->user(), 'subscription_request.rejected', 'subscription_request', $record->id);
+        });
+
+        return redirect()->route('super-admin.subscription-requests.show', $subscriptionRequest)
+            ->with('success', 'Request rejected. The business plan stays unchanged, and the owner can submit a new request.');
     }
 
     public function destroy(Request $request, SubscriptionRequest $subscriptionRequest, AdminActivityRecorder $audit)
