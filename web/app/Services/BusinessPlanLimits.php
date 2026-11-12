@@ -10,10 +10,10 @@ use Illuminate\Validation\ValidationException;
 class BusinessPlanLimits
 {
     private const LIMITS = [
-        'free' => ['staff' => 1, 'products' => 3],
-        'basic' => ['staff' => 2, 'products' => 5],
-        'pro' => ['staff' => 5, 'products' => 15],
-        'enterprise' => ['staff' => null, 'products' => null],
+        'free' => ['staff' => 1, 'products' => 3, 'monthly_price_php' => 0],
+        'basic' => ['staff' => 2, 'products' => 5, 'monthly_price_php' => 10],
+        'pro' => ['staff' => 5, 'products' => 15, 'monthly_price_php' => 20],
+        'enterprise' => ['staff' => null, 'products' => null, 'monthly_price_php' => 50],
     ];
 
     public function forTier(?string $tier): array

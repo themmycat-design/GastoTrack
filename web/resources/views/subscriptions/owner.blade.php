@@ -40,11 +40,11 @@
                 <h2 id="plan-limits-title" class="text-lg font-extrabold">Plan limits</h2>
                 <p class="mt-1 text-sm text-slate-600">Your business uses {{ $staffCount }} of {{ $currentLimits['staff'] ?? 'unlimited' }} staff accounts and {{ $productCount }} of {{ $currentLimits['products'] ?? 'unlimited' }} product slots. Existing records stay available if you switch to a smaller plan; new staff and products wait until you are below its limit.</p>
                 <div class="mt-4 overflow-x-auto">
-                    <table class="w-full min-w-[420px] text-left text-sm">
-                        <thead><tr class="border-b border-[#DDE9E5] text-slate-600"><th scope="col" class="py-2 pr-4">Plan</th><th scope="col" class="py-2 pr-4">Staff accounts</th><th scope="col" class="py-2">Products</th></tr></thead>
+                    <table class="w-full min-w-[520px] text-left text-sm">
+                        <thead><tr class="border-b border-[#DDE9E5] text-slate-600"><th scope="col" class="py-2 pr-4">Plan</th><th scope="col" class="py-2 pr-4">Staff accounts</th><th scope="col" class="py-2 pr-4">Products</th><th scope="col" class="py-2">Monthly price</th></tr></thead>
                         <tbody>
                             @foreach($tiers as $tier => $limits)
-                                <tr class="border-b border-[#EAF2EF] last:border-0"><th scope="row" class="py-2 pr-4 font-bold capitalize">{{ $tier }}</th><td class="py-2 pr-4">{{ $limits['staff'] ?? 'Unlimited' }}</td><td class="py-2">{{ $limits['products'] ?? 'Unlimited' }}</td></tr>
+                                <tr class="border-b border-[#EAF2EF] last:border-0"><th scope="row" class="py-2 pr-4 font-bold capitalize">{{ $tier }}</th><td class="py-2 pr-4">{{ $limits['staff'] ?? 'Unlimited' }}</td><td class="py-2 pr-4">{{ $limits['products'] ?? 'Unlimited' }}</td><td class="py-2 font-semibold">₱{{ number_format($limits['monthly_price_php'], 2) }}</td></tr>
                             @endforeach
                         </tbody>
                     </table>
@@ -80,9 +80,9 @@
                                 </select>
                             </div>
                             <div>
-                                <label for="payment_reference" class="block text-sm font-bold">Payment reference <span class="font-normal text-slate-500">(optional)</span></label>
-                                <input id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}" maxlength="120" class="mt-1 w-full rounded-xl border-[#CBDDD7] text-sm" placeholder="Enter a reference if your receipt has one" aria-describedby="payment-reference-help">
-                                <p id="payment-reference-help" class="mt-1 text-xs text-slate-500">Leave this blank if your payment has no reference number.</p>
+                                <label for="payment_reference" class="block text-sm font-bold">Payment reference</label>
+                                <input id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}" maxlength="120" required class="mt-1 w-full rounded-xl border-[#CBDDD7] text-sm" placeholder="Enter the payment reference" aria-describedby="payment-reference-help">
+                                <p id="payment-reference-help" class="mt-1 text-xs text-slate-500">Enter the reference shown on your payment receipt.</p>
                             </div>
                             <div>
                                 <label for="owner_note" class="block text-sm font-bold">Note for the Super Admin <span class="font-normal text-slate-500">(optional)</span></label>

@@ -62,25 +62,32 @@ class SubscriptionRequestTest extends TestCase
         $this->get(route('super-admin.subscription-requests.show', $record))->assertForbidden();
     }
 
-    public function test_owner_can_submit_payment_proof_without_a_reference(): void
+    public function test_owner_sees_monthly_prices_for_each_plan(): void
     {
-        $business = $this->business('No Reference Shop');
+        $business = $this->business('Price List Shop');
+
+        $this->actingAs($business->owner_account)
+            ->get(route('owner.subscriptions.index'))
+            ->assertOk()
+            ->assertSee('₱0.00')
+            ->assertSee('₱10.00')
+            ->assertSee('₱20.00')
+            ->assertSee('₱50.00');
+    }
+
+    public function test_owner_must_provide_a_payment_reference(): void
+    {
+        $business = $this->business('Reference Required Shop');
         $payload = array_replace($this->payload(), ['payment_reference' => '']);
 
         $this->actingAs($business->owner_account)
             ->post(route('owner.subscriptions.store'), $payload)
-            ->assertRedirect(route('owner.subscriptions.index'))
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('payment_reference');
 
-        $request = SubscriptionRequest::firstOrFail();
-        $this->assertNull($request->payment_reference);
-        Storage::disk('local')->assertExists($request->proof_path);
-
-        $admin = User::factory()->create(['role' => 'super_admin', 'business_id' => null]);
-        $this->actingAs($admin)
-            ->get(route('super-admin.subscription-requests.show', $request))
-            ->assertOk()
-            ->assertSee('Not provided');
+        $this->assertDatabaseCount('subscription_requests', 0);
+        $this->post(route('owner.subscriptions.store'), array_diff_key($this->payload(), ['payment_reference' => true]))
+            ->assertSessionHasErrors('payment_reference');
+        $this->assertDatabaseCount('subscription_requests', 0);
     }
 
     public function test_expired_owner_can_request_renewal_but_cannot_submit_duplicate_or_invalid_proof(): void

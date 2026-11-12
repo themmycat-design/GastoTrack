@@ -33,7 +33,7 @@ class OwnerSubscriptionRequestController extends Controller
         $data = $request->validate([
             'plan_tier' => ['required', Rule::in(SubscriptionRequest::PAID_PLANS)],
             'payment_method' => ['required', Rule::in(SubscriptionRequest::PAYMENT_METHODS)],
-            'payment_reference' => ['nullable', 'string', 'max:120'],
+            'payment_reference' => ['required', 'string', 'max:120'],
             'owner_note' => ['nullable', 'string', 'max:1000'],
             'payment_proof' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
@@ -60,7 +60,7 @@ class OwnerSubscriptionRequestController extends Controller
                     'requested_by' => $request->user()->id,
                     'plan_tier' => $data['plan_tier'],
                     'payment_method' => $data['payment_method'],
-                    'payment_reference' => $data['payment_reference'] ?? null,
+                    'payment_reference' => $data['payment_reference'],
                     'owner_note' => $data['owner_note'] ?? null,
                     'proof_path' => $path,
                     'status' => 'pending',
