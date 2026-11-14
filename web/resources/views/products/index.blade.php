@@ -658,6 +658,9 @@
 
         @if(request()->boolean('add'))
             openAddModal();
+            const pageUrl = new URL(window.location.href);
+            pageUrl.searchParams.delete('add');
+            window.history.replaceState(window.history.state, '', pageUrl.pathname + pageUrl.search + pageUrl.hash);
         @endif
     </script>
     </main>
