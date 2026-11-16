@@ -26,7 +26,7 @@
                     <div class="mb-4">
                         <p class="text-sm font-bold text-emerald-700">Account recovery</p>
                         <h1 class="mt-1 text-2xl font-extrabold tracking-tight text-gray-900">Forgot your password?</h1>
-                        <p class="mt-1 text-sm leading-5 text-gray-500">Enter the email connected to your GastoTrack business. We’ll send you a link to choose a new password.</p>
+                        <p class="mt-1 text-sm leading-5 text-gray-500">Enter the email connected to your GastoTrack business. We’ll send you a link to choose a new password. Requesting a link here does not change your current password.</p>
                     </div>
 
                     <x-auth-session-status class="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700" :status="session('status')" />
