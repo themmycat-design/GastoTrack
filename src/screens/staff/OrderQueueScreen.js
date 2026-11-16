@@ -642,7 +642,7 @@ const OrderQueueScreen = ({navigation, route}) => {
             </Text>
             <Text style={styles.emptyProductsText}>
               {productError && !availableProducts.length
-                ? 'Pull down to refresh.'
+                ? 'Try again later.'
                 : availableProducts.length
                 ? 'Choose another category to see available products.'
                 : 'Add products in Inventory before creating an order.'}

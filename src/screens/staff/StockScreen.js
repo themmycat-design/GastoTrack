@@ -520,7 +520,7 @@ const StockScreen = () => {
           ListEmptyComponent={<View style={styles.centerState}>
             <Image source={(activeTab === 'stock' ? stockError : productError) ? require('../../../assets/mascot/gasto-error.png') : activeTab === 'stock' ? require('../../../assets/mascot/gasto-low-stock.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={(activeTab === 'stock' ? stockError : productError) ? 'Gasto showing an error' : activeTab === 'stock' ? 'Gasto checking an empty stock box' : 'Gasto beside an empty tray'} />
             <Text style={styles.emptyTitle}>{(activeTab === 'stock' ? stockError : productError) ? 'Inventory unavailable' : 'No ' + (activeTab === 'stock' ? 'stock items' : 'products') + ' found'}</Text>
-            <Text style={styles.stateText}>{(activeTab === 'stock' ? stockError : productError) ? 'Pull down to refresh.' : search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
+            <Text style={styles.stateText}>{(activeTab === 'stock' ? stockError : productError) ? 'Try again later.' : search ? 'Try a different search.' : activeTab === 'products' ? 'Tap + to add the first product.' : 'Tap + to add the first stock item.'}</Text>
           </View>}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoader} color={COLORS.accent} /> : null}
           onEndReached={activeTab === 'stock' && hasMoreStock ? loadMoreStock : undefined}

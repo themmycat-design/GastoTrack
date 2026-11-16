@@ -72,7 +72,7 @@ const YourReportsScreen = ({navigation}) => {
         </SkeletonPlaceholder> : null}
         {!isLoading && reports.length === 0 ? <View style={styles.emptyState}>
           <Image source={require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel="Gasto beside an empty tray" />
-          <Text style={styles.emptyText}>{loadFailed ? 'Reports unavailable. Pull down to refresh.' : 'You have not submitted any reports yet.'}</Text>
+          <Text style={styles.emptyText}>{loadFailed ? 'Reports unavailable. Try again when connected.' : 'You have not submitted any reports yet.'}</Text>
         </View> : null}
 
         {reports.map(report => (

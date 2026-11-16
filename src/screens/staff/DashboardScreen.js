@@ -208,7 +208,7 @@ const DashboardScreen = ({ navigation }) => {
           </View>
           <Text style={styles.incomeDescription}>{incomeLoading ? 'Loading today’s income records…'
             : todayIncome !== null ? `Income entries today: ${todayIncomeCount ?? 0}${pendingIncomeCount ? ` · ${pendingIncomeCount} completed on device, syncing` : ''}`
-              : 'Pull down to refresh today’s income'}</Text>
+              : 'Today’s income is unavailable. Try again later.'}</Text>
         </View>
 
         {showGettingStarted ? (
@@ -314,7 +314,7 @@ const DashboardScreen = ({ navigation }) => {
                 />
                 <Text style={styles.emptyProductsTitle}>{productError ? 'Products unavailable' : 'No products available'}</Text>
                 <Text style={styles.emptyProductsText}>
-                  {productError ? 'Pull down to refresh.' : selectedCategory === 'All'
+                  {productError ? 'Try again later.' : selectedCategory === 'All'
                     ? 'Add or enable products from Inventory.'
                     : `No available products in ${selectedCategory}.`}
                 </Text>
@@ -362,7 +362,7 @@ const DashboardScreen = ({ navigation }) => {
           {recentTransactions.length === 0 ? (
             <View style={styles.emptyTransactions}>
               <Image source={transactionError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={transactionError ? 'Gasto could not load transactions' : 'Gasto beside an empty tray'} />
-              <Text style={styles.emptyText}>{transactionError ? 'Transactions unavailable. Pull down to refresh.' : 'No transactions today'}</Text>
+              <Text style={styles.emptyText}>{transactionError ? 'Transactions unavailable. Try again later.' : 'No transactions today'}</Text>
             </View>
           ) : (
             recentTransactions.map((transaction) => (

@@ -286,7 +286,7 @@ const OrderHistoryScreen = ({navigation}) => {
             <View style={styles.centerState}>
               <Image source={loadError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={loadError ? 'Gasto could not load orders' : 'Gasto beside an empty tray'} />
               <Text style={styles.emptyTitle}>{loadError ? 'Orders unavailable' : showHistory ? 'No previous orders' : 'No orders today'}</Text>
-              <Text style={styles.stateText}>{loadError ? 'Pull down to refresh.' : showHistory ? 'Completed orders will appear here.' : 'Older and cancelled orders remain available in History.'}</Text>
+              <Text style={styles.stateText}>{loadError ? 'Try again later.' : showHistory ? 'Completed orders will appear here.' : 'Older and cancelled orders remain available in History.'}</Text>
             </View>
           )}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footer} color={COLORS.accent} /> : null}
