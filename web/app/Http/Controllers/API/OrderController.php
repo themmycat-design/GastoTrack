@@ -496,6 +496,8 @@ class OrderController extends Controller
                     ->where('payment_method', $orderForValidation->payment_method)
                     ->ignore($orderForValidation->id),
             ],
+            'sender_name' => ['required', 'string', 'max:160'],
+            'received_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now(config('business.timezone'))->toDateString()],
         ]);
 
         try {
@@ -523,6 +525,8 @@ class OrderController extends Controller
                 $order->update([
                     'payment_status' => 'confirmed',
                     'payment_reference' => $validated['reference'],
+                    'payment_sender_name' => trim($validated['sender_name']),
+                    'payment_received_on' => $validated['received_on'],
                     'payment_confirmed_by' => $request->user()->id,
                     'payment_confirmed_at' => $now,
                     'status' => 'completed',
@@ -544,6 +548,8 @@ class OrderController extends Controller
                     details: [
                         'confirmation_method' => 'staff_manual_provider_app_check',
                         'provider_api_verified' => false,
+                        'sender_name' => trim($validated['sender_name']),
+                        'received_on' => $validated['received_on'],
                         'legacy_financials_preserved' => (bool) $order->financials_committed_at,
                     ]
                 );
@@ -1034,12 +1040,16 @@ class OrderController extends Controller
                 'type' => 'income',
                 'source' => $order->payment_method,
                 'category' => 'Sales',
-                'transaction_date' => ($order->offline_recorded_at ?: now())->setTimezone(config('business.timezone'))->toDateString(),
+                'transaction_date' => $order->payment_received_on?->toDateString()
+                    ?? ($order->offline_recorded_at ?: now())->setTimezone(config('business.timezone'))->toDateString(),
                 'description' => $productDescription,
                 'entry_method' => 'order_system',
                 'metadata' => [
                     'order_id' => $order->id,
                     'payment_confirmation_method' => $order->payment_method === 'cash' ? 'staff_cash_attestation' : 'staff_manual_provider_app_check',
+                    'wallet_sender_name' => $order->payment_sender_name,
+                    'wallet_payment_date' => $order->payment_received_on?->toDateString(),
+                    'wallet_payment_reference' => $order->payment_reference,
                 ],
                 'synced' => true,
             ]);

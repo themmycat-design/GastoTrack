@@ -43,6 +43,9 @@ Route::post('reset-password', [NewPasswordController::class, 'store'])
     ->middleware('throttle:6,1')
     ->name('password.store');
 
+Route::get('password-changed', [NewPasswordController::class, 'changed'])
+    ->name('password.changed');
+
 Route::get('two-factor-challenge', [OwnerTwoFactorChallengeController::class, 'create'])
     ->middleware(['guest', 'throttle:6,1'])
     ->name('two-factor.login');

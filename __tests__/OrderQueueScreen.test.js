@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import {FlatList, Modal, Text, TouchableOpacity} from 'react-native';
+import {FlatList, Modal, Text, TextInput, TouchableOpacity} from 'react-native';
 import OrderQueueScreen from '../src/screens/staff/OrderQueueScreen';
 import {useProducts} from '../src/context/ProductContext';
 import {useTransactions} from '../src/context/TransactionContext';
 import {useOrders} from '../src/context/OrderContext';
-import {subscribeToNotifications} from '../src/modules/NotificationModule';
+import {isNotificationAccessGranted, subscribeToNotifications} from '../src/modules/NotificationModule';
 import {AppAlert} from '../src/services/AppDialogService';
 import api from '../src/services/api';
 
@@ -41,6 +41,7 @@ const mountedScreens = [];
 
 beforeEach(() => {
   jest.clearAllMocks();
+  isNotificationAccessGranted.mockResolvedValue(true);
   api.post.mockResolvedValue({data: {saved_ids: ['7e2e640f-c116-4294-9282-52f413523458']}});
   jest.useFakeTimers();
 });
@@ -67,6 +68,9 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
   const confirmPaymentFromNotification = jest.fn().mockResolvedValue({
     order: {...pendingOrder, status: 'completed', paymentStatus: 'confirmed'},
   });
+  const confirmPayment = jest.fn().mockResolvedValue({
+    order: {...pendingOrder, status: 'completed', paymentStatus: 'confirmed'},
+  });
   const markPaymentFailed = jest.fn();
   const cancelOrder = jest.fn().mockResolvedValue({
     order: {...pendingOrder, status: 'cancelled', paymentStatus: 'cancelled'},
@@ -78,6 +82,7 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
   useOrders.mockReturnValue({
     createOrder,
     confirmPaymentFromNotification,
+    confirmPayment,
     markPaymentFailed,
     cancelOrder,
     cart,
@@ -97,7 +102,7 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
     );
   });
   mountedScreens.push(screen);
-  return {screen, navigation, setCart, createOrder, confirmPaymentFromNotification, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
+  return {screen, navigation, setCart, createOrder, confirmPaymentFromNotification, confirmPayment, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
 };
 
 describe('OrderQueueScreen ordering flow', () => {
@@ -262,6 +267,68 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Select Cash payment method')).toBe(true);
 
     alertSpy.mockRestore();
+  });
+
+  it('confirms payment only after staff enters the wallet reference and approves the amount', async () => {
+    const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GCash');
+    await pressByLabel(screen, 'Payment received');
+    expect(confirmPayment).not.toHaveBeenCalled();
+
+    const referenceInput = screen.root.findAllByType(TextInput)
+      .find(input => input.props.accessibilityLabel === 'Wallet transaction reference');
+    const senderInput = screen.root.findAllByType(TextInput)
+      .find(input => input.props.accessibilityLabel === 'Wallet sender name');
+    await ReactTestRenderer.act(async () => senderInput.props.onChangeText('Wallet Customer'));
+    await ReactTestRenderer.act(async () => referenceInput.props.onChangeText('GCASH-1234'));
+    await pressByLabel(screen, 'Confirm payment received');
+    expect(confirmPayment).not.toHaveBeenCalled();
+    expect(alertSpy.mock.calls.at(-1)[0]).toBe('Confirm payment received?');
+    const confirmAction = alertSpy.mock.calls.at(-1)[2].find(button => button.text === 'Confirm payment');
+    await ReactTestRenderer.act(async () => confirmAction.onPress());
+
+    expect(confirmPayment).toHaveBeenCalledWith(41, expect.objectContaining({
+      amount: 85, currency: 'PHP', reference: 'GCASH-1234', sender_name: 'Wallet Customer',
+      received_on: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    }));
+    expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(false);
+  });
+
+  it('returns to wallet selection after cancelling the unpaid order and restoring the cart', async () => {
+    const {screen, setCart, cancelOrder} = setup({cart: [{product, quantity: 1}]});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GCash');
+    await pressByLabel(screen, 'Back to wallet selection');
+    expect(alertSpy.mock.calls.at(-1)[0]).toBe('Choose a different wallet?');
+    const cancelAction = alertSpy.mock.calls.at(-1)[2].find(button => button.style === 'destructive');
+    await ReactTestRenderer.act(async () => cancelAction.onPress());
+
+    expect(cancelOrder).toHaveBeenCalledWith(41, expect.objectContaining({payment_not_received: true}));
+    expect(setCart).toHaveBeenCalledWith([{product: {...product}, quantity: 1}]);
+    expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Choose Maya')).toBe(true);
+  });
+
+  it('lets staff continue to manual wallet checking when notification access is restricted', async () => {
+    isNotificationAccessGranted.mockResolvedValue(false);
+    const {screen, createOrder} = setup({cart: [{product, quantity: 1}]});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose Maya');
+    expect(createOrder).not.toHaveBeenCalled();
+    const continueAction = alertSpy.mock.calls.at(-1)[2].find(button => button.text === 'Continue manually');
+    await ReactTestRenderer.act(async () => continueAction.onPress());
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({paymentMethod: 'maya'}));
+    expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Payment received')).toBe(true);
   });
 
   it('saves a cash order with cash selected at checkout', async () => {

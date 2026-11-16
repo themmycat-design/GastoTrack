@@ -272,16 +272,25 @@ class OrderPaymentLifecycleTest extends TestCase
             'currency' => 'PHP',
             'reference' => 'GC-ORDER-8831',
         ])->assertUnprocessable();
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm', [
+            'amount' => 240,
+            'currency' => 'PHP',
+            'reference' => 'GC-ORDER-8831',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['sender_name', 'received_on']);
+        $this->assertSame(1000.0, (float) $this->stock->fresh()->current_quantity);
 
         $confirmation = [
             'amount' => 240,
             'currency' => 'PHP',
             'reference' => 'GC-ORDER-8831',
+            'sender_name' => 'Wallet Customer',
+            'received_on' => now(config('business.timezone'))->toDateString(),
         ];
         $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm', $confirmation)
             ->assertOk()
             ->assertJsonPath('order.status', 'completed')
             ->assertJsonPath('order.payment_status', 'confirmed')
+            ->assertJsonPath('order.payment_sender_name', 'Wallet Customer')
             ->assertJsonPath('payment_verified', false)
             ->assertJsonPath('payment_manually_confirmed', true);
 
@@ -290,11 +299,20 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->assertSame(600.0, (float) $this->stock->fresh()->current_quantity);
         $this->assertDatabaseCount('transactions', 1);
         $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseHas('orders', [
+            'id' => $created['id'],
+            'payment_method' => 'gcash',
+            'payment_reference' => 'GC-ORDER-8831',
+            'payment_sender_name' => 'Wallet Customer',
+        ]);
+        $this->assertSame($confirmation['received_on'], Order::findOrFail($created['id'])->payment_received_on->toDateString());
         $this->assertDatabaseHas('transactions', [
             'order_id' => $created['id'],
             'type' => 'income',
             'amount' => 240,
             'entry_method' => 'order_system',
+            'source' => 'gcash',
+            'transaction_date' => $confirmation['received_on'],
         ]);
         $this->assertDatabaseHas('order_payment_events', [
             'order_id' => $created['id'],

@@ -61,6 +61,8 @@ const OrderHistoryScreen = ({navigation}) => {
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
+  const [senderName, setSenderName] = useState('');
+  const [receivedOn, setReceivedOn] = useState(staffDayKey);
   const [restock, setRestock] = useState(false);
   const [paymentNotReceived, setPaymentNotReceived] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
@@ -70,6 +72,8 @@ const OrderHistoryScreen = ({navigation}) => {
     setAction(nextAction);
     setReason('');
     setReference('');
+    setSenderName('');
+    setReceivedOn(staffDayKey());
     setAmount(Number(order.total || 0).toFixed(2));
     setRestock(false);
     setPaymentNotReceived(false);
@@ -86,6 +90,10 @@ const OrderHistoryScreen = ({navigation}) => {
     const numericAmount = Number(amount);
     if (['confirm-payment', 'confirm-refund'].includes(action) && (!Number.isFinite(numericAmount) || numericAmount <= 0 || !reference.trim())) {
       Alert.alert('Details required', 'Enter the exact amount and the reference from the wallet transaction.');
+      return;
+    }
+    if (action === 'confirm-payment' && (!senderName.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(receivedOn.trim()))) {
+      Alert.alert('Payment details required', 'Enter the wallet sender name and payment date (YYYY-MM-DD).');
       return;
     }
     if (['cancel', 'request-refund'].includes(action) && !reason.trim()) {
@@ -110,6 +118,8 @@ const OrderHistoryScreen = ({navigation}) => {
           amount: numericAmount,
           currency: selectedOrder.paymentCurrency || 'PHP',
           reference: reference.trim(),
+          sender_name: senderName.trim(),
+          received_on: receivedOn.trim(),
         });
       } else if (action === 'request-refund') {
         await requestRefund(selectedOrder.id, {reason: reason.trim()});
@@ -208,6 +218,9 @@ const OrderHistoryScreen = ({navigation}) => {
           <Text style={[styles.status, {color: statusColor}]}>{status}</Text>
         </View>
         <Text style={styles.paymentStatus}>Payment: {paymentStatus}</Text>
+        {item.paymentSenderName || item.payment_sender_name ? <Text style={styles.paymentStatus}>Sender: {item.paymentSenderName || item.payment_sender_name}</Text> : null}
+        {item.paymentReceivedOn || item.payment_received_on ? <Text style={styles.paymentStatus}>Wallet date: {String(item.paymentReceivedOn || item.payment_received_on).slice(0, 10)}</Text> : null}
+        {item.paymentReference || item.payment_reference ? <Text style={styles.paymentStatus}>Ref: {item.paymentReference || item.payment_reference}</Text> : null}
         {item.offlineRejected ? <Text style={styles.paymentStatus}>Not saved on server: {item.offlineError || 'Review this order'}</Text>
           : item.offlinePending ? <Text style={styles.paymentStatus}>Completed on this device · syncing when online. Shared stock and owner reports update after server acceptance.</Text> : null}
         {canCancel || needsPaymentReview || canRequestRefund || canConfirmRefund || canRetryPayment ? (
@@ -329,6 +342,14 @@ const OrderHistoryScreen = ({navigation}) => {
                 <TextInput style={styles.actionInput} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
                 <Text style={styles.inputLabel}>Wallet reference</Text>
                 <TextInput style={styles.actionInput} value={reference} onChangeText={setReference} autoCapitalize="characters" />
+                {action === 'confirm-payment' ? (
+                  <>
+                    <Text style={styles.inputLabel}>Wallet sender name</Text>
+                    <TextInput style={styles.actionInput} value={senderName} onChangeText={setSenderName} placeholder="Name shown in wallet" placeholderTextColor={COLORS.placeholder} />
+                    <Text style={styles.inputLabel}>Payment date (YYYY-MM-DD)</Text>
+                    <TextInput style={styles.actionInput} value={receivedOn} onChangeText={setReceivedOn} keyboardType="numbers-and-punctuation" />
+                  </>
+                ) : null}
               </>
             ) : null}
             {action === 'confirm-refund' || (action === 'cancel' && !!selectedOrder?.financials_committed_at) ? (

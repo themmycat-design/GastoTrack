@@ -112,6 +112,12 @@
                             <dl class="mt-5 divide-y divide-[#EAF2EF] text-sm">
                                 <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Method</dt><dd class="font-bold">{{ $order->payment_method ? strtoupper($order->payment_method) : 'Not recorded' }}</dd></div>
                                 <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Currency</dt><dd class="font-bold">{{ $order->payment_currency ?: $currencyCode }}</dd></div>
+                                @if($order->payment_sender_name)
+                                    <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Wallet sender</dt><dd class="text-right font-bold">{{ $order->payment_sender_name }}</dd></div>
+                                @endif
+                                @if($order->payment_received_on)
+                                    <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Wallet payment date</dt><dd class="text-right font-bold">{{ $order->payment_received_on->format('M j, Y') }}</dd></div>
+                                @endif
                                 @if($order->payment_confirmed_at)
                                     <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Confirmed at</dt><dd class="text-right font-bold">{{ $order->payment_confirmed_at->format('M j, Y · g:i A') }}</dd></div>
                                     <div class="flex justify-between gap-4 py-2"><dt class="text-slate-500">Confirmed by</dt><dd class="text-right font-bold">{{ $order->paymentConfirmer?->name ?? 'Staff account unavailable' }}</dd></div>

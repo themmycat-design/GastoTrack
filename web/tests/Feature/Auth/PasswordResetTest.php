@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\OwnerTrustedDeviceService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Fortify\Fortify;
 use PragmaRX\Google2FA\Google2FA;
@@ -123,7 +124,48 @@ class PasswordResetTest extends TestCase
 
             $response
                 ->assertSessionHasNoErrors()
-                ->assertRedirect(route('login'));
+                ->assertRedirect(route('password.changed'));
+
+            $this->assertGuest();
+            $this->assertFalse(Hash::check('password', $user->fresh()->password));
+            $this->assertTrue(Hash::check('GastoTrack9!', $user->fresh()->password));
+            $this->get(route('password.changed'))
+                ->assertOk()
+                ->assertSee('Your password has changed')
+                ->assertSee('Go to sign in');
+
+            return true;
+        });
+    }
+
+    public function test_password_changed_page_requires_a_completed_reset(): void
+    {
+        $this->get(route('password.changed'))->assertRedirect(route('login'));
+    }
+
+    public function test_owner_signs_in_again_after_a_completed_password_reset(): void
+    {
+        Notification::fake();
+
+        $business = Business::create(['name' => 'New Password Shop', 'status' => 'active', 'active' => true]);
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $business->update(['owner_id' => $owner->id]);
+
+        $this->post(route('password.email'), ['email' => $owner->email]);
+        Notification::assertSentTo($owner, ResetPassword::class, function ($notification) use ($owner) {
+            $this->post(route('password.store'), [
+                'token' => $notification->token,
+                'email' => $owner->email,
+                'password' => 'NewGastoTrack9!',
+                'password_confirmation' => 'NewGastoTrack9!',
+            ])->assertRedirect(route('password.changed'));
+
+            $this->get(route('password.changed'))->assertOk();
+            $this->assertGuest();
+            $this->post(route('login'), ['email' => $owner->email, 'password' => 'password'])
+                ->assertSessionHasErrors('email');
+            $this->post(route('login'), ['email' => $owner->email, 'password' => 'NewGastoTrack9!'])
+                ->assertRedirect(route('two-factor.login'));
 
             return true;
         });

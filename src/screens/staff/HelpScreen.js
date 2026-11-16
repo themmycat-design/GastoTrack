@@ -9,7 +9,7 @@ const questions = [
   {
     icon: 'cart-outline',
     question: 'How do I place and complete an order?',
-    answer: 'Open Orders, tap a product, add it to the cart, then tap View your cart. Choose Cash for an immediate online sale, or Cashless and a wallet to wait for a matching GCash or Maya notification. An offline cash order waits to sync before it becomes a completed sale.',
+    answer: 'Open Orders, tap a product, add it to the cart, then tap View your cart. Choose Cash to complete the sale, or choose Cashless and a wallet. A matching notification can complete the order automatically. If none arrives, check the wallet app and tap Payment received, then enter its transaction reference. Offline cash orders sync when internet returns.',
   },
   {
     icon: 'food-outline',
@@ -29,7 +29,7 @@ const questions = [
   {
     icon: 'wallet-outline',
     question: 'How do I know a cashless order was saved?',
-    answer: 'After choosing GCash or Maya, wait for a matching received-payment notification. The app checks the wallet and exact amount, then saves the order through the server. A notification match is not verification from the wallet provider; check the official wallet account if payment is unclear.',
+    answer: 'After choosing GCash or Maya, a matching received-payment notification can save the order automatically. If it does not arrive, check the official wallet app for the exact amount and reference, then tap Payment received to confirm it. A notification alone is not verification from the wallet provider.',
   },
   {
     icon: 'wifi-off',
@@ -54,7 +54,7 @@ const questions = [
   {
     icon: 'bell-outline',
     question: 'Why is my e-wallet notification not being captured?',
-    answer: 'Open Profile > Permissions and check that Android notification access is enabled. Cashless orders wait for a supported GCash or Maya received-payment notification with the matching wallet, amount, and readable reference.',
+    answer: 'Open Profile > Permissions and check that Android notification access is enabled. If notification access is restricted, check the official GCash or Maya app and use Payment received with the transaction reference to confirm manually.',
   },
   {
     icon: 'lock-reset',

@@ -26,6 +26,15 @@ class NewPasswordController extends Controller
         return view('auth.reset-password', ['request' => $request]);
     }
 
+    public function changed(Request $request): View|RedirectResponse
+    {
+        if ($request->session()->get('password_reset_complete') !== true) {
+            return redirect()->route('login');
+        }
+
+        return view('auth.password-changed');
+    }
+
     /**
      * Handle an incoming new password request.
      *
@@ -59,15 +68,14 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
+        // Show confirmation only after a completed reset. Keep the user signed out
+        // so the next sign-in uses the new password and any required MFA challenge.
         if ($status == Password::PASSWORD_RESET) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('login')->with('status', __($status));
+            return redirect()->route('password.changed')->with('password_reset_complete', true);
         }
 
         return back()->withInput($request->only('email'))

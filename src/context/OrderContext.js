@@ -30,6 +30,8 @@ const normalize = order => ({
   paymentStatus: getEffectiveOrderPaymentStatus(order),
   paymentCurrency: order.payment_currency || order.paymentCurrency || 'PHP',
   paymentReference: order.payment_reference || order.paymentReference,
+  paymentSenderName: order.payment_sender_name || order.paymentSenderName,
+  paymentReceivedOn: order.payment_received_on || order.paymentReceivedOn,
   detectedPaymentAmount: order.detected_payment_amount ?? order.detectedPaymentAmount,
   refundReason: order.refund_reason || order.refundReason,
   refundReference: order.refund_reference || order.refundReference,
