@@ -7,6 +7,12 @@ import {getStaffSnapshot, recordStaffAction, saveStaffSnapshot, subscribeStaffOf
 import {overlayStockActions, readPendingActions} from '../services/offlineRecords';
 
 const StockContext = createContext();
+const defaultStockUnits = ['pcs', 'g', 'kg', 'ml', 'L'];
+const mergedStockUnits = (options = [], items = []) => [...new Set([
+  ...defaultStockUnits,
+  ...options,
+  ...items.map(item => item.unit),
+].filter(Boolean))];
 
 const normalize = item => ({
   ...item,
@@ -22,6 +28,7 @@ const normalizePagination = (meta, page, count) => ({
 
 export const StockProvider = ({children}) => {
   const [serverStockItems, setStockItems] = useState([]);
+  const [stockUnitOptions, setStockUnitOptions] = useState(defaultStockUnits);
   const [localActions, setLocalActions] = useState([]);
   const [outOfStockCount, setOutOfStockCount] = useState(0);
   const [pendingStockAdjustments, setPendingStockAdjustments] = useState({});
@@ -47,6 +54,9 @@ export const StockProvider = ({children}) => {
         : [await api.get('/stock', {params: {page}})];
       const response = responses[0];
       const normalized = responses.flatMap(result => (result.data.stock || []).map(normalize));
+      const unitOptions = mergedStockUnits(response.data?.unit_options || [], normalized);
+      setStockUnitOptions(unitOptions);
+      if (offlineAccount && (page === 1 || refreshLoaded)) saveStaffSnapshot(offlineAccount, 'stock_units', unitOptions).catch(() => {});
       if (offlineAccount && (page === 1 || refreshLoaded)) saveStaffSnapshot(offlineAccount, 'stock', normalized).catch(() => {});
       setStockItems(current => append
         ? [...current, ...normalized.filter(record => !current.some(item => item.id === record.id))]
@@ -65,6 +75,8 @@ export const StockProvider = ({children}) => {
           const cached = await getStaffSnapshot(offlineAccount, 'stock');
           if (cached) {
             setStockItems(cached);
+            const cachedUnits = await getStaffSnapshot(offlineAccount, 'stock_units');
+            setStockUnitOptions(mergedStockUnits(cachedUnits || [], cached));
             setOutOfStockCount(cached.filter(item => item.quantity <= 0 && item.active !== false).length);
           }
         } catch {}
@@ -117,6 +129,7 @@ export const StockProvider = ({children}) => {
       fetchStock();
     } else {
       setStockItems([]);
+      setStockUnitOptions(defaultStockUnits);
       setOutOfStockCount(0);
       setLoadError(null);
       setPagination({currentPage: 0, lastPage: 1, total: 0});
@@ -199,6 +212,7 @@ export const StockProvider = ({children}) => {
 
   return <StockContext.Provider value={{
     stockItems,
+    stockUnitOptions,
     outOfStockCount,
     pendingStockAdjustments,
     rejectedStockAdjustments,

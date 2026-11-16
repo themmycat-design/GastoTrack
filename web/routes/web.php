@@ -79,6 +79,7 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscri
     
     // Stock CRUD
     Route::get('/stock/report', [StockController::class, 'export'])->name('stock.export');
+    Route::post('/stock/unit-options', [StockController::class, 'storeUnit'])->name('stock.unit-options.store');
     Route::resource('stock', StockController::class)->except(['show', 'create', 'edit']);
     Route::post('/stock/{stock}/adjust', [StockController::class, 'adjust'])->name('stock.adjust');
     

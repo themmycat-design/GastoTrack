@@ -310,8 +310,21 @@
                     <!-- Unit -->
                     <div>
                         <label for="unit" class="gt-label">Unit <span class="text-rose-600">*</span></label>
-                        <input type="text" id="unit" name="unit" required class="gt-field" list="stock-unit-options" placeholder="Choose or enter a unit">
-                        <datalist id="stock-unit-options"><option value="pcs"><option value="g"><option value="kg"><option value="ml"><option value="L"></datalist>
+                        <select id="unit" name="unit" required class="gt-field">
+                            <option value="">Select a unit</option>
+                            @foreach($unitOptions as $unitOption)
+                                <option value="{{ $unitOption }}">{{ $unitOption }}</option>
+                            @endforeach
+                        </select>
+                        <button type="button" onclick="toggleAddUnit()" class="gt-focus mt-2 text-sm font-semibold text-[#08745D] hover:underline">+ Add a unit to the list</button>
+                        <div id="add_unit_fields" class="mt-2 hidden rounded-xl border border-[#DDE9E5] bg-[#F8FCFA] p-3">
+                            <label for="new_unit" class="gt-label">New unit</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="new_unit" maxlength="20" class="gt-field min-w-0 flex-1" placeholder="e.g. box">
+                                <button type="button" onclick="saveUnitOption()" class="gt-focus gt-btn-secondary shrink-0 px-3">Add</button>
+                            </div>
+                            <p id="new_unit_error" class="mt-1 hidden text-xs text-rose-600" role="alert"></p>
+                        </div>
                         <p id="unit_help" class="mt-1 hidden text-xs text-slate-500">Change the stock unit, then enter minimum quantity and unit cost in the new unit.</p>
                         <div id="unit_conversion_wrapper" class="mt-3 hidden">
                             <label for="conversion_factor" class="gt-label">Old units in 1 new unit <span class="text-rose-600">*</span></label>
@@ -426,6 +439,44 @@
     </div>
 
     <script>
+        function toggleAddUnit() {
+            const fields = document.getElementById('add_unit_fields');
+            fields.classList.toggle('hidden');
+            if (!fields.classList.contains('hidden')) document.getElementById('new_unit').focus();
+        }
+
+        async function saveUnitOption() {
+            const input = document.getElementById('new_unit');
+            const errorLabel = document.getElementById('new_unit_error');
+            const unit = input.value.trim();
+            errorLabel.classList.add('hidden');
+
+            try {
+                const response = await fetch('{{ route('stock.unit-options.store') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('#stockForm input[name="_token"]').value,
+                    },
+                    body: JSON.stringify({unit}),
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.errors?.unit?.[0] || 'Could not save this unit. Try again.');
+
+                const select = document.getElementById('unit');
+                select.replaceChildren(new Option('Select a unit', ''));
+                result.options.forEach(option => select.add(new Option(option, option)));
+                select.value = result.unit;
+                input.value = '';
+                document.getElementById('add_unit_fields').classList.add('hidden');
+                updateStockUnitConversion();
+            } catch (error) {
+                errorLabel.textContent = error.message || 'Could not save this unit. Try again.';
+                errorLabel.classList.remove('hidden');
+            }
+        }
+
         document.addEventListener('click', (event) => {
             const adjustButton = event.target.closest('[data-stock-adjust]');
             if (adjustButton) {
@@ -456,7 +507,7 @@
             document.getElementById('formMethod').value = '';
             document.getElementById('name').value = '';
             document.getElementById('unit').value = '';
-            document.getElementById('unit').readOnly = false;
+            document.getElementById('add_unit_fields').classList.add('hidden');
             document.getElementById('unit').setCustomValidity('');
             document.getElementById('unit_help').classList.add('hidden');
             document.getElementById('unit_conversion_wrapper').classList.add('hidden');
@@ -482,7 +533,7 @@
             document.getElementById('formMethod').value = 'PUT';
             document.getElementById('name').value = name;
             document.getElementById('unit').value = unit;
-            document.getElementById('unit').readOnly = false;
+            document.getElementById('add_unit_fields').classList.add('hidden');
             document.getElementById('unit_help').classList.remove('hidden');
             document.getElementById('unit').dataset.originalUnit = unit;
             document.getElementById('unit').dataset.wasChanged = 'false';
@@ -549,7 +600,7 @@
                 document.getElementById('unit_cost').value = (Number(document.getElementById('unit_cost').dataset.originalValue) * factor).toFixed(4);
         }
 
-        document.getElementById('unit').addEventListener('input', updateStockUnitConversion);
+        document.getElementById('unit').addEventListener('change', updateStockUnitConversion);
         document.getElementById('conversion_factor').addEventListener('input', updateStockUnitConversion);
         for (const id of ['minimum_quantity', 'unit_cost']) {
             document.getElementById(id).addEventListener('input', event => {

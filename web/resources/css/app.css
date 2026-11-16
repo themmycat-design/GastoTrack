@@ -13,6 +13,8 @@
     --gt-text-muted: #60756F;
     --gt-action: #08745D;
     --gt-action-text: #FFFFFF;
+    --gt-field-surface: #FFFFFF;
+    --gt-field-placeholder: #64748B;
 }
 
 .gt-card {
@@ -33,6 +35,8 @@ html.gt-dark {
     --gt-text-muted: #A5B5AE;
     --gt-action: #08745D;
     --gt-action-text: #FFFFFF;
+    --gt-field-surface: #121B18;
+    --gt-field-placeholder: #A5B5AE;
 }
 
 html.gt-dark body.gt-owner-page {
@@ -377,7 +381,7 @@ html.gt-dark body.gt-owner-page .gt-snapshot-donut-negative { stroke: #ff9eae; }
     min-height: 2.75rem;
     border: 1px solid var(--gt-border);
     border-radius: .75rem;
-    background: #fff;
+    background: var(--gt-field-surface);
     padding: .7rem .875rem;
     color: var(--gt-ink);
     font: inherit;
@@ -387,7 +391,7 @@ html.gt-dark body.gt-owner-page .gt-snapshot-donut-negative { stroke: #ff9eae; }
     transition: border-color .18s ease, box-shadow .18s ease;
 }
 
-.gt-field::placeholder { color: #94A3B8; }
+.gt-field::placeholder { color: var(--gt-field-placeholder); }
 
 .gt-field:focus {
     border-color: var(--gt-brand-strong);
@@ -881,7 +885,7 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
 .gt-owner-page textarea {
     border-color: var(--gt-border);
     border-radius: .75rem;
-    background-color: #fff;
+    background-color: var(--gt-field-surface);
     color: var(--gt-ink);
 }
 
@@ -897,6 +901,12 @@ html.gt-owner-overview-waiting .gt-owner-overview main [data-overview-reveal] {
 .gt-owner-page select:disabled,
 .gt-owner-page textarea:disabled {
     background-color: var(--gt-canvas);
+}
+
+html.gt-dark body.gt-owner-page :is(input, textarea):-webkit-autofill,
+html.gt-dark body.gt-owner-page :is(input, textarea):-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--gt-ink);
+    box-shadow: inset 0 0 0 1000px var(--gt-field-surface);
 }
 
 @keyframes gt-enter {

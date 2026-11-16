@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\StockItem;
 use App\Models\StockMovement;
 use App\Services\StockUnitChangeService;
+use App\Services\StockUnitOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\NotificationService;
@@ -14,7 +15,7 @@ use Illuminate\Database\QueryException;
 class StockController extends Controller
 {
     // GET /api/stock
-    public function index(Request $request)
+    public function index(Request $request, StockUnitOptions $stockUnits)
     {
         $outOfStockCount = StockItem::where('business_id', $request->user()->business_id)
             ->where('active', true)
@@ -30,7 +31,7 @@ class StockController extends Controller
             return $item;
         });
 
-        return response()->json(['stock' => $stock->items(), 'meta' => ['current_page' => $stock->currentPage(), 'last_page' => $stock->lastPage(), 'total' => $stock->total(), 'out_of_stock_count' => $outOfStockCount]]);
+        return response()->json(['stock' => $stock->items(), 'unit_options' => $stockUnits->forBusiness((int) $request->user()->business_id), 'meta' => ['current_page' => $stock->currentPage(), 'last_page' => $stock->lastPage(), 'total' => $stock->total(), 'out_of_stock_count' => $outOfStockCount]]);
     }
 
     // POST /api/stock

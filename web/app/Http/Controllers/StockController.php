@@ -6,6 +6,7 @@ use App\Models\StockItem;
 use App\Services\StockUnitPolicy;
 use App\Services\StockUnitChangeService;
 use App\Models\StockMovement;
+use App\Services\StockUnitOptions;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ class StockController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request, StockUnitOptions $stockUnits)
     {
         $user = auth()->user();
         $businessId = $user->business_id;
@@ -104,7 +105,33 @@ class StockController extends Controller
             ->limit(5)
             ->get();
 
-        return view('stock.index', compact('stockItems', 'totalItems', 'lowStockCount', 'outOfStockCount', 'inStockCount', 'totalValue', 'recentMovements'));
+        $unitOptions = $stockUnits->forBusiness((int) $businessId);
+
+        return view('stock.index', compact('stockItems', 'totalItems', 'lowStockCount', 'outOfStockCount', 'inStockCount', 'totalValue', 'recentMovements', 'unitOptions'));
+    }
+
+    public function storeUnit(Request $request, StockUnitOptions $stockUnits)
+    {
+        $validated = $request->validate([
+            'unit' => ['required', 'string', 'max:20', 'regex:/\A[A-Za-z][A-Za-z0-9 \/%-]*\z/'],
+        ]);
+        $unit = trim($validated['unit']);
+        $businessId = (int) $request->user()->business_id;
+        $existing = collect($stockUnits->forBusiness($businessId))
+            ->first(fn ($option) => mb_strtolower($option) === mb_strtolower($unit));
+
+        if ($existing) {
+            return response()->json(['unit' => $existing, 'options' => $stockUnits->forBusiness($businessId)]);
+        }
+
+        DB::table('stock_unit_options')->insertOrIgnore([
+            'business_id' => $businessId,
+            'unit' => $unit,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['unit' => $unit, 'options' => $stockUnits->forBusiness($businessId)]);
     }
 
     /**

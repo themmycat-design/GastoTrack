@@ -53,7 +53,7 @@ const ingredientAmountLabel = ingredient => {
 
 const StockScreen = () => {
   const {
-    stockItems, pendingStockAdjustments, rejectedStockAdjustments, isLoading, isLoadingMore, hasMoreStock, loadError: stockError,
+    stockItems, stockUnitOptions, pendingStockAdjustments, rejectedStockAdjustments, isLoading, isLoadingMore, hasMoreStock, loadError: stockError,
     fetchStock, loadMoreStock, getStatus, adjustStock, createStock,
   } = useStock();
   const {
@@ -77,6 +77,7 @@ const StockScreen = () => {
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [stockEditorVisible, setStockEditorVisible] = useState(false);
   const [stockForm, setStockForm] = useState(emptyStockForm);
+  const [stockUnitMenuOpen, setStockUnitMenuOpen] = useState(false);
   const [isSavingStock, setIsSavingStock] = useState(false);
   const [alternativeItems, setAlternativeItems] = useState([]);
   const [alternativesLoading, setAlternativesLoading] = useState(false);
@@ -161,6 +162,7 @@ const StockScreen = () => {
 
   const openCreateStock = () => {
     setStockForm(emptyStockForm);
+    setStockUnitMenuOpen(false);
     setStockEditorVisible(true);
   };
 
@@ -539,12 +541,16 @@ const StockScreen = () => {
             <Text style={styles.fieldLabel}>Stock name</Text>
             <TextInput style={styles.input} value={stockForm.name} onChangeText={value => setStockField('name', value)} placeholder="e.g. Fresh milk" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Unit</Text>
-            <View style={styles.categoryOptions}>
-              {['pcs', 'g', 'kg', 'ml', 'L'].map(unit => <TouchableOpacity key={unit} style={[styles.categoryOption, stockForm.unit === unit && styles.categoryOptionActive]} onPress={() => setStockField('unit', unit)} accessibilityRole="button" accessibilityLabel={`Use ${unit} as the stock unit`} accessibilityState={{selected: stockForm.unit === unit}}>
-                <Text style={[styles.categoryOptionText, stockForm.unit === unit && styles.categoryOptionTextActive]}>{unit}</Text>
+            <TouchableOpacity style={styles.unitSelector} onPress={() => setStockUnitMenuOpen(open => !open)} accessibilityRole="button" accessibilityLabel={`Stock unit: ${stockForm.unit || 'Select a unit'}`} accessibilityState={{expanded: stockUnitMenuOpen}}>
+              <Text style={styles.unitSelectorText}>{stockForm.unit || 'Select a unit'}</Text>
+              <Icon name={stockUnitMenuOpen ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.textGray} />
+            </TouchableOpacity>
+            {stockUnitMenuOpen ? <View style={styles.unitOptions}>
+              {stockUnitOptions.map(unit => <TouchableOpacity key={unit} style={styles.unitOption} onPress={() => {setStockField('unit', unit); setStockUnitMenuOpen(false);}} accessibilityRole="button" accessibilityLabel={`Use ${unit} as the stock unit`} accessibilityState={{selected: stockForm.unit === unit}}>
+                <Text style={styles.unitOptionText}>{unit}</Text>
+                {stockForm.unit === unit ? <Icon name="check" size={18} color={COLORS.accentDark} /> : null}
               </TouchableOpacity>)}
-            </View>
-            <TextInput style={[styles.input, styles.stockUnitInput]} value={stockForm.unit} onChangeText={value => setStockField('unit', value)} placeholder="Or enter another unit" placeholderTextColor={COLORS.placeholder} accessibilityLabel="Stock unit" />
+            </View> : null}
             <Text style={styles.fieldLabel}>Starting quantity</Text>
             <TextInput style={styles.input} value={stockForm.quantity} onChangeText={value => setStockField('quantity', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Low-stock level</Text>
@@ -784,7 +790,11 @@ const styles = StyleSheet.create({
   fieldLabel: {fontSize: 12, fontWeight: '700', color: COLORS.textGray, textTransform: 'uppercase', marginTop: 12, marginBottom: 5}, adjustToggle: {flexDirection: 'row', gap: 8},
   toggleButton: {flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.border}, toggleButtonActive: {backgroundColor: COLORS.accentDark, borderColor: COLORS.accentDark}, toggleText: {fontSize: 13, fontWeight: '600', color: COLORS.textGray}, toggleTextActive: {color: '#FFFFFF'},
   input: {backgroundColor: COLORS.surfaceMuted, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 11, color: COLORS.textDark},
-  stockUnitInput: {marginTop: 8},
+  unitSelector: {minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceMuted, paddingHorizontal: 12},
+  unitSelectorText: {fontSize: 14, color: COLORS.textDark},
+  unitOptions: {marginTop: 4, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, overflow: 'hidden'},
+  unitOption: {minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border},
+  unitOptionText: {fontSize: 14, color: COLORS.textDark},
   primaryButton: {minHeight: 48, justifyContent: 'center', backgroundColor: COLORS.accentDark, borderRadius: 12, alignItems: 'center', paddingVertical: 12, marginTop: 14}, primaryButtonText: {color: '#FFFFFF', fontSize: 15, fontWeight: '700'}, disabledButton: {opacity: 0.6}, ownerNote: {fontSize: 12, lineHeight: 18, color: COLORS.textGray, marginTop: 10, textAlign: 'center'},
   productHero: {height: 190, borderRadius: 14, backgroundColor: COLORS.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'}, productHeroImage: {width: '100%', height: '100%', resizeMode: 'cover'}, noImage: {alignItems: 'center'}, noImageText: {fontSize: 12, color: COLORS.textGray, marginTop: 6},
   detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border}, detailLabel: {fontSize: 14, color: COLORS.textGray}, detailValue: {fontSize: 14, fontWeight: '600', color: COLORS.textDark}, description: {fontSize: 14, lineHeight: 20, color: COLORS.textDark, marginTop: 10},
