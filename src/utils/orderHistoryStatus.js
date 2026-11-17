@@ -39,7 +39,7 @@ export const canManuallyConfirmOrderPayment = order => {
   const paymentStatus = getEffectiveOrderPaymentStatus(order);
   const paymentMethod = normalizeState(order?.paymentMethod ?? order?.payment_method);
   const paymentType = normalizeState(order?.payment_type ?? order?.paymentType);
-  const isCashless = paymentType === 'cashless' || ['gcash', 'maya', 'bank'].includes(paymentMethod);
+  const isCashless = paymentType === 'cashless' || ['gcash', 'maya', 'maribank', 'gotyme', 'bank'].includes(paymentMethod);
   const isConfirmableOrder = orderStatus === 'pending'
     || (orderStatus === 'completed' && Boolean(order?.financials_committed_at));
 

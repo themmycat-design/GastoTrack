@@ -129,6 +129,9 @@ class NotificationService {
     const sourceMap = {
       'com.globe.gcash.android': 'GCash',
       'com.paymaya': 'Maya',
+      'com.voyager.pay': 'Maya',
+      'ph.seabank.seabank': 'MariBank',
+      'ph.com.gotyme': 'GoTyme',
       'com.grabtaxi.passenger': 'GrabPay',
       'com.shopee.ph': 'ShopeePay',
     };
@@ -154,6 +157,8 @@ class NotificationService {
     return [
       { name: 'GCash', package: 'com.globe.gcash.android', icon: '💚' },
       { name: 'Maya', package: 'com.paymaya', icon: '🟢' },
+      { name: 'MariBank', package: 'ph.seabank.seabank', icon: '🏦' },
+      { name: 'GoTyme', package: 'ph.com.gotyme', icon: '🏦' },
       { name: 'GrabPay', package: 'com.grabtaxi.passenger', icon: '🟩' },
       { name: 'ShopeePay', package: 'com.shopee.ph', icon: '🟠' },
     ];

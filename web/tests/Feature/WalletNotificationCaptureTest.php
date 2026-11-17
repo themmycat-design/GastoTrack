@@ -48,6 +48,29 @@ class WalletNotificationCaptureTest extends TestCase
             ->assertJsonPath('captures.0.reference', 'GCASH-REF-2026-00125');
     }
 
+    public function test_bank_payment_alerts_require_a_reference_and_remain_unverified(): void
+    {
+        $business = Business::create(['name' => 'Bank Cafe', 'status' => 'active', 'active' => true]);
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        Sanctum::actingAs($staff);
+
+        foreach (['maribank', 'gotyme'] as $index => $source) {
+            $capture = [
+                'client_id' => $index === 0 ? 'a2898149-fc99-4b27-9d8a-d9064ff05e57' : 'b2898149-fc99-4b27-9d8a-d9064ff05e57',
+                'source' => $source, 'direction' => 'received', 'amount' => 125,
+                'currency' => 'PHP', 'reference' => strtoupper($source).'-REF-12345',
+                'message' => 'You received PHP 125.00 from customer. Ref No: '.strtoupper($source).'-REF-12345',
+                'captured_at' => now()->toISOString(),
+            ];
+            $this->postJson('/api/v1/wallet-notifications/batch', ['captures' => [$capture]])->assertOk();
+            unset($capture['reference']);
+            $this->postJson('/api/v1/wallet-notifications/batch', ['captures' => [$capture]])->assertUnprocessable();
+        }
+
+        $this->getJson('/api/v1/wallet-notifications')->assertOk()->assertJsonPath('meta.total', 2);
+        $this->assertSame(0, Transaction::count());
+    }
+
     public function test_owner_cannot_upload_and_businesses_cannot_read_each_others_captures(): void
     {
         $first = Business::create(['name' => 'First Cafe', 'status' => 'active', 'active' => true]);

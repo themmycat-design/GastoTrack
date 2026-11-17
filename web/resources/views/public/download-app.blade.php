@@ -43,7 +43,7 @@
     </section>
     <section class="border-t border-[#DDE9E5] pt-7" aria-labelledby="play-protect-help">
         <h2 id="play-protect-help" class="text-xl font-extrabold">Blocked by Google Play Protect?</h2>
-        <p class="mt-2 text-sm leading-7 text-slate-600"><strong>Why it happens:</strong> GastoTrack uses notification access to detect GCash and Maya payment alerts. Google may block a browser-downloaded APK that requests this access. If you choose to install this project build for testing, you can temporarily turn off Play Protect scanning on your own phone:</p>
+        <p class="mt-2 text-sm leading-7 text-slate-600"><strong>Why it happens:</strong> GastoTrack uses notification access to detect supported payment alerts. Google may block a browser-downloaded APK that requests this access. If you choose to install this project build for testing, you can temporarily turn off Play Protect scanning on your own phone:</p>
         <ol class="mt-4 space-y-4 text-sm leading-7 text-slate-600">
             <li><span class="font-extrabold text-[#08745D]">1.</span> Open <strong>Google Play Store</strong>. Tap your profile picture, then <strong>Play Protect</strong>, then the <strong>Settings</strong> gear.</li>
             <li><span class="font-extrabold text-[#08745D]">2.</span> Turn off <strong>Scan apps with Play Protect</strong> and confirm the prompt. This temporarily stops Play Protect scanning apps on your phone, not just GastoTrack.</li>

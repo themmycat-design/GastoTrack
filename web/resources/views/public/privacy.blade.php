@@ -1,7 +1,7 @@
 <x-layouts.public-info title="Privacy Policy" intro="This page explains the information GastoTrack uses in the capstone demonstration and where further privacy decisions are still needed before release." description="Privacy information for GastoTrack.">
     <section>
         <h2 class="text-xl font-extrabold">1. Information processed</h2>
-        <p class="mt-2 text-sm leading-7 text-slate-600">GastoTrack processes account and business details, orders, transactions, stock changes, and bug reports with optional screenshots. On Android, enabled notification access allows capture of supported GCash and Maya transaction signals. Receipt scanning reads an image selected or captured on the device; the current scanner saves extracted transaction details, not the full receipt photo.</p>
+        <p class="mt-2 text-sm leading-7 text-slate-600">GastoTrack processes account and business details, orders, transactions, stock changes, and bug reports with optional screenshots. On Android, enabled notification access allows capture of supported GCash, Maya, MariBank, and GoTyme transaction signals. Receipt scanning reads an image selected or captured on the device; the current scanner saves extracted transaction details, not the full receipt photo.</p>
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">
         <h2 class="text-xl font-extrabold">2. How information is used</h2>

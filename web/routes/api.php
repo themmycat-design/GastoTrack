@@ -59,6 +59,7 @@ $registerProtectedRoutes = function (): void {
     Route::post('/orders/{order}/payments/confirm', [OrderController::class, 'confirmPayment'])->whereNumber('order');
     Route::post('/orders/{order}/payments/fail', [OrderController::class, 'failPayment'])->whereNumber('order');
     Route::post('/orders/{order}/payments/retry', [OrderController::class, 'retryPayment'])->whereNumber('order');
+    Route::post('/orders/{order}/payments/wallet', [OrderController::class, 'changeWallet'])->whereNumber('order');
     Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel'])->whereNumber('order');
     Route::post('/orders/{order}/refund/request', [OrderController::class, 'requestRefund'])->whereNumber('order');
     Route::post('/orders/{order}/refund/confirm', [OrderController::class, 'confirmRefund'])->whereNumber('order');

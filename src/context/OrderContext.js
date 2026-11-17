@@ -292,7 +292,7 @@ export const OrderProvider = ({children}) => {
 
   const createOrder = useCallback(async orderData => {
     const payload = buildOrderPayload(orderData);
-    if (!['cash', 'gcash', 'maya', 'bank'].includes(payload.payment_method)) {
+    if (!['cash', 'gcash', 'maya', 'maribank', 'gotyme', 'bank'].includes(payload.payment_method)) {
       throw new Error('Choose a valid payment method before placing the order.');
     }
     const signature = orderRequestSignature(payload);
@@ -459,6 +459,9 @@ export const OrderProvider = ({children}) => {
   const retryPayment = useCallback(orderId =>
     postOrderAction(orderId, 'payments/retry'), [postOrderAction]);
 
+  const changeWallet = useCallback((orderId, wallet) =>
+    postOrderAction(orderId, 'payments/wallet', {wallet}), [postOrderAction]);
+
   const cancelOrder = useCallback(async (orderId, details) => {
     const result = await postOrderAction(orderId, 'cancel', details, {financialsChanged: true});
     if (result.order.status === 'cancelled' && attemptStorageKey) {
@@ -504,6 +507,7 @@ export const OrderProvider = ({children}) => {
       confirmPayment,
       markPaymentFailed,
       retryPayment,
+      changeWallet,
       cancelOrder,
       requestRefund,
       confirmRefund,

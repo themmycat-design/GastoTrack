@@ -7,7 +7,7 @@ import {COLORS, RADIUS, SHADOWS, SPACING} from '../../theme';
 const sections = [
   {
     heading: 'What data the app processes',
-    body: 'GastoTrack processes account details, business and staff information, orders, transactions, stock changes, and bug reports with optional screenshots. With Android notification access enabled, it captures supported GCash and Maya transaction signals, including available amount, date, reference, sender or merchant, and notification message. Receipt scanning reads a photo selected or captured on the device; the resulting transaction details can be saved to the business account. The current scanner does not upload the full receipt photo as part of a saved transaction.',
+    body: 'GastoTrack processes account details, business and staff information, orders, transactions, stock changes, and bug reports with optional screenshots. With Android notification access enabled, it captures supported GCash, Maya, MariBank, and GoTyme transaction signals, including available amount, date, reference, sender or merchant, and notification message. Receipt scanning reads a photo selected or captured on the device; the resulting transaction details can be saved to the business account. The current scanner does not upload the full receipt photo as part of a saved transaction.',
   },
   {
     heading: 'Why it is processed',

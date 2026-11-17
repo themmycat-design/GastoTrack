@@ -8,6 +8,8 @@ import {useOrders} from '../src/context/OrderContext';
 import {isNotificationAccessGranted, subscribeToNotifications} from '../src/modules/NotificationModule';
 import {AppAlert} from '../src/services/AppDialogService';
 import api from '../src/services/api';
+import {launchImageLibrary} from 'react-native-image-picker';
+import {scanReceipt} from '../src/services/OCRService';
 
 jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => 'MockIcon');
 jest.mock('../src/components/staff/StaffScreenHeader', () => () => null);
@@ -15,6 +17,8 @@ jest.mock('../src/context/ProductContext', () => ({useProducts: jest.fn()}));
 jest.mock('../src/context/TransactionContext', () => ({useTransactions: jest.fn()}));
 jest.mock('../src/context/OrderContext', () => ({useOrders: jest.fn()}));
 jest.mock('../src/services/api', () => ({post: jest.fn()}));
+jest.mock('react-native-image-picker', () => ({launchImageLibrary: jest.fn()}));
+jest.mock('../src/services/OCRService', () => ({scanReceipt: jest.fn()}));
 jest.mock('../src/modules/NotificationModule', () => ({
   subscribeToNotifications: jest.fn(),
   isNotificationAccessGranted: jest.fn().mockResolvedValue(true),
@@ -43,6 +47,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   isNotificationAccessGranted.mockResolvedValue(true);
   api.post.mockResolvedValue({data: {saved_ids: ['7e2e640f-c116-4294-9282-52f413523458']}});
+  launchImageLibrary.mockResolvedValue({assets: [{uri: 'file:///payment-screenshot.png'}]});
+  scanReceipt.mockResolvedValue({success: true, text: 'GCash\nAmount received: PHP 85.00\nFrom: Wallet Customer\nDate: Oct 12, 2026\nRef No: GCASH-1234'});
   jest.useFakeTimers();
 });
 
@@ -75,6 +81,9 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
   const cancelOrder = jest.fn().mockResolvedValue({
     order: {...pendingOrder, status: 'cancelled', paymentStatus: 'cancelled'},
   });
+  const changeWallet = jest.fn().mockImplementation(async (_orderId, wallet) => ({
+    order: {...pendingOrder, paymentMethod: wallet},
+  }));
   let notificationListener;
 
   useProducts.mockReturnValue({products, isLoading: false, fetchProducts});
@@ -85,6 +94,7 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
     confirmPayment,
     markPaymentFailed,
     cancelOrder,
+    changeWallet,
     cart,
     setCart,
     cartHydrated: true,
@@ -102,10 +112,18 @@ const setup = ({cart = [], selectedProduct = product, products = [selectedProduc
     );
   });
   mountedScreens.push(screen);
-  return {screen, navigation, setCart, createOrder, confirmPaymentFromNotification, confirmPayment, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
+  return {screen, navigation, setCart, createOrder, confirmPaymentFromNotification, confirmPayment, changeWallet, cancelOrder, fetchProducts, fetchTransactionOptions, getNotificationListener: () => notificationListener};
 };
 
 describe('OrderQueueScreen ordering flow', () => {
+  it('offers GoTyme as a cashless payment method', async () => {
+    const {screen, createOrder} = setup({cart: [{product, quantity: 1}]});
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GoTyme');
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({paymentMethod: 'gotyme'}));
+  });
+
   it('shows only configured sizes under the category and filters the order list', async () => {
     const small = {...product, id: 8, size: 'Small'};
     const medium = {...product, id: 9, size: 'Medium'};
@@ -191,8 +209,8 @@ describe('OrderQueueScreen ordering flow', () => {
     await pressByLabel(screen, 'View your cart');
     await pressByLabel(screen, 'Select Cashless payment method');
     const walletChoices = screen.root.findAllByType(TouchableOpacity)
-      .filter(button => ['Choose GCash', 'Choose Maya'].includes(button.props.accessibilityLabel));
-    expect(walletChoices).toHaveLength(2);
+      .filter(button => ['Choose GCash', 'Choose Maya', 'Choose MariBank', 'Choose GoTyme'].includes(button.props.accessibilityLabel));
+    expect(walletChoices).toHaveLength(4);
     expect(walletChoices[0].parent.props.style).toMatchObject({flexDirection: 'column', alignItems: 'stretch'});
     expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Choose GCash')).toBe(true);
     await pressByLabel(screen, 'Choose GCash');
@@ -269,7 +287,7 @@ describe('OrderQueueScreen ordering flow', () => {
     alertSpy.mockRestore();
   });
 
-  it('confirms payment only after staff enters the wallet reference and approves the amount', async () => {
+  it('scans a payment screenshot, lets staff review it, and confirms only after approval', async () => {
     const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
     const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
 
@@ -278,13 +296,16 @@ describe('OrderQueueScreen ordering flow', () => {
     await pressByLabel(screen, 'Choose GCash');
     await pressByLabel(screen, 'Payment received');
     expect(confirmPayment).not.toHaveBeenCalled();
+    await pressByLabel(screen, 'Choose payment screenshot from gallery');
+    expect(launchImageLibrary).toHaveBeenCalled();
+    expect(scanReceipt).toHaveBeenCalledWith('file:///payment-screenshot.png');
 
     const referenceInput = screen.root.findAllByType(TextInput)
       .find(input => input.props.accessibilityLabel === 'Wallet transaction reference');
     const senderInput = screen.root.findAllByType(TextInput)
       .find(input => input.props.accessibilityLabel === 'Wallet sender name');
-    await ReactTestRenderer.act(async () => senderInput.props.onChangeText('Wallet Customer'));
-    await ReactTestRenderer.act(async () => referenceInput.props.onChangeText('GCASH-1234'));
+    expect(senderInput.props.value).toBe('Wallet Customer');
+    expect(referenceInput.props.value).toBe('GCASH-1234');
     await pressByLabel(screen, 'Confirm payment received');
     expect(confirmPayment).not.toHaveBeenCalled();
     expect(alertSpy.mock.calls.at(-1)[0]).toBe('Confirm payment received?');
@@ -298,21 +319,34 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(false);
   });
 
-  it('returns to wallet selection after cancelling the unpaid order and restoring the cart', async () => {
-    const {screen, setCart, cancelOrder} = setup({cart: [{product, quantity: 1}]});
+  it('does not offer confirmation for a screenshot with the wrong payment app', async () => {
+    const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
+    scanReceipt.mockResolvedValue({success: true, text: 'Maya\nAmount received: PHP 85.00\nRef No: MAYA-1234'});
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GCash');
+    await pressByLabel(screen, 'Payment received');
+    await pressByLabel(screen, 'Choose payment screenshot from gallery');
+    expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Confirm payment received')).toBe(false);
+    expect(confirmPayment).not.toHaveBeenCalled();
+  });
+
+  it('returns directly to wallet selection and switches the same pending order', async () => {
+    const {screen, createOrder, changeWallet, cancelOrder} = setup({cart: [{product, quantity: 1}]});
     const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
 
     await pressByLabel(screen, 'View your cart');
     await pressByLabel(screen, 'Select Cashless payment method');
     await pressByLabel(screen, 'Choose GCash');
     await pressByLabel(screen, 'Back to wallet selection');
-    expect(alertSpy.mock.calls.at(-1)[0]).toBe('Choose a different wallet?');
-    const cancelAction = alertSpy.mock.calls.at(-1)[2].find(button => button.style === 'destructive');
-    await ReactTestRenderer.act(async () => cancelAction.onPress());
-
-    expect(cancelOrder).toHaveBeenCalledWith(41, expect.objectContaining({payment_not_received: true}));
-    expect(setCart).toHaveBeenCalledWith([{product: {...product}, quantity: 1}]);
+    expect(alertSpy).not.toHaveBeenCalled();
     expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Choose Maya')).toBe(true);
+    await pressByLabel(screen, 'Choose Maya');
+    expect(changeWallet).toHaveBeenCalledWith(41, 'maya');
+    expect(createOrder).toHaveBeenCalledTimes(1);
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(screen.root.findAllByType(Text).some(node =>
+      Array.isArray(node.props.children) && node.props.children.join('') === 'Waiting for Maya payment')).toBe(true);
   });
 
   it('lets staff continue to manual wallet checking when notification access is restricted', async () => {

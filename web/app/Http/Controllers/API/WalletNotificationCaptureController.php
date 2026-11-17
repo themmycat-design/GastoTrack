@@ -23,7 +23,7 @@ class WalletNotificationCaptureController extends Controller
         $user = $request->user();
         abort_unless($user->isStaff() || $user->isOwner(), 403);
         $filters = $request->validate([
-            'source' => ['nullable', Rule::in(['gcash', 'maya'])],
+            'source' => ['nullable', Rule::in(['gcash', 'maya', 'maribank', 'gotyme'])],
             'search' => ['nullable', 'string', 'max:100'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d'],
@@ -69,7 +69,7 @@ class WalletNotificationCaptureController extends Controller
         $validated = $request->validate([
             'captures' => ['required', 'array', 'min:1', 'max:50'],
             'captures.*.client_id' => ['required', 'uuid'],
-            'captures.*.source' => ['required', Rule::in(['gcash', 'maya'])],
+            'captures.*.source' => ['required', Rule::in(['gcash', 'maya', 'maribank', 'gotyme'])],
             'captures.*.direction' => ['required', Rule::in(['received', 'sent'])],
             'captures.*.amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
             'captures.*.currency' => ['required', Rule::in(['PHP'])],
@@ -81,6 +81,11 @@ class WalletNotificationCaptureController extends Controller
         ]);
 
         foreach ($validated['captures'] as $index => $capture) {
+            if (in_array($capture['source'], ['maribank', 'gotyme'], true) && empty($capture['reference'])) {
+                throw ValidationException::withMessages([
+                    "captures.{$index}.reference" => 'A bank notification needs a transaction reference.',
+                ]);
+            }
             if (!WalletNotificationCapture::isTransactionSignal(
                 $capture['source'],
                 $capture['direction'],
@@ -88,7 +93,7 @@ class WalletNotificationCaptureController extends Controller
                 $capture['message'],
             )) {
                 throw ValidationException::withMessages([
-                    "captures.{$index}.message" => 'Only completed GCash or Maya transaction notifications can be captured.',
+                    "captures.{$index}.message" => 'Only completed supported payment transaction notifications can be captured.',
                 ]);
             }
         }

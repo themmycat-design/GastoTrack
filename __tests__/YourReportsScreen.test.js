@@ -26,14 +26,14 @@ it('shows submitted reports and opens the separate submission form', async () =>
   act(() => screen.unmount());
 });
 
-it('uses pull to refresh after a failed load without showing a retry banner', async () => {
+it('allows refresh after a failed load without telling staff to pull down', async () => {
   api.get.mockReset().mockRejectedValueOnce(new Error('Network error')).mockResolvedValue({
     data: {bug_reports: [{id: 5, title: 'Stock issue', description: 'Count mismatch'}], meta: {current_page: 1, last_page: 1}},
   });
   let screen;
   await act(async () => { screen = TestRenderer.create(<YourReportsScreen navigation={{navigate: jest.fn(), goBack: jest.fn()}} />); });
 
-  expect(screen.root.findAllByType(Text).map(node => node.props.children)).toContain('Reports unavailable. Pull down to refresh.');
+  expect(screen.root.findAllByType(Text).map(node => node.props.children)).toContain('Reports unavailable. Try again when connected.');
   expect(screen.root.findAllByType(TouchableOpacity).some(node => node.props.accessibilityLabel === 'Retry loading reports')).toBe(false);
 
   const list = screen.root.findByType(ScrollView);

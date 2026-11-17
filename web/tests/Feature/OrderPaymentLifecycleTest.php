@@ -322,6 +322,37 @@ class OrderPaymentLifecycleTest extends TestCase
         ]);
     }
 
+    public function test_staff_can_correct_the_wallet_on_one_unpaid_order_without_creating_a_second_order(): void
+    {
+        $created = $this->postJson('/api/v1/orders', [
+            'client_id' => 'aad4c41d-94e9-4af1-8bb0-66943f447c2a',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'payment_method' => 'gcash',
+        ])->assertCreated()->json('order');
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/wallet', ['wallet' => 'maya'])
+            ->assertOk()
+            ->assertJsonPath('order.payment_method', 'maya')
+            ->assertJsonPath('order.status', 'pending');
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('transactions', 0);
+        $this->assertSame(1000.0, (float) $this->stock->fresh()->current_quantity);
+        $this->assertDatabaseHas('order_payment_events', [
+            'order_id' => $created['id'],
+            'event_type' => 'pending_order_wallet_changed',
+        ]);
+
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/detected', [
+            'amount' => 120, 'currency' => 'PHP', 'source' => 'gcash',
+        ])->assertUnprocessable();
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/detected', [
+            'amount' => 120, 'currency' => 'PHP', 'source' => 'maya',
+        ])->assertOk();
+        $this->postJson('/api/v1/orders/'.$created['id'].'/payments/wallet', ['wallet' => 'gcash'])
+            ->assertStatus(409);
+        $this->assertDatabaseHas('orders', ['id' => $created['id'], 'payment_method' => 'maya']);
+    }
+
     public function test_exact_wallet_notification_match_auto_confirms_and_commits_order_once(): void
     {
         $created = $this->postJson('/api/v1/orders', [
@@ -380,6 +411,38 @@ class OrderPaymentLifecycleTest extends TestCase
         $details = json_decode($event->details, true);
         $this->assertFalse($details['provider_api_verified']);
         $this->assertFalse($details['authoritative']);
+    }
+
+    public function test_maribank_and_gotyme_orders_accept_payment_only_from_matching_captured_bank(): void
+    {
+        foreach (['maribank', 'gotyme'] as $index => $bank) {
+            $created = $this->postJson('/api/v1/orders', [
+                'client_id' => $index === 0 ? 'b0e8a9aa-af68-4ff0-9845-c4f8ae6538f0' : 'a0e8a9aa-af68-4ff0-9845-c4f8ae6538f0',
+                'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+                'payment_method' => $bank,
+            ])->assertCreated()->json('order');
+            $signal = [
+                'amount' => 120, 'currency' => 'PHP', 'source' => $bank,
+                'reference' => strtoupper($bank).'-ORDER-12345',
+                'notification_id' => $index === 0 ? '4110f9cc-e7c9-48a4-9702-04bd25a7e6a1' : '5110f9cc-e7c9-48a4-9702-04bd25a7e6a1',
+            ];
+            DB::table('wallet_notification_captures')->insert([
+                'client_id' => $signal['notification_id'], 'business_id' => $this->staff->business_id,
+                'user_id' => $this->staff->id, 'source' => $bank, 'direction' => 'received',
+                'amount' => 120, 'currency' => 'PHP', 'reference' => $signal['reference'],
+                'message' => 'You received PHP 120.00. Ref No: '.$signal['reference'],
+                'captured_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $wrongBank = $bank === 'maribank' ? 'gotyme' : 'maribank';
+            $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', [
+                ...$signal, 'source' => $wrongBank,
+            ])->assertUnprocessable();
+            $this->postJson('/api/v1/orders/'.$created['id'].'/payments/confirm-notification', $signal)
+                ->assertOk()->assertJsonPath('order.payment_method', $bank)
+                ->assertJsonPath('order.payment_status', 'confirmed');
+        }
+        $this->assertDatabaseCount('orders', 2);
+        $this->assertDatabaseCount('transactions', 2);
     }
 
     public function test_wallet_notification_auto_confirmation_requires_exact_order_wallet_and_amount(): void

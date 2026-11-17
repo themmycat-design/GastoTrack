@@ -68,7 +68,7 @@ class OrderController extends Controller
             'items.*.ingredient_overrides' => ['sometimes', 'array', 'max:100'],
             'items.*.ingredient_overrides.*.stock_item_id' => ['required', 'integer', 'min:1'],
             'items.*.ingredient_overrides.*.quantity' => ['required', 'numeric', 'decimal:0,4', 'min:0'],
-            'payment_method' => ['required', Rule::in(['cash', 'gcash', 'maya', 'bank'])],
+            'payment_method' => ['required', Rule::in(['cash', 'gcash', 'maya', 'maribank', 'gotyme', 'bank'])],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:30'],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -318,7 +318,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
             'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
-            'source' => ['required', Rule::in(['gcash', 'maya'])],
+            'source' => ['required', Rule::in(['gcash', 'maya', 'maribank', 'gotyme'])],
         ]);
 
         $order = DB::transaction(function () use ($request, $id, $validated): Order {
@@ -374,7 +374,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
             'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
-            'source' => ['required', Rule::in(['gcash', 'maya'])],
+            'source' => ['required', Rule::in(['gcash', 'maya', 'maribank', 'gotyme'])],
             'reference' => [
                 'required', 'string', 'max:120',
                 Rule::unique('orders', 'payment_reference')
@@ -639,6 +639,45 @@ class OrderController extends Controller
         });
 
         return response()->json(['message' => 'A new manual verification attempt is pending.', 'order' => $order]);
+    }
+
+    public function changeWallet(Request $request, int $id): JsonResponse
+    {
+        $this->staffOnly($request);
+        $validated = $request->validate(['wallet' => ['required', Rule::in(['gcash', 'maya', 'maribank', 'gotyme'])]]);
+
+        $order = DB::transaction(function () use ($request, $id, $validated): Order {
+            $order = $this->lockBusinessOrder($request, $id);
+            abort_unless(
+                $order->status === 'pending'
+                && $order->payment_type === 'cashless'
+                && $order->payment_status === 'pending'
+                && $order->financials_committed_at === null
+                && $order->payment_detected_at === null
+                && $order->payment_reference === null,
+                409,
+                'This payment is already being processed. Check Order history before changing the wallet.'
+            );
+
+            if ($order->payment_method !== $validated['wallet']) {
+                $previousWallet = $order->payment_method;
+                $order->update(['payment_method' => $validated['wallet']]);
+                $this->recordEvent(
+                    $order,
+                    $request->user(),
+                    'pending_order_wallet_changed',
+                    'pending',
+                    'pending',
+                    'pending',
+                    'pending',
+                    details: ['from_wallet' => $previousWallet, 'to_wallet' => $validated['wallet']]
+                );
+            }
+
+            return $order->load('items');
+        });
+
+        return response()->json(['message' => 'Wallet changed for the pending order.', 'order' => $order]);
     }
 
     public function cancel(Request $request, int $id): JsonResponse

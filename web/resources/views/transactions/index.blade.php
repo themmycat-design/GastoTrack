@@ -19,7 +19,7 @@
                 <section class="gt-enter flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
                     <div>
                         <h2 class="text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Transactions</h2>
-                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded orders, income, and expenses alongside captured GCash and Maya transaction alerts.</p>
+                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Review recorded orders, income, and expenses alongside captured payment transaction alerts.</p>
                     </div>
                 </section>
 
@@ -110,7 +110,7 @@
                 url.searchParams.delete('fragment');
                 if (url.searchParams.get('view') === 'raw') {
                     url.searchParams.delete('category');
-                    if (!['GCash', 'Maya'].includes(url.searchParams.get('source'))) url.searchParams.delete('source');
+                    if (!['GCash', 'Maya', 'MariBank', 'GoTyme'].includes(url.searchParams.get('source'))) url.searchParams.delete('source');
                 }
                 return url;
             };
@@ -122,9 +122,9 @@
                 categorySelect.disabled = mode === 'raw' || !sourceSelect.value;
                 searchInput.placeholder = mode === 'raw' ? 'Search wallet transaction text...' : 'Category, source, product...';
                 [...sourceSelect.options].forEach((option) => {
-                    option.hidden = mode === 'raw' && option.value !== '' && !['GCash', 'Maya'].includes(option.value);
+                    option.hidden = mode === 'raw' && option.value !== '' && !['GCash', 'Maya', 'MariBank', 'GoTyme'].includes(option.value);
                 });
-                if (mode === 'raw' && !['', 'GCash', 'Maya'].includes(sourceSelect.value)) sourceSelect.value = '';
+                if (mode === 'raw' && !['', 'GCash', 'Maya', 'MariBank', 'GoTyme'].includes(sourceSelect.value)) sourceSelect.value = '';
             };
 
             const activityUrl = (value) => {

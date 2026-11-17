@@ -162,6 +162,8 @@ class TransactionOptionController extends Controller
             ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'Cash'],
             ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'GCash'],
             ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'Maya'],
+            ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'MariBank'],
+            ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'GoTyme'],
             ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'Bank Transfer'],
             ['kind' => 'source', 'transaction_type' => 'all', 'name' => 'Credit Card'],
         ];

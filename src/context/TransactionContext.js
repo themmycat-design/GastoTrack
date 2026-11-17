@@ -11,7 +11,7 @@ export const TransactionContext = createContext();
 // Transaction constants
 export const INCOME_CATEGORIES = ['Sales', 'Tips', 'Other Income'];
 export const EXPENSE_CATEGORIES = ['Ingredients', 'Rent', 'Salaries', 'Utilities', 'Supplies', 'Other Expense'];
-export const TRANSACTION_SOURCES = ['Cash', 'GCash', 'Maya', 'Bank Transfer', 'Credit Card'];
+export const TRANSACTION_SOURCES = ['Cash', 'GCash', 'Maya', 'MariBank', 'GoTyme', 'Bank Transfer', 'Credit Card'];
 
 const mergeOptions = (defaults, custom) => {
   const seen = new Set();
@@ -31,6 +31,8 @@ const normalizeSource = source => {
     cash: 'Cash',
     gcash: 'GCash',
     maya: 'Maya',
+    maribank: 'MariBank',
+    gotyme: 'GoTyme',
     bank: 'Bank Transfer',
     'bank transfer': 'Bank Transfer',
     'credit card': 'Credit Card',

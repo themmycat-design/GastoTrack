@@ -17,6 +17,8 @@ public class NotificationListener extends NotificationListenerService {
         NotificationParser.GCASH,
         NotificationParser.MAYA,
         NotificationParser.MAYA_ALT,
+        NotificationParser.MARIBANK,
+        NotificationParser.GOTYME,
         NotificationParser.GRABPAY,
         NotificationParser.SHOPEEPAY
     };

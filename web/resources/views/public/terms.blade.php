@@ -9,7 +9,7 @@
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">
         <h2 class="text-xl font-extrabold">3. Records and payments</h2>
-        <p class="mt-2 text-sm leading-7 text-slate-600">The system records submitted orders, payment methods, income, expenses, stock changes, and bug reports. Some staff actions can be stored on the device while offline and sent later. A queued action is not a server record until synchronization succeeds. GCash and Maya notification matches use device notifications; they are not verification from the wallet provider. Check the official wallet account when a payment is disputed or unclear.</p>
+        <p class="mt-2 text-sm leading-7 text-slate-600">The system records submitted orders, payment methods, income, expenses, stock changes, and bug reports. Some staff actions can be stored on the device while offline and sent later. A queued action is not a server record until synchronization succeeds. Supported payment notification matches use device notifications; they are not verification from the provider. Check the official payment account when a payment is disputed or unclear.</p>
     </section>
     <section class="border-t border-[#DDE9E5] pt-7">
         <h2 class="text-xl font-extrabold">4. AI and receipt scanning</h2>

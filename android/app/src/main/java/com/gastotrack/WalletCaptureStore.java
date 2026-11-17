@@ -58,7 +58,10 @@ public final class WalletCaptureStore extends SQLiteOpenHelper {
         int userId = account.getInt("user_id", 0);
         int businessId = account.getInt("business_id", 0);
         if (userId <= 0 || businessId <= 0) return null;
-        String source = parsed.appSource.equals("GCash") ? "gcash" : parsed.appSource.equals("Maya") ? "maya" : null;
+        String source = parsed.appSource.equals("GCash") ? "gcash"
+            : parsed.appSource.equals("Maya") ? "maya"
+            : parsed.appSource.equals("MariBank") ? "maribank"
+            : parsed.appSource.equals("GoTyme") ? "gotyme" : null;
         if (source == null) return null;
 
         try {

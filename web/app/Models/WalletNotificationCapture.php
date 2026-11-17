@@ -60,7 +60,7 @@ class WalletNotificationCapture extends Model
     /** Hide legacy/noisy wallet alerts from every Raw Transactions surface. */
     public function scopeTransactionSignals(Builder $query): Builder
     {
-        $query->whereIn('source', ['gcash', 'maya'])
+        $query->whereIn('source', ['gcash', 'maya', 'maribank', 'gotyme'])
             ->whereIn('direction', ['received', 'sent'])
             ->whereNotNull('amount')
             ->where('amount', '>', 0)
@@ -110,7 +110,7 @@ class WalletNotificationCapture extends Model
 
     public static function isTransactionSignal(string $source, string $direction, mixed $amount, ?string $message): bool
     {
-        if (!in_array(strtolower($source), ['gcash', 'maya'], true)
+        if (!in_array(strtolower($source), ['gcash', 'maya', 'maribank', 'gotyme'], true)
             || !in_array(strtolower($direction), ['received', 'sent'], true)
             || !is_numeric($amount)
             || (float) $amount <= 0

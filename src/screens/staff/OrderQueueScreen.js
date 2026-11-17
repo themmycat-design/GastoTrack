@@ -24,6 +24,9 @@ import api from '../../services/api';
 import { COLORS } from '../../theme';
 import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import GastoModalMascot from '../../components/staff/GastoModalMascot';
+import {launchImageLibrary} from 'react-native-image-picker';
+import {scanReceipt} from '../../services/OCRService';
+import {parseWalletPaymentScreenshot} from '../../services/walletPaymentScreenshot';
 import {productCategoryTabs, productSizesInCategory, productsInCategory, productsInSize} from '../../constants/productCategories';
 import {ingredientUsageForCartLine} from '../../utils/orderIngredientUsage';
 import {staffDayKey} from '../../utils/useStaffDay';
@@ -31,7 +34,7 @@ import {staffDayKey} from '../../utils/useStaffDay';
 const OrderQueueScreen = ({navigation, route}) => {
   const {products, isLoading: productsLoading, loadError: productError, fetchProducts} = useProducts();
   const {PRODUCT_CATEGORIES, fetchTransactionOptions} = useTransactions();
-  const {createOrder, confirmPaymentFromNotification, confirmPayment, cancelOrder, cart, setCart, cartHydrated} = useOrders();
+  const {createOrder, confirmPaymentFromNotification, confirmPayment, changeWallet, cancelOrder, cart, setCart, cartHydrated} = useOrders();
   const submittingOrder = useRef(false);
   const autoConfirmAttemptRef = useRef(null);
   const cashlessCartSnapshotRef = useRef(null);
@@ -54,6 +57,9 @@ const OrderQueueScreen = ({navigation, route}) => {
   const [manualPaymentReference, setManualPaymentReference] = useState('');
   const [manualPaymentSender, setManualPaymentSender] = useState('');
   const [manualPaymentDate, setManualPaymentDate] = useState(staffDayKey);
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const [paymentScreenshotError, setPaymentScreenshotError] = useState('');
+  const [isReadingPaymentScreenshot, setIsReadingPaymentScreenshot] = useState(false);
   const [detectedWalletSignal, setDetectedWalletSignal] = useState(null);
   
   // Cart and payment state
@@ -444,10 +450,10 @@ const OrderQueueScreen = ({navigation, route}) => {
     }
   };
 
-  const cancelCashlessOrder = (returnToWallet = false) => {
+  const cancelCashlessOrder = () => {
     if (!paymentOrder?.id) return;
     Alert.alert(
-      returnToWallet ? 'Choose a different wallet?' : 'Cancel pending order?',
+      'Cancel pending order?',
       paymentSignalDetected
         ? 'Check the official wallet account. Continue only if no payment was received; a notification is not proof. If payment arrived, confirm it and use the refund workflow.'
         : 'Check the official wallet account and continue only if no payment was received. No income or stock change will be recorded.',
@@ -474,10 +480,10 @@ const OrderQueueScreen = ({navigation, route}) => {
             setManualPaymentVisible(false);
             setManualPaymentReference('');
             setManualPaymentSender('');
-            setPaymentType(returnToWallet ? 'cashless' : null);
+            setPaymentType(null);
             setSelectedEwallet(null);
-            setWalletPickerVisible(returnToWallet);
-            setPaymentNotice(returnToWallet ? 'Choose the correct wallet to continue.' : 'Pending order cancelled. Your cart is restored.');
+            setWalletPickerVisible(false);
+            setPaymentNotice('Pending order cancelled. Your cart is restored.');
             setCheckoutModalVisible(true);
           } catch (error) {
             Alert.alert('Order not cancelled', getApiErrorMessage(error, 'The order is still pending. Check Order history and try again.'));
@@ -491,6 +497,11 @@ const OrderQueueScreen = ({navigation, route}) => {
 
   const submitManualPayment = () => {
     if (!paymentOrder?.id || isPlacingOrder || isCheckingWalletPayment || paymentSignalDetected) return;
+    if (!paymentScreenshot || paymentScreenshot.source.toLowerCase() !== selectedEwallet?.toLowerCase()
+      || Math.round(Number(paymentScreenshot.amount) * 100) !== Math.round(Number(paymentOrder.total) * 100)) {
+      Alert.alert('Screenshot does not match', 'Choose a screenshot showing the selected payment app and exact order amount.');
+      return;
+    }
     const reference = manualPaymentReference.trim();
     const sender = manualPaymentSender.trim();
     const receivedOn = manualPaymentDate.trim();
@@ -517,6 +528,8 @@ const OrderQueueScreen = ({navigation, route}) => {
             setManualPaymentVisible(false);
             setManualPaymentReference('');
             setManualPaymentSender('');
+            setPaymentScreenshot(null);
+            setPaymentScreenshotError('');
             cashlessCartSnapshotRef.current = null;
             setPaymentOrder(null);
             setPaymentType(null);
@@ -532,6 +545,85 @@ const OrderQueueScreen = ({navigation, route}) => {
     );
   };
 
+  const choosePaymentScreenshot = async () => {
+    if (isPlacingOrder || isReadingPaymentScreenshot || isCheckingWalletPayment) return;
+    setIsReadingPaymentScreenshot(true);
+    setPaymentScreenshotError('');
+    setPaymentScreenshot(null);
+    setManualPaymentReference('');
+    setManualPaymentSender('');
+    setManualPaymentDate('');
+    try {
+      const result = await launchImageLibrary({mediaType: 'photo', quality: 1, selectionLimit: 1});
+      if (result.didCancel) return;
+      if (result.errorCode || !result.assets?.[0]?.uri) {
+        setPaymentScreenshotError(result.errorMessage || 'Could not open the screenshot. Check photo access and try again.');
+        return;
+      }
+      const scanned = await scanReceipt(result.assets[0].uri);
+      if (!scanned.success || !scanned.text?.trim()) {
+        setPaymentScreenshotError('The payment details are unreadable. Choose a clearer screenshot.');
+        return;
+      }
+      const details = parseWalletPaymentScreenshot(scanned.text);
+      if (!details.source) {
+        setPaymentScreenshotError('The payment app name was not detected. Choose a screenshot that shows its name and transaction details.');
+        return;
+      }
+      if (details.source.toLowerCase() !== selectedEwallet?.toLowerCase()) {
+        setPaymentScreenshotError(`This screenshot appears to be from ${details.source}, but the order is waiting for ${selectedEwallet}. Choose the correct screenshot or go back to change the payment app.`);
+        return;
+      }
+      if (details.amount === null) {
+        setPaymentScreenshotError('The received amount is missing or ambiguous. Choose a screenshot that clearly shows one payment amount.');
+        return;
+      }
+      if (Math.round(details.amount * 100) !== Math.round(Number(paymentOrder?.total) * 100)) {
+        setPaymentScreenshotError(`The screenshot shows ₱${details.amount.toFixed(2)}, but this order is ₱${Number(paymentOrder?.total || 0).toFixed(2)}. Check the payment before continuing.`);
+        return;
+      }
+      setPaymentScreenshot(details);
+      setManualPaymentReference(details.reference);
+      setManualPaymentSender(details.sender);
+      setManualPaymentDate(details.date);
+      if (!details.reference || !details.sender || !details.date) {
+        setPaymentScreenshotError('Some details could not be read. Check the official payment app and fill the missing fields before confirming.');
+      }
+    } catch {
+      setPaymentScreenshotError('Could not read the screenshot. Check photo access and try again.');
+    } finally {
+      setIsReadingPaymentScreenshot(false);
+    }
+  };
+
+  const returnToPendingPayment = () => {
+    setWalletPickerVisible(false);
+    if (paymentOrder?.id) setQrPaymentModalVisible(true);
+  };
+
+  const applyWalletSelection = async wallet => {
+    if (paymentOrder?.id) {
+      setIsPlacingOrder(true);
+      try {
+        const result = await changeWallet(paymentOrder.id, wallet.toLowerCase());
+        setPaymentOrder(result.order);
+        setSelectedEwallet(wallet);
+        setPaymentSignalWarning('');
+        setWalletPickerVisible(false);
+        setQrPaymentModalVisible(true);
+      } catch (error) {
+        Alert.alert('Wallet not changed', getApiErrorMessage(error, 'The pending order could not be updated. Check Order history.'));
+        returnToPendingPayment();
+      } finally {
+        setIsPlacingOrder(false);
+      }
+      return;
+    }
+    setPaymentType('cashless');
+    setSelectedEwallet(wallet);
+    handlePlaceOrder('cashless', wallet);
+  };
+
   const handleChooseWallet = async wallet => {
     const notificationAccess = await isNotificationAccessGranted();
     if (!notificationAccess) {
@@ -541,18 +633,12 @@ const OrderQueueScreen = ({navigation, route}) => {
         [
           {text: 'Not now', style: 'cancel'},
           {text: 'Open settings', onPress: openNotificationSettings},
-          {text: 'Continue manually', onPress: () => {
-            setPaymentType('cashless');
-            setSelectedEwallet(wallet);
-            handlePlaceOrder('cashless', wallet);
-          }},
+          {text: 'Continue manually', onPress: () => applyWalletSelection(wallet)},
         ],
       );
       return;
     }
-    setPaymentType('cashless');
-    setSelectedEwallet(wallet);
-    handlePlaceOrder('cashless', wallet);
+    await applyWalletSelection(wallet);
   };
 
   // Render product card
@@ -953,7 +1039,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                   <Text style={styles.placeOrderButtonText}>
                     {paymentType === 'cash'
                       ? 'Save cash order'
-                      : paymentType === 'cashless' ? (selectedEwallet ? `Continue with ${selectedEwallet}` : 'Choose GCash or Maya') : 'Choose a payment method'}
+                      : paymentType === 'cashless' ? (selectedEwallet ? `Continue with ${selectedEwallet}` : 'Choose a wallet or bank') : 'Choose a payment method'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -970,7 +1056,7 @@ const OrderQueueScreen = ({navigation, route}) => {
         animationType="fade"
         transparent
         onRequestClose={() => {
-          if (!isPlacingOrder) setWalletPickerVisible(false);
+          if (!isPlacingOrder) returnToPendingPayment();
         }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -978,15 +1064,16 @@ const OrderQueueScreen = ({navigation, route}) => {
               <GastoModalMascot variant="thinking" />
               <Text style={styles.modalTitle}>Choose a wallet</Text>
               <TouchableOpacity
-                onPress={() => setWalletPickerVisible(false)}
+                onPress={returnToPendingPayment}
                 disabled={isPlacingOrder}
                 accessibilityLabel="Close wallet selection">
                 <Text style={styles.modalClose}>×</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.qrInstructionText}>Select the wallet the customer will use. A matching notification can complete the order automatically, or staff can confirm it after checking the wallet app.</Text>
+            {paymentOrder?.id ? <Text style={styles.qrInstructionText}>The order is still pending. Choose another wallet only if no payment was received in the first wallet.</Text> : null}
             <View style={styles.walletChoices}>
-              {['GCash', 'Maya'].map(wallet => (
+              {['GCash', 'Maya', 'MariBank', 'GoTyme'].map(wallet => (
                 <TouchableOpacity
                   key={wallet}
                   style={[styles.walletChoiceButton, isPlacingOrder && styles.placeOrderDisabled]}
@@ -1002,9 +1089,9 @@ const OrderQueueScreen = ({navigation, route}) => {
             </View>
             <TouchableOpacity
               style={styles.paymentTypeCancelButton}
-              onPress={() => setWalletPickerVisible(false)}
+              onPress={returnToPendingPayment}
               disabled={isPlacingOrder}>
-              <Text style={styles.paymentTypeCancelText}>Back to checkout</Text>
+              <Text style={styles.paymentTypeCancelText}>{paymentOrder?.id ? 'Back to payment' : 'Back to checkout'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1015,9 +1102,28 @@ const OrderQueueScreen = ({navigation, route}) => {
         visible={qrPaymentModalVisible}
         animationType="fade"
         transparent
-        onRequestClose={() => {}}>
+        onRequestClose={() => {
+          if (!paymentSignalDetected && !isPlacingOrder && !isCheckingWalletPayment && !manualPaymentVisible) {
+            setQrPaymentModalVisible(false);
+            setWalletPickerVisible(true);
+          }
+        }}>
         <View style={styles.modalOverlay}>
           <ScrollView style={styles.qrModalCard} contentContainerStyle={styles.qrModalContent} keyboardShouldPersistTaps="handled">
+            {!paymentSignalDetected && !manualPaymentVisible ? (
+              <TouchableOpacity
+                style={styles.walletBackButton}
+                onPress={() => {
+                  setQrPaymentModalVisible(false);
+                  setWalletPickerVisible(true);
+                }}
+                disabled={isPlacingOrder || isCheckingWalletPayment}
+                accessibilityRole="button"
+                accessibilityLabel="Back to wallet selection">
+                <Icon name="arrow-left" size={18} color={COLORS.accentDark} />
+                <Text style={styles.walletBackText}>Back</Text>
+              </TouchableOpacity>
+            ) : null}
             <GastoModalMascot variant={paymentSignalDetected ? 'success' : 'thinking'} />
             
             {paymentSignalDetected ? (
@@ -1051,7 +1157,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                     <Text style={styles.placeOrderButtonText}>Retry saving payment</Text>
                   </TouchableOpacity>
                 ) : null}
-                <Text style={styles.walletVerificationNote}>This automatic match uses the phone notification and is not verification by GCash or Maya.</Text>
+                <Text style={styles.walletVerificationNote}>This match uses a phone notification. Check the official payment app if anything is unclear.</Text>
                 {paymentAutoConfirmError ? (
                   <TouchableOpacity style={styles.qrCancelButton} onPress={() => cancelCashlessOrder()} disabled={isPlacingOrder || isCheckingWalletPayment} accessibilityRole="button" accessibilityLabel="Cancel pending order">
                     <Text style={styles.qrCancelButtonText}>Cancel</Text>
@@ -1060,12 +1166,30 @@ const OrderQueueScreen = ({navigation, route}) => {
               </>
             ) : manualPaymentVisible ? (
               <>
-                <Text style={styles.qrTitle}>Confirm {selectedEwallet} payment</Text>
+                <Text style={styles.qrTitle}>Check {selectedEwallet} payment</Text>
                 <View style={styles.qrAmountBox}>
                   <Text style={styles.qrAmountLabel}>Order total</Text>
                   <Text style={styles.qrAmountValue}>₱{Number(paymentOrder?.total || 0).toFixed(2)}</Text>
                 </View>
-                <Text style={styles.qrInstructionText}>Check the received payment in the official {selectedEwallet} app. Copy the sender, payment date, and reference from that transaction.</Text>
+                <Text style={styles.qrInstructionText}>Choose a screenshot of the received transaction from the official {selectedEwallet} app. GastoTrack will read its details on this device.</Text>
+                <TouchableOpacity
+                  style={styles.paymentScreenshotButton}
+                  onPress={choosePaymentScreenshot}
+                  disabled={isReadingPaymentScreenshot || isPlacingOrder}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose payment screenshot from gallery">
+                  {isReadingPaymentScreenshot ? <ActivityIndicator color={COLORS.accentDark} /> : <Icon name="image-search-outline" size={21} color={COLORS.accentDark} />}
+                  <Text style={styles.paymentScreenshotButtonText}>{isReadingPaymentScreenshot ? 'Reading screenshot...' : paymentScreenshot ? 'Choose another screenshot' : 'Choose screenshot from gallery'}</Text>
+                </TouchableOpacity>
+                {paymentScreenshotError && (!paymentScreenshot || !manualPaymentReference.trim() || !manualPaymentSender.trim() || !manualPaymentDate.trim())
+                  ? <Text style={styles.paymentSignalWarning}>{paymentScreenshotError}</Text> : null}
+                {paymentScreenshot ? (
+                  <>
+                    <View style={styles.paymentScreenshotSummary}>
+                      <Text style={styles.paymentScreenshotSummaryText}>Detected app: {paymentScreenshot.source}</Text>
+                      <Text style={styles.paymentScreenshotSummaryText}>Detected amount: ₱{paymentScreenshot.amount.toFixed(2)}</Text>
+                    </View>
+                    <Text style={styles.qrInstructionText}>Review the sender, date, and reference against the official payment app. Correct any OCR mistakes before confirming.</Text>
                 <TextInput
                   style={styles.manualPaymentInput}
                   value={manualPaymentSender}
@@ -1096,16 +1220,22 @@ const OrderQueueScreen = ({navigation, route}) => {
                   accessibilityLabel="Wallet transaction reference"
                 />
                 <TouchableOpacity
-                  style={[styles.placeOrderButton, (isPlacingOrder || !manualPaymentReference.trim()) && styles.placeOrderDisabled]}
+                  style={[styles.placeOrderButton, (isPlacingOrder || !manualPaymentReference.trim() || !manualPaymentSender.trim() || !manualPaymentDate.trim()) && styles.placeOrderDisabled]}
                   onPress={submitManualPayment}
                   disabled={isPlacingOrder || !manualPaymentReference.trim() || !manualPaymentSender.trim() || !manualPaymentDate.trim()}
                   accessibilityRole="button"
                   accessibilityLabel="Confirm payment received">
                   <Text style={styles.placeOrderButtonText}>{isPlacingOrder ? 'Saving…' : 'Confirm payment received'}</Text>
                 </TouchableOpacity>
+                  </>
+                ) : null}
                 <TouchableOpacity
                   style={styles.paymentTypeCancelButton}
-                  onPress={() => setManualPaymentVisible(false)}
+                  onPress={() => {
+                    setManualPaymentVisible(false);
+                    setPaymentScreenshot(null);
+                    setPaymentScreenshotError('');
+                  }}
                   disabled={isPlacingOrder}
                   accessibilityRole="button"
                   accessibilityLabel="Back to waiting for payment">
@@ -1114,15 +1244,6 @@ const OrderQueueScreen = ({navigation, route}) => {
               </>
             ) : (
               <>
-                <TouchableOpacity
-                  style={styles.walletBackButton}
-                  onPress={() => cancelCashlessOrder(true)}
-                  disabled={isPlacingOrder || isCheckingWalletPayment}
-                  accessibilityRole="button"
-                  accessibilityLabel="Back to wallet selection">
-                  <Icon name="arrow-left" size={18} color={COLORS.accentDark} />
-                  <Text style={styles.walletBackText}>Choose another wallet</Text>
-                </TouchableOpacity>
                 <Text style={styles.qrTitle}>Waiting for {selectedEwallet} payment</Text>
 
                 <View style={styles.qrAmountBox}>
@@ -1145,7 +1266,14 @@ const OrderQueueScreen = ({navigation, route}) => {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.placeOrderButton, styles.waitingActionButton]}
-                    onPress={() => setManualPaymentVisible(true)}
+                    onPress={() => {
+                      setPaymentScreenshot(null);
+                      setPaymentScreenshotError('');
+                      setManualPaymentReference('');
+                      setManualPaymentSender('');
+                      setManualPaymentDate('');
+                      setManualPaymentVisible(true);
+                    }}
                     disabled={isPlacingOrder || isCheckingWalletPayment}
                     accessibilityRole="button"
                     accessibilityLabel="Payment received">
@@ -1680,6 +1808,10 @@ const styles = StyleSheet.create({
   walletBackButton: {alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, marginBottom: 8},
   walletBackText: {fontSize: 13, fontWeight: '600', color: COLORS.accentDark},
   manualPaymentInput: {width: '100%', minHeight: 48, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, color: COLORS.textPrimary, backgroundColor: COLORS.surface, marginTop: 6, marginBottom: 14},
+  paymentScreenshotButton: {width: '100%', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.accentDark, borderRadius: 12, marginBottom: 14, paddingHorizontal: 12},
+  paymentScreenshotButtonText: {fontSize: 14, fontWeight: '700', color: COLORS.accentDark},
+  paymentScreenshotSummary: {width: '100%', backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 12, marginBottom: 12},
+  paymentScreenshotSummaryText: {fontSize: 13, lineHeight: 21, color: COLORS.textPrimary},
   qrTitle: {
     fontSize: 20,
     fontWeight: 'bold',

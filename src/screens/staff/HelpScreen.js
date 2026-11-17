@@ -29,7 +29,7 @@ const questions = [
   {
     icon: 'wallet-outline',
     question: 'How do I know a cashless order was saved?',
-    answer: 'After choosing GCash or Maya, a matching received-payment notification can save the order automatically. If it does not arrive, check the official wallet app for the exact amount and reference, then tap Payment received to confirm it. A notification alone is not verification from the wallet provider.',
+    answer: 'Choose GCash, Maya, MariBank, or GoTyme. A matching received-payment notification can save the order automatically. If no usable alert arrives, check the official payment app, tap Payment received, and select a screenshot of its transaction details. Review the scanned fields before confirming. A phone alert or screenshot is not provider verification.',
   },
   {
     icon: 'wifi-off',
@@ -54,7 +54,7 @@ const questions = [
   {
     icon: 'bell-outline',
     question: 'Why is my e-wallet notification not being captured?',
-    answer: 'Open Profile > Permissions and check that Android notification access is enabled. If notification access is restricted, check the official GCash or Maya app and use Payment received with the transaction reference to confirm manually.',
+    answer: 'Open Profile > Permissions and check that Android notification access is enabled. Banks may omit the amount or reference from an alert. If no usable alert arrives, check the official payment app and choose a transaction screenshot under Payment received.',
   },
   {
     icon: 'lock-reset',

@@ -105,7 +105,7 @@ class TransactionController extends Controller
             return view('transactions.partials.activity', compact('transactions', 'captures', 'viewMode'));
         }
 
-        $sourceOptions = ['Cash', 'Maya', 'GCash', 'Bank Transfer', 'Credit Card'];
+        $sourceOptions = ['Cash', 'Maya', 'GCash', 'MariBank', 'GoTyme', 'Bank Transfer', 'Credit Card'];
         $categoryOptions = collect();
         if ($viewMode === 'daily' && $request->filled('source')) {
             $source = strtolower($request->source);

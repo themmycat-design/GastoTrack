@@ -8,6 +8,8 @@ public class NotificationParser {
     public static final String GCASH     = "com.globe.gcash.android";
     public static final String MAYA      = "com.voyager.pay";
     public static final String MAYA_ALT  = "com.paymaya";
+    public static final String MARIBANK  = "ph.seabank.seabank";
+    public static final String GOTYME    = "ph.com.gotyme";
     public static final String GRABPAY   = "com.grabtaxi.passenger";
     public static final String SHOPEEPAY = "com.shopee.ph";
 
@@ -35,6 +37,8 @@ public class NotificationParser {
             case GCASH:     return parseGCash(t, title, text);
             case MAYA:      return parseMaya(t, title, text);
             case MAYA_ALT:  return parseMaya(t, title, text);
+            case MARIBANK:  return parseBankReceipt(t, "MariBank", title, text);
+            case GOTYME:    return parseBankReceipt(t, "GoTyme", title, text);
             case GRABPAY:   return parseGrabPay(t, text);
             case SHOPEEPAY: return parseShopeePay(t, text);
             default:        return null;
@@ -74,6 +78,21 @@ public class NotificationParser {
         if (t.merchant != null) t.merchant = redactSensitive(t.merchant);
         t.amount = extractAmount(title + " " + text);
         if ("unknown".equals(t.amount)) return null;
+        return t;
+    }
+
+    /** A bank alert is usable only when it explicitly reports a completed credit
+     * and includes both an amount and a reference. Other bank alerts are ignored. */
+    private static ParsedTransaction parseBankReceipt(ParsedTransaction t, String bank, String title, String text) {
+        String message = title + " " + text;
+        if (!"received".equals(classifyDirection(message))) return null;
+        t.reference = extractReference(message);
+        t.amount = extractAmount(message);
+        if (t.reference == null || "unknown".equals(t.amount)) return null;
+        t.appSource = bank;
+        t.transactionType = "received";
+        t.merchant = extractAfterKeyword(message, new String[]{"from "});
+        if (t.merchant != null) t.merchant = redactSensitive(t.merchant);
         return t;
     }
 
@@ -149,7 +168,8 @@ public class NotificationParser {
 
     /** Defensive validation shared by local queue storage and retry cleanup. */
     public static boolean isValidWalletTransaction(String source, String direction, String amount, String message) {
-        if (source == null || !(source.equalsIgnoreCase("gcash") || source.equalsIgnoreCase("maya"))) return false;
+        if (source == null || !(source.equalsIgnoreCase("gcash") || source.equalsIgnoreCase("maya")
+            || source.equalsIgnoreCase("maribank") || source.equalsIgnoreCase("gotyme"))) return false;
         if (amount == null || "unknown".equalsIgnoreCase(amount)) return false;
         Matcher amountMatcher = AMOUNT_PATTERN.matcher(amount);
         String numeric = amountMatcher.find() ? amountMatcher.group(1).replace(",", "") : amount.replaceAll("[^0-9.]", "");

@@ -19,7 +19,7 @@ const sections = [
   },
   {
     heading: 'E-wallet payment signals',
-    body: 'With Android notification access enabled, GastoTrack can capture supported GCash and Maya transaction notifications and match a received-payment signal to an order. A match is based on notification details; it is not confirmation from the wallet provider. Check the official wallet account when a payment is disputed or unclear.',
+    body: 'With Android notification access enabled, GastoTrack can capture supported GCash, Maya, MariBank, and GoTyme transaction notifications and match a received-payment signal to an order. A match is based on notification details; it is not confirmation from the provider. Check the official payment account when a payment is disputed or unclear.',
   },
   {
     heading: 'AI and receipt scanning',
