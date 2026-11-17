@@ -31,6 +31,13 @@ import {productCategoryTabs, productSizesInCategory, productsInCategory, product
 import {ingredientUsageForCartLine} from '../../utils/orderIngredientUsage';
 import {staffDayKey} from '../../utils/useStaffDay';
 
+const WALLET_OPTIONS = [
+  {name: 'GCash', logo: require('../../../assets/wallets/gcash.png'), iconOnly: true},
+  {name: 'Maya', logo: require('../../../assets/wallets/maya-logo.png')},
+  {name: 'MariBank', logo: require('../../../assets/wallets/maribank.png'), iconOnly: true},
+  {name: 'GoTyme', logo: require('../../../assets/wallets/gotyme-logo.png')},
+];
+
 const OrderQueueScreen = ({navigation, route}) => {
   const {products, isLoading: productsLoading, loadError: productError, fetchProducts} = useProducts();
   const {PRODUCT_CATEGORIES, fetchTransactionOptions} = useTransactions();
@@ -1070,20 +1077,21 @@ const OrderQueueScreen = ({navigation, route}) => {
                 <Text style={styles.modalClose}>×</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.qrInstructionText}>Select the wallet the customer will use. A matching notification can complete the order automatically, or staff can confirm it after checking the wallet app.</Text>
-            {paymentOrder?.id ? <Text style={styles.qrInstructionText}>The order is still pending. Choose another wallet only if no payment was received in the first wallet.</Text> : null}
             <View style={styles.walletChoices}>
-              {['GCash', 'Maya', 'MariBank', 'GoTyme'].map(wallet => (
+              {WALLET_OPTIONS.map(wallet => (
                 <TouchableOpacity
-                  key={wallet}
+                  key={wallet.name}
                   style={[styles.walletChoiceButton, isPlacingOrder && styles.placeOrderDisabled]}
-                  onPress={() => handleChooseWallet(wallet)}
+                  onPress={() => handleChooseWallet(wallet.name)}
                   disabled={isPlacingOrder}
                   accessibilityRole="button"
-                  accessibilityLabel={`Choose ${wallet}`}>
-                  {isPlacingOrder && selectedEwallet === wallet
-                    ? <ActivityIndicator color={COLORS.textWhite} />
-                    : <Text style={styles.placeOrderButtonText}>{wallet}</Text>}
+                  accessibilityLabel={`Choose ${wallet.name}`}>
+                  {isPlacingOrder && selectedEwallet === wallet.name
+                    ? <ActivityIndicator color={COLORS.accentDark} />
+                    : <>
+                        <Image source={wallet.logo} style={wallet.iconOnly ? styles.walletIcon : styles.walletWordmark} resizeMode="contain" />
+                        {wallet.iconOnly ? <Text style={styles.walletChoiceLabel}>{wallet.name}</Text> : null}
+                      </>}
                 </TouchableOpacity>
               ))}
             </View>
@@ -1544,18 +1552,21 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   walletChoiceButton: {
-    backgroundColor: COLORS.accentDark,
-    minHeight: 48,
+    backgroundColor: COLORS.surface,
+    minHeight: 98,
     borderRadius: 14,
-    padding: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
-    width: '100%',
-    alignSelf: 'stretch',
-    flexGrow: 0,
-    flexShrink: 0,
-    marginBottom: 10,
+    justifyContent: 'center',
+    flexBasis: '45%',
+    flexGrow: 1,
   },
-  walletChoices: {flexDirection: 'column', alignItems: 'stretch', width: '100%'},
+  walletChoices: {flexDirection: 'row', flexWrap: 'wrap', gap: 10, width: '100%'},
+  walletIcon: {width: 46, height: 46},
+  walletWordmark: {width: '90%', height: 58},
+  walletChoiceLabel: {marginTop: 4, fontSize: 14, fontWeight: '700', color: COLORS.textDark},
   productDetailEmoji: {
     height: 220,
     borderRadius: 14,

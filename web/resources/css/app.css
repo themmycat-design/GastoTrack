@@ -24,6 +24,17 @@
     box-shadow: 0 8px 24px rgba(10, 46, 42, .045);
 }
 
+.gt-owner-notification-items {
+    max-height: min(60vh, 26rem);
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #a9c6ba transparent;
+}
+
+html.gt-dark .gt-owner-notification-items {
+    scrollbar-color: #60756f transparent;
+}
+
 /* Owner workspace dark mode (toggled from the owner top bar). */
 html.gt-dark {
     color-scheme: dark;

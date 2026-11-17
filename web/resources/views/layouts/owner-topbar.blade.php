@@ -1,4 +1,4 @@
-<header data-owner-live-url="{{ route('owner.live-state') }}" data-owner-login-url="{{ route('login') }}" class="sticky top-0 z-20 border-b border-[#DDE9E5] bg-white/90 backdrop-blur-xl">
+<header data-owner-live-url="{{ route('owner.live-state') }}" data-owner-login-url="{{ route('login') }}" class="sticky top-0 z-[60] border-b border-[#DDE9E5] bg-white/90 backdrop-blur-xl">
     <div class="mx-auto flex min-h-14 max-w-[1600px] items-center justify-between gap-3 px-5 py-2 sm:px-8 lg:px-10">
         <div class="min-w-0">
             <p class="truncate text-sm font-bold text-[#0A2E2A]">Good day, {{ Auth::user()->name }}</p>
@@ -28,7 +28,7 @@
                     </div>
                     <div data-owner-notification-list>
                     @if($recentNotifications->isNotEmpty())
-                        <ul data-notification-items class="max-h-72 divide-y divide-[#EAF2EF] overflow-y-auto">
+                        <ul data-notification-items class="gt-owner-notification-items divide-y divide-[#EAF2EF] overflow-y-auto" aria-label="Recent notifications">
                             @foreach($recentNotifications as $notification)
                                 @php $isRead = $notification->read_at !== null; @endphp
                                 <li data-notification-item class="px-5 py-3">

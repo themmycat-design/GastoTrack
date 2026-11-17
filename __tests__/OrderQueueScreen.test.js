@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import {FlatList, Modal, Text, TextInput, TouchableOpacity} from 'react-native';
+import {FlatList, Image, Modal, Text, TextInput, TouchableOpacity} from 'react-native';
 import OrderQueueScreen from '../src/screens/staff/OrderQueueScreen';
 import {useProducts} from '../src/context/ProductContext';
 import {useTransactions} from '../src/context/TransactionContext';
@@ -211,7 +211,11 @@ describe('OrderQueueScreen ordering flow', () => {
     const walletChoices = screen.root.findAllByType(TouchableOpacity)
       .filter(button => ['Choose GCash', 'Choose Maya', 'Choose MariBank', 'Choose GoTyme'].includes(button.props.accessibilityLabel));
     expect(walletChoices).toHaveLength(4);
-    expect(walletChoices[0].parent.props.style).toMatchObject({flexDirection: 'column', alignItems: 'stretch'});
+    expect(walletChoices[0].parent.props.style).toMatchObject({flexDirection: 'row', flexWrap: 'wrap'});
+    walletChoices.forEach(choice => {
+      expect(choice.props.style).toEqual(expect.arrayContaining([expect.objectContaining({minHeight: 98, flexBasis: '45%'})]));
+      expect(choice.findAllByType(Image)).toHaveLength(1);
+    });
     expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Choose GCash')).toBe(true);
     await pressByLabel(screen, 'Choose GCash');
     expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({paymentMethod: 'gcash'}));
