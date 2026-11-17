@@ -17,6 +17,10 @@
         <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
         <section class="gt-enter flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
+                <a href="{{ route('stock.index') }}" class="gt-focus mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg px-1 text-sm font-bold text-[#08745D] transition hover:text-[#005C49]">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 5-7 7 7 7M7 12h14"/></svg>
+                    Back to inventory
+                </a>
                 <p class="text-sm font-semibold text-[#00A87E]">Menu management</p>
                 <h1 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Products</h1>
                 <p class="mt-2 text-sm leading-6 text-slate-500">Manage your menu and per-product recipes. Products do not hold finished stock; completed sales deduct their ingredients.</p>

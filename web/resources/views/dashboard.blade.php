@@ -134,9 +134,6 @@
                     <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-[#0A2E2A] sm:text-3xl">Overview</h2>
                     <p class="mt-2 text-sm text-slate-500">Your finances and priorities in one place.</p>
                 </div>
-                @unless($needsSetup)
-                <a data-owner-motion-child href="{{ route('products.index') }}" class="gt-focus inline-flex items-center gap-2 rounded-xl bg-[#00A87E] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#08745D]">Manage products</a>
-                @endunless
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <a data-overview-reveal data-overview-step="1" href="{{ route('goals.index') }}" aria-label="Monthly sales completed, {{ $currencyPrefix.number_format((float) ($monthlyGoal['current_amount'] ?? 0), 2) }}" class="gt-owner-goal-link gt-focus">
