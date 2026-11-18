@@ -76,17 +76,12 @@ class OwnerAnalyticsController extends Controller
         );
 
         $data['chartLinks'] = array_map(
-            function (string $date) use ($data, $end): string {
+            function (string $date) use ($data): string {
                 if ($data['chartInterval'] === 'day') {
                     return route('analytics.day', ['date' => $date]);
                 }
 
-                $monthStart = CarbonImmutable::createFromFormat('!Y-m-d', $date.'-01');
-
-                return route('analytics.index', [
-                    'start_date' => $monthStart->toDateString(),
-                    'end_date' => $monthStart->endOfMonth()->min($end)->toDateString(),
-                ]);
+                return route('analytics.month', ['month' => $date]);
             },
             $data['chart']['dates'],
         );

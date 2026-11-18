@@ -9,6 +9,7 @@ use App\Http\Controllers\OwnerDashboardController;
 use App\Http\Controllers\OwnerGoalController;
 use App\Http\Controllers\OwnerAnalyticsController;
 use App\Http\Controllers\OwnerAnalyticsDayController;
+use App\Http\Controllers\OwnerAnalyticsMonthController;
 use App\Http\Controllers\OwnerCostLogController;
 use App\Http\Controllers\OwnerReportsController;
 use App\Http\Controllers\OwnerOrderController;
@@ -100,6 +101,9 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscri
     Route::get('/orders', [OwnerOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OwnerOrderController::class, 'show'])->name('orders.show');
     Route::get('/analytics', OwnerAnalyticsController::class)->name('analytics.index');
+    Route::get('/analytics/month/{month}', OwnerAnalyticsMonthController::class)
+        ->where('month', '\\d{4}-\\d{2}')
+        ->name('analytics.month');
     Route::get('/analytics/cost-logs', OwnerCostLogController::class)->name('analytics.cost-logs');
     Route::get('/reports', [OwnerReportsController::class, 'index'])->name('owner.reports.index');
     Route::get('/reports/export', [OwnerReportsController::class, 'export'])->name('owner.reports.export');

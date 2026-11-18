@@ -16,7 +16,7 @@
         @include('layouts.owner-topbar')
         <div class="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
             <header class="gt-enter">
-                <a href="{{ route('analytics.index') }}" class="gt-focus text-sm font-bold text-[#08745D] hover:underline">← Back to Analytics</a>
+                <a href="{{ $backToMonth ? route('analytics.month', ['month' => $day->format('Y-m')]) : route('analytics.index') }}" class="gt-focus text-sm font-bold text-[#08745D] hover:underline">← Back to {{ $backToMonth ? $day->format('F Y') : 'Analytics' }}</a>
                 <h1 class="mt-3 text-2xl font-extrabold tracking-tight sm:text-3xl">{{ $day->format('l, F j, Y') }}</h1>
                 <p class="mt-2 text-sm text-slate-500">Transactions are grouped by their recorded date. Orders are included if placed, completed, or financially committed on this day; ingredient use comes from order-linked stock movements made on this day.</p>
             </header>

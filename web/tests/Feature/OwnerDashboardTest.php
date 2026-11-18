@@ -285,10 +285,42 @@ class OwnerDashboardTest extends TestCase
                 && $chart['income'][0] === 100.0
                 && $chart['expenses'][9] === 30.0)
             ->assertViewHas('chartLinks', fn (array $links): bool => count($links) === 10
-                && $links[0] === route('analytics.index', ['start_date' => '2026-01-01', 'end_date' => '2026-01-31'])
-                && $links[9] === route('analytics.index', ['start_date' => '2026-10-01', 'end_date' => '2026-10-09']))
+                && $links[0] === route('analytics.month', ['month' => '2026-01'])
+                && $links[9] === route('analytics.month', ['month' => '2026-10']))
             ->assertSee('Monthly income and expenses')
             ->assertDontSee('50,000.00');
+    }
+
+    public function test_yearly_chart_month_opens_its_own_business_scoped_daily_breakdown(): void
+    {
+        $business = $this->business('Month Detail Cafe');
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $this->transaction($business, $owner, 'income', 100, '2026-10-08');
+        $this->transaction($business, $owner, 'expense', 30, '2026-10-09');
+        $otherBusiness = $this->business('Other Month Shop');
+        $otherOwner = User::factory()->owner()->create(['business_id' => $otherBusiness->id]);
+        $this->transaction($otherBusiness, $otherOwner, 'income', 50000, '2026-10-08');
+
+        $this->actingAs($owner)
+            ->get(route('analytics.month', ['month' => '2026-10']))
+            ->assertOk()
+            ->assertViewIs('analytics.month')
+            ->assertViewHas('totals', fn (array $totals): bool => $totals['income'] === 100.0 && $totals['expenses'] === 30.0)
+            ->assertViewHas('chart', fn (array $chart): bool => count($chart['dates']) === 9
+                && $chart['dates'][7] === '2026-10-08'
+                && $chart['income'][7] === 100.0
+                && $chart['expenses'][8] === 30.0)
+            ->assertSee('Days in October')
+            ->assertSee(route('analytics.day', ['date' => '2026-10-08', 'from_month' => '2026-10']))
+            ->assertDontSee('50,000.00');
+
+        $this->actingAs($owner)
+            ->get(route('analytics.day', ['date' => '2026-10-08', 'from_month' => '2026-10']))
+            ->assertOk()
+            ->assertSee('Back to October 2026');
+
+        $this->actingAs($owner)->get('/analytics/month/2026-13')->assertNotFound();
+        $this->actingAs($owner)->get('/analytics/month/2026-11')->assertNotFound();
     }
 
     public function test_daily_analytics_drilldown_shows_only_the_owners_transactions_orders_and_order_ingredient_use(): void

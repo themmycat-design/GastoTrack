@@ -68,6 +68,7 @@ class OwnerAnalyticsDayController extends Controller
 
         return view('analytics.day', [
             'day' => $day,
+            'backToMonth' => $request->query('from_month') === $day->format('Y-m'),
             'transactions' => $transactions,
             'orders' => $orders,
             'ingredientsUsed' => $ingredientsUsed,
