@@ -35,6 +35,15 @@ class StockUnitChangeService
             $item->unit_cost = array_key_exists('unit_cost', $attributes)
                 ? $this->convert((float) $attributes['unit_cost'], 'unit_cost')
                 : $this->convert((float) $item->unit_cost * $factor, 'unit');
+            if (array_key_exists('pack_quantity', $attributes)) {
+                $item->pack_quantity = $attributes['pack_quantity'];
+                $item->pack_price = $attributes['pack_price'] ?? null;
+            } elseif ($item->pack_quantity !== null && !array_key_exists('unit_cost', $attributes)) {
+                $item->pack_quantity = $this->convert((float) $item->pack_quantity / $factor, 'unit');
+            } else {
+                $item->pack_quantity = null;
+                $item->pack_price = null;
+            }
 
             DB::table('product_ingredients')->where('stock_item_id', $item->id)->orderBy('id')->chunkById(100, function ($ingredients) use ($factor): void {
                 foreach ($ingredients as $ingredient) {

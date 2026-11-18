@@ -7,6 +7,7 @@ use App\Models\StockItem;
 use App\Models\StockMovement;
 use App\Services\StockUnitChangeService;
 use App\Services\StockUnitOptions;
+use App\Services\StockPackCost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\NotificationService;
@@ -43,17 +44,20 @@ class StockController extends Controller
             'current_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'unit'      => 'required|string|max:50',
             'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
-            'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'required_without:pack_price|nullable|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'pack_price' => 'nullable|required_with:pack_quantity|numeric|decimal:0,2|gt:0|max:9999999999.99',
+            'pack_quantity' => 'nullable|required_with:pack_price|numeric|decimal:0,4|gt:0|max:99999999.9999',
         ]);
 
-        $item = DB::transaction(function () use ($request): StockItem {
+        $cost = app(StockPackCost::class)->attributes($request->all());
+        $item = DB::transaction(function () use ($request, $cost): StockItem {
             $item = StockItem::create([
                 'business_id' => $request->user()->business_id,
                 'name' => $request->name,
                 'current_quantity' => $request->current_quantity,
                 'unit' => $request->unit,
                 'minimum_quantity' => $request->minimum_quantity,
-                'unit_cost' => $request->unit_cost,
+                ...$cost,
                 'active' => true,
             ]);
             if ((float) $item->current_quantity > 0) {
@@ -104,8 +108,13 @@ class StockController extends Controller
             'conversion_factor' => 'nullable|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
             'minimum_quantity' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
             'unit_cost' => 'sometimes|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'pack_price' => 'nullable|required_with:pack_quantity|numeric|decimal:0,2|gt:0|max:9999999999.99',
+            'pack_quantity' => 'nullable|required_with:pack_price|numeric|decimal:0,4|gt:0|max:99999999.9999',
             'active' => 'sometimes|boolean',
         ]);
+        if (array_key_exists('unit_cost', $data) || array_key_exists('pack_price', $data) || array_key_exists('pack_quantity', $data)) {
+            $data = array_merge($data, app(StockPackCost::class)->attributes($data));
+        }
         $item = app(StockUnitChangeService::class)->update(
             $item,
             $data,

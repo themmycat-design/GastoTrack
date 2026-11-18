@@ -16,13 +16,15 @@ class StockItem extends Model
 
     protected $fillable = [
         'business_id', 'name', 'unit', 'current_quantity',
-        'minimum_quantity', 'unit_cost', 'active', 'client_id'
+        'minimum_quantity', 'unit_cost', 'pack_price', 'pack_quantity', 'active', 'client_id'
     ];
 
     protected $casts = [
         'current_quantity'  => 'decimal:4',
         'minimum_quantity' => 'decimal:4',
         'unit_cost' => 'decimal:4',
+        'pack_price' => 'decimal:2',
+        'pack_quantity' => 'decimal:4',
         'active' => 'boolean',
         'revision' => 'integer',
     ];

@@ -16,6 +16,35 @@ class DatabaseAlignmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_whole_pack_price_becomes_per_unit_cost_for_owner_and_staff(): void
+    {
+        $business = Business::create(['name' => 'Pack cost cafe', 'status' => 'active', 'active' => true]);
+        $owner = User::factory()->owner()->create(['business_id' => $business->id]);
+        $this->withoutVite();
+        $this->actingAs($owner)->post(route('stock.store'), [
+            'name' => 'Japanese powder', 'unit' => 'g', 'current_quantity' => 500,
+            'minimum_quantity' => 30, 'pack_price' => 300, 'pack_quantity' => 500,
+        ])->assertRedirect(route('stock.index'));
+
+        $stock = StockItem::where('business_id', $business->id)->firstOrFail();
+        $this->assertSame('0.6000', $stock->unit_cost);
+        $this->assertSame('300.00', $stock->pack_price);
+        $this->assertSame('500.0000', $stock->pack_quantity);
+        $this->assertSame('0.6000', StockMovement::where('stock_item_id', $stock->id)->firstOrFail()->unit_cost_at_movement);
+        $this->assertSame(18.0, round(30 * (float) $stock->unit_cost, 2));
+
+        $staff = User::factory()->staff()->create(['business_id' => $business->id]);
+        Sanctum::actingAs($staff);
+        $this->postJson('/api/v1/stock', [
+            'name' => 'Milk', 'unit' => 'ml', 'current_quantity' => 1000,
+            'minimum_quantity' => 100, 'pack_price' => 80, 'pack_quantity' => 1000,
+        ])->assertCreated()->assertJsonPath('item.unit_cost', '0.0800');
+        $this->postJson('/api/v1/stock', [
+            'name' => 'Bad pack', 'unit' => 'g', 'current_quantity' => 500,
+            'minimum_quantity' => 0, 'pack_price' => 300,
+        ])->assertUnprocessable();
+    }
+
     public function test_owner_stock_keeps_four_decimal_costs_quantities_and_long_notes(): void
     {
         $business = Business::create(['name' => 'Synthetic cafe', 'status' => 'active', 'active' => true]);

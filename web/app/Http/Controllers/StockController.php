@@ -8,6 +8,7 @@ use App\Services\StockUnitChangeService;
 use App\Models\StockMovement;
 use App\Services\StockUnitOptions;
 use App\Services\NotificationService;
+use App\Services\StockPackCost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +23,7 @@ class StockController extends Controller
 
         return response()->streamDownload(function () use ($businessId, $currency): void {
             $output = fopen('php://output', 'w');
-            fputcsv($output, ['Item', 'Unit', 'Current quantity', 'Minimum quantity', 'Unit cost ('.$currency.')', 'Stock value ('.$currency.')', 'Status', 'Updated at']);
+            fputcsv($output, ['Item', 'Unit', 'Current quantity', 'Minimum quantity', 'Unit cost ('.$currency.')', 'Whole pack price ('.$currency.')', 'Whole pack amount', 'Stock value ('.$currency.')', 'Status', 'Updated at']);
 
             foreach (StockItem::where('business_id', $businessId)->orderBy('id')->cursor() as $item) {
                 $safeText = static fn (string $value): string => preg_match('/^\s*[=+\-@]/u', $value) ? "'".$value : $value;
@@ -32,6 +33,8 @@ class StockController extends Controller
                     $item->current_quantity,
                     $item->minimum_quantity,
                     $item->unit_cost,
+                    $item->pack_price,
+                    $item->pack_quantity,
                     number_format((float) $item->current_quantity * (float) $item->unit_cost, 2, '.', ''),
                     $item->active ? 'Active' : 'Inactive',
                     $item->updated_at?->toDateTimeString(),
@@ -144,20 +147,23 @@ class StockController extends Controller
             'unit' => 'required|string|max:50',
             'current_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
             'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
-            'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'required_without:pack_price|nullable|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'pack_price' => 'nullable|required_with:pack_quantity|numeric|decimal:0,2|gt:0|max:9999999999.99',
+            'pack_quantity' => 'nullable|required_with:pack_price|numeric|decimal:0,4|gt:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
         
         $user = auth()->user();
         
-        $stock = DB::transaction(function () use ($user, $validated): StockItem {
+        $cost = app(StockPackCost::class)->attributes($validated);
+        $stock = DB::transaction(function () use ($user, $validated, $cost): StockItem {
             $stock = StockItem::create([
                 'business_id' => $user->business_id,
                 'name' => $validated['name'],
                 'unit' => $validated['unit'],
                 'current_quantity' => $validated['current_quantity'],
                 'minimum_quantity' => $validated['minimum_quantity'],
-                'unit_cost' => $validated['unit_cost'],
+                ...$cost,
                 'active' => $validated['active'] ?? true,
             ]);
             if ((float) $stock->current_quantity > 0) {
@@ -196,14 +202,17 @@ class StockController extends Controller
             'unit' => 'required|string|max:50',
             'conversion_factor' => 'nullable|numeric|decimal:0,4|min:0.0001|max:99999999.9999',
             'minimum_quantity' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
-            'unit_cost' => 'required|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'unit_cost' => 'required_without:pack_price|nullable|numeric|decimal:0,4|min:0|max:99999999.9999',
+            'pack_price' => 'nullable|required_with:pack_quantity|numeric|decimal:0,2|gt:0|max:9999999999.99',
+            'pack_quantity' => 'nullable|required_with:pack_price|numeric|decimal:0,4|gt:0|max:99999999.9999',
             'active' => 'boolean',
         ]);
+        $cost = app(StockPackCost::class)->attributes($validated);
         $stock = app(StockUnitChangeService::class)->update($stock, [
             'name' => $validated['name'],
             'unit' => $validated['unit'],
             'minimum_quantity' => $validated['minimum_quantity'],
-            'unit_cost' => $validated['unit_cost'],
+            ...$cost,
             'active' => $validated['active'] ?? true,
         ], isset($validated['conversion_factor']) ? (float) $validated['conversion_factor'] : null);
         app(NotificationService::class)->notifyLowStock($stock);

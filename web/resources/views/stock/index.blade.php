@@ -187,6 +187,9 @@
                         </td>
                         <td class="px-3 py-4 whitespace-nowrap text-right text-sm font-bold text-[#08745D]">
                             {{ $currencyPrefix }}{{ number_format((float) $item->current_quantity * (float) $item->unit_cost, 2) }}
+                            @if($item->pack_price !== null && $item->pack_quantity !== null)
+                                <span class="mt-1 block text-xs font-normal text-slate-500">{{ $currencyPrefix }}{{ number_format((float) $item->pack_price, 2) }} / {{ number_format((float) $item->pack_quantity, 2) }} {{ $item->unit }} = {{ $currencyPrefix }}{{ number_format((float) $item->unit_cost, 4) }}/{{ $item->unit }}</span>
+                            @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             @if(!$item->active)
@@ -202,7 +205,7 @@
                         <td class="px-3 py-4 whitespace-nowrap text-xs text-slate-500"><time datetime="{{ $item->updated_at?->toIso8601String() }}">{{ $item->updated_at?->format('M j, Y') ?: '—' }}</time></td>
                         <td class="px-5 py-4 whitespace-nowrap text-right text-xs sm:px-6">
                             <button type="button" data-stock-adjust data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-current="{{ $item->current_quantity }}" data-unit="{{ $item->unit }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-[#08745D] hover:bg-[#EAF8F2]">Add / adjust</button>
-                            <button type="button" data-stock-edit data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-unit="{{ $item->unit }}" data-current="{{ $item->current_quantity }}" data-minimum="{{ $item->minimum_quantity }}" data-cost="{{ $item->unit_cost }}" data-active="{{ $item->active ? '1' : '0' }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-slate-600 hover:bg-[#F4F8F7]">Edit</button>
+                            <button type="button" data-stock-edit data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-unit="{{ $item->unit }}" data-current="{{ $item->current_quantity }}" data-minimum="{{ $item->minimum_quantity }}" data-cost="{{ $item->unit_cost }}" data-pack-price="{{ $item->pack_price }}" data-pack-quantity="{{ $item->pack_quantity }}" data-active="{{ $item->active ? '1' : '0' }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-slate-600 hover:bg-[#F4F8F7]">Edit</button>
                             <button type="button" data-stock-delete data-id="{{ $item->id }}" class="gt-focus rounded-lg px-2 py-1.5 font-bold text-rose-600 hover:bg-rose-50">Delete</button>
                         </td>
                     </tr>
@@ -328,10 +331,22 @@
                         </div>
                     </div>
 
-                    <!-- Unit Cost -->
+                    <div class="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="pack_price" class="gt-label">Whole pack price</label>
+                            <input type="number" id="pack_price" name="pack_price" step="0.01" min="0.01" class="gt-field" placeholder="e.g. 300">
+                        </div>
+                        <div>
+                            <label for="pack_quantity" class="gt-label">Amount in the whole pack</label>
+                            <input type="number" id="pack_quantity" name="pack_quantity" step="0.0001" min="0.0001" class="gt-field" placeholder="e.g. 500">
+                        </div>
+                        <p class="sm:col-span-2 text-xs text-slate-500">Enter the pack amount in the selected unit above. For ₱300 per 500 g, enter 300 and 500 with unit g. Leave both blank to enter cost per unit directly.</p>
+                    </div>
                     <div>
-                        <label for="unit_cost" class="gt-label">Unit cost <span class="text-rose-600">*</span></label>
+                        <label for="unit_cost" class="gt-label">Cost per selected unit <span class="text-rose-600">*</span></label>
                         <input type="number" id="unit_cost" name="unit_cost" step="0.0001" min="0" max="99999999.9999" required class="gt-field" placeholder="0.0000">
+                        <p id="pack_cost_preview" class="mt-1 text-xs text-slate-500" aria-live="polite">Used for recipe costs and stock value.</p>
+                        <p class="mt-1 text-xs text-slate-500">Changing this cost affects future orders. Completed orders keep their saved recipe cost.</p>
                     </div>
 
                     <!-- Current Quantity -->
@@ -491,6 +506,8 @@
                     editButton.dataset.current,
                     editButton.dataset.minimum,
                     editButton.dataset.cost,
+                    editButton.dataset.packPrice,
+                    editButton.dataset.packQuantity,
                     editButton.dataset.active === '1',
                 );
                 return;
@@ -518,11 +535,15 @@
             document.getElementById('minimum_quantity').readOnly = false;
             document.getElementById('unit_cost').value = '';
             document.getElementById('unit_cost').readOnly = false;
+            document.getElementById('pack_price').value = '';
+            document.getElementById('pack_quantity').value = '';
+            document.getElementById('pack_quantity').dataset.manuallyEdited = 'false';
+            updatePackCostPreview();
             document.getElementById('active').checked = true;
             document.getElementById('stockModal').classList.remove('hidden');
         }
 
-        function openEditModal(id, name, unit, currentQty, minQty, unitCost, isActive) {
+        function openEditModal(id, name, unit, currentQty, minQty, unitCost, packPrice, packQuantity, isActive) {
             document.getElementById('modalTitle').textContent = 'Edit Stock Item';
             document.getElementById('stockForm').action = '/stock/' + id;
             document.getElementById('stockId').value = id;
@@ -545,8 +566,13 @@
             document.getElementById('quantity_help').classList.remove('hidden');
             document.getElementById('minimum_quantity').value = minQty;
             document.getElementById('unit_cost').value = unitCost;
+            document.getElementById('pack_price').value = packPrice || '';
+            document.getElementById('pack_quantity').value = packQuantity || '';
+            document.getElementById('pack_quantity').dataset.originalValue = packQuantity || '';
+            document.getElementById('pack_quantity').dataset.manuallyEdited = 'false';
             document.getElementById('active').checked = isActive;
             updateStockUnitConversion();
+            updatePackCostPreview();
             document.getElementById('stockModal').classList.remove('hidden');
         }
 
@@ -588,6 +614,9 @@
                     }
                 }
                 unitInput.dataset.wasChanged = 'false';
+                if (document.getElementById('pack_quantity').dataset.manuallyEdited !== 'true')
+                    document.getElementById('pack_quantity').value = document.getElementById('pack_quantity').dataset.originalValue || '';
+                updatePackCostPreview();
                 return;
             }
             unitInput.dataset.wasChanged = 'true';
@@ -597,6 +626,34 @@
                 document.getElementById('minimum_quantity').value = (Number(document.getElementById('minimum_quantity').dataset.originalValue) / factor).toFixed(4);
             if (document.getElementById('unit_cost').dataset.manuallyEdited !== 'true')
                 document.getElementById('unit_cost').value = (Number(document.getElementById('unit_cost').dataset.originalValue) * factor).toFixed(4);
+            if (document.getElementById('pack_quantity').value && document.getElementById('pack_quantity').dataset.manuallyEdited !== 'true')
+                document.getElementById('pack_quantity').value = (Number(document.getElementById('pack_quantity').dataset.originalValue) / factor).toFixed(4);
+            updatePackCostPreview();
+        }
+
+        function updatePackCostPreview() {
+            const price = document.getElementById('pack_price');
+            const quantity = document.getElementById('pack_quantity');
+            const cost = document.getElementById('unit_cost');
+            const note = document.getElementById('pack_cost_preview');
+            const hasPack = price.value !== '' || quantity.value !== '';
+            price.required = hasPack;
+            quantity.required = hasPack;
+            cost.readOnly = hasPack;
+            const calculated = Number(price.value) / Number(quantity.value);
+            if (hasPack && Number(price.value) > 0 && Number(quantity.value) > 0 && calculated >= 0.0001 && calculated <= 99999999.9999) {
+                cost.value = calculated.toFixed(4);
+                note.textContent = `Pack price ÷ pack amount = ${cost.value} per ${document.getElementById('unit').value || 'unit'}.`;
+            } else {
+                if (hasPack) cost.value = '';
+                note.textContent = hasPack ? 'Enter both pack fields to calculate the unit cost.' : 'Used for recipe costs and stock value.';
+            }
+        }
+        for (const id of ['pack_price', 'pack_quantity']) {
+            document.getElementById(id).addEventListener('input', event => {
+                if (id === 'pack_quantity') event.target.dataset.manuallyEdited = 'true';
+                updatePackCostPreview();
+            });
         }
 
         document.getElementById('unit').addEventListener('change', updateStockUnitConversion);

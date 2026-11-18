@@ -27,7 +27,7 @@ const emptyProductForm = {
   isAvailable: true, ingredients: [], image: null, imageAsset: null,
 };
 
-const emptyStockForm = {name: '', unit: 'pcs', quantity: '', threshold: '', unitCost: ''};
+const emptyStockForm = {name: '', unit: 'pcs', quantity: '', threshold: '', unitCost: '', packPrice: '', packQuantity: ''};
 
 const productToForm = product => ({
   name: product.name || '',
@@ -171,9 +171,18 @@ const StockScreen = () => {
   const saveStock = async () => {
     const quantity = Number(stockForm.quantity);
     const threshold = Number(stockForm.threshold);
-    const unitCost = Number(stockForm.unitCost);
+    const hasPack = stockForm.packPrice.trim() !== '' || stockForm.packQuantity.trim() !== '';
+    const packPrice = Number(stockForm.packPrice);
+    const packQuantity = Number(stockForm.packQuantity);
+    const unitCost = hasPack ? Math.round((packPrice / packQuantity) * 10000) / 10000 : Number(stockForm.unitCost);
     if (!stockForm.name.trim() || !stockForm.unit.trim()) {
       Alert.alert('Missing details', 'Enter the stock name and unit.');
+      return;
+    }
+    if (hasPack && (!stockForm.packPrice.trim() || !stockForm.packQuantity.trim() ||
+      !Number.isFinite(packPrice) || !Number.isFinite(packQuantity) || packPrice <= 0 || packQuantity <= 0 ||
+      unitCost < 0.0001 || unitCost > 99999999.9999)) {
+      Alert.alert('Invalid pack', 'Enter a positive whole pack price and amount in the selected unit.');
       return;
     }
     if (![quantity, threshold, unitCost].every(value => Number.isFinite(value) && value >= 0)) {
@@ -188,6 +197,7 @@ const StockScreen = () => {
         current_quantity: quantity,
         minimum_quantity: threshold,
         unit_cost: unitCost,
+        ...(hasPack ? {pack_price: packPrice, pack_quantity: packQuantity} : {}),
       });
       setStockEditorVisible(false);
       setStockForm(emptyStockForm);
@@ -555,8 +565,13 @@ const StockScreen = () => {
             <TextInput style={styles.input} value={stockForm.quantity} onChangeText={value => setStockField('quantity', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
             <Text style={styles.fieldLabel}>Low-stock level</Text>
             <TextInput style={styles.input} value={stockForm.threshold} onChangeText={value => setStockField('threshold', value)} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.placeholder} />
-            <Text style={styles.fieldLabel}>Unit cost</Text>
-            <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.0000" placeholderTextColor={COLORS.placeholder} />
+            <Text style={styles.fieldLabel}>Whole pack price (optional)</Text>
+            <TextInput style={styles.input} value={stockForm.packPrice} onChangeText={value => setStockField('packPrice', value)} keyboardType="decimal-pad" placeholder="e.g. 300" placeholderTextColor={COLORS.placeholder} />
+            <Text style={styles.fieldLabel}>Amount in whole pack ({stockForm.unit})</Text>
+            <TextInput style={styles.input} value={stockForm.packQuantity} onChangeText={value => setStockField('packQuantity', value)} keyboardType="decimal-pad" placeholder="e.g. 500" placeholderTextColor={COLORS.placeholder} />
+            <Text style={styles.fieldLabel}>Cost per {stockForm.unit}</Text>
+            {stockForm.packPrice || stockForm.packQuantity ? <Text style={styles.ownerNote}>{Number(stockForm.packPrice) > 0 && Number(stockForm.packQuantity) > 0 ? `Calculated: ₱${(Number(stockForm.packPrice) / Number(stockForm.packQuantity)).toFixed(4)} per ${stockForm.unit}` : 'Enter both pack fields to calculate the cost.'}</Text> :
+              <TextInput style={styles.input} value={stockForm.unitCost} onChangeText={value => setStockField('unitCost', value)} keyboardType="decimal-pad" placeholder="0.0000" placeholderTextColor={COLORS.placeholder} />}
             <TouchableOpacity style={[styles.primaryButton, isSavingStock && styles.disabledButton]} onPress={saveStock} disabled={isSavingStock}>
               {isSavingStock ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Add stock item</Text>}
             </TouchableOpacity>
