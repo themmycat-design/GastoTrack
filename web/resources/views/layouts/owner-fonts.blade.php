@@ -1,2 +1,12 @@
-<link rel="preconnect" href="https://fonts.bunny.net">
-<link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet">
+<style>
+    html.gt-dark { background: #111a17; color-scheme: dark; }
+    html.gt-dark body.gt-owner-page { background: #111a17; color: #e5efeb; }
+</style>
+<script>
+    try {
+        if (localStorage.getItem('gastotrack-owner-theme') === 'dark') {
+            document.documentElement.classList.add('gt-dark');
+        }
+    } catch (_) {}
+</script>
+@include('layouts.portal-fonts')

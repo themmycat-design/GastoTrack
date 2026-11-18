@@ -25,6 +25,15 @@
             transition: opacity 220ms ease, visibility 220ms ease;
         }
 
+        html.gt-dark .gt-owner-dashboard-loader {
+            background:
+                radial-gradient(circle at 50% 43%, rgba(0, 200, 151, .12), transparent 18rem),
+                linear-gradient(145deg, #111a17 0%, #192521 65%, #20372e 100%);
+        }
+        html.gt-dark .gt-owner-dashboard-loader-title { color: #71dfbf; }
+        html.gt-dark .gt-owner-dashboard-loader-caption { color: #a5b5ae; }
+        html.gt-dark .gt-owner-dashboard-loader-track { background: #34463e; }
+
         html.gt-owner-dashboard-loading,
         html.gt-owner-dashboard-loading body { overflow: hidden; }
 

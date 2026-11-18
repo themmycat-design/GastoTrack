@@ -106,9 +106,7 @@
         themeToggle.querySelector('[data-theme-sun]')?.classList.toggle('hidden', !isDark);
     };
 
-    let savedTheme = 'light';
-    try { savedTheme = localStorage.getItem(themeKey) === 'dark' ? 'dark' : 'light'; } catch (_) {}
-    applyTheme(savedTheme);
+    applyTheme(document.documentElement.classList.contains('gt-dark') ? 'dark' : 'light');
 
     themeToggle?.addEventListener('click', () => {
         const nextTheme = document.documentElement.classList.contains('gt-dark') ? 'light' : 'dark';
