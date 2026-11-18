@@ -99,9 +99,10 @@
                             </div>
                             <div>
                                 <label for="password_confirmation" class="mb-1 block text-sm font-bold text-gray-700">Confirm password</label>
-                                <input id="password_confirmation" :type="showPassword ? 'text' : 'password'" name="password_confirmation" required autocomplete="new-password"
+                                <input id="password_confirmation" :type="showPassword ? 'text' : 'password'" name="password_confirmation" required autocomplete="new-password" aria-describedby="password_confirmation-match-indicator"
                                     class="block w-full rounded-xl border-gray-300 px-4 py-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
                                     placeholder="Repeat your password">
+                                <x-password-match-indicator />
                             </div>
                         </div>
 

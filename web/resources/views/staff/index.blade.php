@@ -245,7 +245,8 @@
                     <!-- Confirm Password -->
                     <div>
                         <label for="password_confirmation" class="gt-label">Confirm password <span id="confirmRequired" class="text-rose-600">*</span></label>
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="gt-field" placeholder="••••••••">
+                        <input type="password" id="password_confirmation" name="password_confirmation" class="gt-field" aria-describedby="password_confirmation-match-indicator" placeholder="••••••••">
+                        <x-password-match-indicator />
                     </div>
                 </div>
 

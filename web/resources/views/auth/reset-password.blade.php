@@ -52,12 +52,13 @@
                         <div>
                             <label for="password_confirmation" class="mb-1.5 block text-sm font-bold text-slate-700">Confirm new password</label>
                             <div class="relative">
-                                <input id="password_confirmation" :type="showConfirmation ? 'text' : 'password'" name="password_confirmation" required autocomplete="new-password"
+                                <input id="password_confirmation" :type="showConfirmation ? 'text' : 'password'" name="password_confirmation" required autocomplete="new-password" aria-describedby="password_confirmation-match-indicator"
                                     class="gt-focus block w-full rounded-xl border border-[#CAD9D4] bg-white px-4 py-3 pr-16 text-sm text-[#0A2E2A] shadow-sm transition placeholder:text-slate-400 focus:border-[#00A87E] focus:ring-2 focus:ring-[#00A87E]/20"
                                     placeholder="Enter the new password again">
                                 <button type="button" @click="showConfirmation = !showConfirmation" :aria-label="showConfirmation ? 'Hide password confirmation' : 'Show password confirmation'"
                                     class="gt-focus absolute inset-y-0 right-0 rounded-r-xl px-4 text-xs font-bold text-[#08745D] hover:bg-[#F4F8F7]" x-text="showConfirmation ? 'Hide' : 'Show'"></button>
                             </div>
+                            <x-password-match-indicator />
                             <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
                         </div>
 
