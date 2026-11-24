@@ -160,8 +160,7 @@ const OrderHistoryScreen = ({navigation}) => {
   const visibleOrders = showHistory ? orders : orders.filter(order => {
     const created = new Date(order.createdAt || order.created_at);
     return !Number.isNaN(created.getTime())
-      && staffDayKey(created) === day
-      && String(order.status).toLowerCase() !== 'cancelled';
+      && staffDayKey(created) === day;
   });
 
   const refresh = async () => {
@@ -283,7 +282,7 @@ const OrderHistoryScreen = ({navigation}) => {
           <Text style={[styles.dayScopeText, showHistory && styles.dayScopeTextActive]}>History</Text>
         </TouchableOpacity>
       </View>
-      {!showHistory ? <Text style={styles.historyHint}>Cancelled and older orders remain in History for review.</Text> : null}
+      {!showHistory ? <Text style={styles.historyHint}>Today's orders include cancelled orders.</Text> : null}
       {isLoading && !orders.length ? (
         <OrderHistorySkeleton />
       ) : (
@@ -299,7 +298,7 @@ const OrderHistoryScreen = ({navigation}) => {
             <View style={styles.centerState}>
               <Image source={loadError ? require('../../../assets/mascot/gasto-error.png') : require('../../../assets/mascot/gasto-empty.png')} style={styles.emptyMascot} resizeMode="contain" accessibilityLabel={loadError ? 'Gasto could not load orders' : 'Gasto beside an empty tray'} />
               <Text style={styles.emptyTitle}>{loadError ? 'Orders unavailable' : showHistory ? 'No previous orders' : 'No orders today'}</Text>
-              <Text style={styles.stateText}>{loadError ? 'Try again later.' : showHistory ? 'Completed orders will appear here.' : 'Older and cancelled orders remain available in History.'}</Text>
+              <Text style={styles.stateText}>{loadError ? 'Try again later.' : showHistory ? 'Orders will appear here.' : 'Orders placed today will appear here.'}</Text>
             </View>
           )}
           ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footer} color={COLORS.accent} /> : null}

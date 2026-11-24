@@ -26,7 +26,7 @@ import StaffScreenHeader from '../../components/staff/StaffScreenHeader';
 import GastoModalMascot from '../../components/staff/GastoModalMascot';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {scanReceipt} from '../../services/OCRService';
-import {parseWalletPaymentScreenshot} from '../../services/walletPaymentScreenshot';
+import {isUnlabelledGCashRemittance, parseWalletPaymentScreenshot} from '../../services/walletPaymentScreenshot';
 import {productCategoryTabs, productSizesInCategory, productsInCategory, productsInSize} from '../../constants/productCategories';
 import {ingredientUsageForCartLine} from '../../utils/orderIngredientUsage';
 import {staffDayKey} from '../../utils/useStaffDay';
@@ -457,68 +457,58 @@ const OrderQueueScreen = ({navigation, route}) => {
     }
   };
 
-  const cancelCashlessOrder = () => {
-    if (!paymentOrder?.id) return;
-    Alert.alert(
-      'Cancel pending order?',
-      paymentSignalDetected
-        ? 'Check the official wallet account. Continue only if no payment was received; a notification is not proof. If payment arrived, confirm it and use the refund workflow.'
-        : 'Check the official wallet account and continue only if no payment was received. No income or stock change will be recorded.',
-      [
-        {text: 'Keep pending', style: 'cancel'},
-        {text: 'Checked wallet — cancel', style: 'destructive', onPress: async () => {
-          setIsPlacingOrder(true);
-          try {
-            await cancelOrder(paymentOrder.id, {
-              reason: 'Staff checked the wallet account and cancelled before payment confirmation.',
-              payment_not_received: true,
-            });
-            setQrPaymentModalVisible(false);
-            if (cashlessCartSnapshotRef.current?.length) {
-              setCart(cashlessCartSnapshotRef.current);
-            }
-            cashlessCartSnapshotRef.current = null;
-            setPaymentOrder(null);
-            setPaymentSignalDetected(false);
-            setDetectedWalletSignal(null);
-            setDetectedAmount(0);
-            setPaymentAutoConfirmError('');
-            setPaymentSignalWarning('');
-            setManualPaymentVisible(false);
-            setManualPaymentReference('');
-            setManualPaymentSender('');
-            setPaymentType(null);
-            setSelectedEwallet(null);
-            setWalletPickerVisible(false);
-            setPaymentNotice('Pending order cancelled. Your cart is restored.');
-            setCheckoutModalVisible(true);
-          } catch (error) {
-            Alert.alert('Order not cancelled', getApiErrorMessage(error, 'The order is still pending. Check Order history and try again.'));
-          } finally {
-            setIsPlacingOrder(false);
-          }
-        }},
-      ],
-    );
+  const cancelCashlessOrder = async () => {
+    if (!paymentOrder?.id || isPlacingOrder || isCheckingWalletPayment) return;
+    setIsPlacingOrder(true);
+    try {
+      await cancelOrder(paymentOrder.id, {
+        reason: 'Staff cancelled the pending cashless order before payment confirmation.',
+        payment_not_received: true,
+      });
+      setQrPaymentModalVisible(false);
+      setCheckoutModalVisible(false);
+      setWalletPickerVisible(false);
+      cashlessCartSnapshotRef.current = null;
+      setCart([]);
+      setPaymentOrder(null);
+      setPaymentSignalDetected(false);
+      setDetectedWalletSignal(null);
+      setDetectedAmount(0);
+      setPaymentAutoConfirmError('');
+      setPaymentSignalWarning('');
+      setManualPaymentVisible(false);
+      setManualPaymentReference('');
+      setManualPaymentSender('');
+      setManualPaymentDate('');
+      setPaymentScreenshot(null);
+      setPaymentScreenshotError('');
+      setPaymentType(null);
+      setSelectedEwallet(null);
+      setPaymentNotice('Order cancelled.');
+    } catch (error) {
+      Alert.alert('Order not cancelled', getApiErrorMessage(error, 'The order is still pending. Check Order history and try again.'));
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   const submitManualPayment = () => {
     if (!paymentOrder?.id || isPlacingOrder || isCheckingWalletPayment || paymentSignalDetected) return;
     if (!paymentScreenshot || paymentScreenshot.source.toLowerCase() !== selectedEwallet?.toLowerCase()
       || Math.round(Number(paymentScreenshot.amount) * 100) !== Math.round(Number(paymentOrder.total) * 100)) {
-      Alert.alert('Screenshot does not match', 'Choose a screenshot showing the selected payment app and exact order amount.');
+      Alert.alert('Screenshot does not match', 'Choose a screenshot showing the selected receiving wallet or GCash remittance details and the exact order amount.');
       return;
     }
     const reference = manualPaymentReference.trim();
     const sender = manualPaymentSender.trim();
     const receivedOn = manualPaymentDate.trim();
-    if (!sender || !reference || !/^\d{4}-\d{2}-\d{2}$/.test(receivedOn)) {
-      Alert.alert('Payment details required', `Enter the sender name, payment date (YYYY-MM-DD), and transaction reference shown in the ${selectedEwallet} app.`);
+    if (!reference || !/^\d{4}-\d{2}-\d{2}$/.test(receivedOn)) {
+      Alert.alert('Payment details required', `Enter the payment date (YYYY-MM-DD) and transaction reference shown in the ${selectedEwallet} app.`);
       return;
     }
     Alert.alert(
       'Confirm payment received?',
-      `Check that the ${selectedEwallet} app shows a payment from ${sender} on ${receivedOn} for ₱${Number(paymentOrder.total).toFixed(2)} with reference ${reference}. This will complete the order and deduct stock.`,
+      `Check that the ${selectedEwallet} app shows a payment${sender ? ` from ${sender}` : ' with no sender shown'} on ${receivedOn} for ₱${Number(paymentOrder.total).toFixed(2)} with reference ${reference}. This will complete the order and deduct stock.`,
       [
         {text: 'Go back', style: 'cancel'},
         {text: 'Confirm payment', onPress: async () => {
@@ -528,7 +518,7 @@ const OrderQueueScreen = ({navigation, route}) => {
               amount: Number(paymentOrder.total),
               currency: paymentOrder.paymentCurrency || 'PHP',
               reference,
-              sender_name: sender,
+              sender_name: sender || null,
               received_on: receivedOn,
             });
             setQrPaymentModalVisible(false);
@@ -573,12 +563,15 @@ const OrderQueueScreen = ({navigation, route}) => {
         return;
       }
       const details = parseWalletPaymentScreenshot(scanned.text);
-      if (!details.source) {
-        setPaymentScreenshotError('The payment app name was not detected. Choose a screenshot that shows its name and transaction details.');
+      const inferredGCash = selectedEwallet?.toLowerCase() === 'gcash'
+        && isUnlabelledGCashRemittance(scanned.text, details);
+      const receivingWallet = details.source || (inferredGCash ? 'GCash' : '');
+      if (!receivingWallet) {
+        setPaymentScreenshotError('The receiving wallet was not detected. Choose a screenshot that shows where the payment was received.');
         return;
       }
-      if (details.source.toLowerCase() !== selectedEwallet?.toLowerCase()) {
-        setPaymentScreenshotError(`This screenshot appears to be from ${details.source}, but the order is waiting for ${selectedEwallet}. Choose the correct screenshot or go back to change the payment app.`);
+      if (receivingWallet.toLowerCase() !== selectedEwallet?.toLowerCase()) {
+        setPaymentScreenshotError(`This screenshot shows ${receivingWallet} as the receiving wallet, but the order is waiting for ${selectedEwallet}. Choose the correct screenshot or go back to change the payment app.`);
         return;
       }
       if (details.amount === null) {
@@ -589,11 +582,11 @@ const OrderQueueScreen = ({navigation, route}) => {
         setPaymentScreenshotError(`The screenshot shows ₱${details.amount.toFixed(2)}, but this order is ₱${Number(paymentOrder?.total || 0).toFixed(2)}. Check the payment before continuing.`);
         return;
       }
-      setPaymentScreenshot(details);
+      setPaymentScreenshot({...details, source: receivingWallet, sourceInferred: inferredGCash});
       setManualPaymentReference(details.reference);
       setManualPaymentSender(details.sender);
       setManualPaymentDate(details.date);
-      if (!details.reference || !details.sender || !details.date) {
+      if (!details.reference || !details.date) {
         setPaymentScreenshotError('Some details could not be read. Check the official payment app and fill the missing fields before confirming.');
       }
     } catch {
@@ -1189,20 +1182,20 @@ const OrderQueueScreen = ({navigation, route}) => {
                   {isReadingPaymentScreenshot ? <ActivityIndicator color={COLORS.accentDark} /> : <Icon name="image-search-outline" size={21} color={COLORS.accentDark} />}
                   <Text style={styles.paymentScreenshotButtonText}>{isReadingPaymentScreenshot ? 'Reading screenshot...' : paymentScreenshot ? 'Choose another screenshot' : 'Choose screenshot from gallery'}</Text>
                 </TouchableOpacity>
-                {paymentScreenshotError && (!paymentScreenshot || !manualPaymentReference.trim() || !manualPaymentSender.trim() || !manualPaymentDate.trim())
+                {paymentScreenshotError && (!paymentScreenshot || !manualPaymentReference.trim() || !manualPaymentDate.trim())
                   ? <Text style={styles.paymentSignalWarning}>{paymentScreenshotError}</Text> : null}
                 {paymentScreenshot ? (
                   <>
                     <View style={styles.paymentScreenshotSummary}>
-                      <Text style={styles.paymentScreenshotSummaryText}>Detected app: {paymentScreenshot.source}</Text>
+                      <Text style={styles.paymentScreenshotSummaryText}>{paymentScreenshot.sourceInferred ? 'Selected wallet (not detected in image)' : 'Receiving wallet'}: {paymentScreenshot.source}</Text>
                       <Text style={styles.paymentScreenshotSummaryText}>Detected amount: ₱{paymentScreenshot.amount.toFixed(2)}</Text>
                     </View>
-                    <Text style={styles.qrInstructionText}>Review the sender, date, and reference against the official payment app. Correct any OCR mistakes before confirming.</Text>
+                    <Text style={styles.qrInstructionText}>Check the received payment in the official {selectedEwallet} app. Review the date and reference; enter the sender only if it is shown.</Text>
                 <TextInput
                   style={styles.manualPaymentInput}
                   value={manualPaymentSender}
                   onChangeText={setManualPaymentSender}
-                  placeholder="Sender name"
+                  placeholder="Sender name (if shown)"
                   placeholderTextColor={COLORS.placeholder}
                   maxLength={160}
                   accessibilityLabel="Wallet sender name"
@@ -1228,9 +1221,9 @@ const OrderQueueScreen = ({navigation, route}) => {
                   accessibilityLabel="Wallet transaction reference"
                 />
                 <TouchableOpacity
-                  style={[styles.placeOrderButton, (isPlacingOrder || !manualPaymentReference.trim() || !manualPaymentSender.trim() || !manualPaymentDate.trim()) && styles.placeOrderDisabled]}
+                  style={[styles.placeOrderButton, (isPlacingOrder || !manualPaymentReference.trim() || !manualPaymentDate.trim()) && styles.placeOrderDisabled]}
                   onPress={submitManualPayment}
-                  disabled={isPlacingOrder || !manualPaymentReference.trim() || !manualPaymentSender.trim() || !manualPaymentDate.trim()}
+                  disabled={isPlacingOrder || !manualPaymentReference.trim() || !manualPaymentDate.trim()}
                   accessibilityRole="button"
                   accessibilityLabel="Confirm payment received">
                   <Text style={styles.placeOrderButtonText}>{isPlacingOrder ? 'Saving…' : 'Confirm payment received'}</Text>

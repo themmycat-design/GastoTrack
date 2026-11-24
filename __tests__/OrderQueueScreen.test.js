@@ -267,7 +267,7 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(screen.root.findAllByType(Text).some(node => node.props.children === 'Payment notification matched the order and the order was saved. GastoTrack did not verify it with the wallet provider.')).toBe(true);
   });
 
-  it('cancels a waiting wallet order and returns to checkout with the cart restored', async () => {
+  it('cancels a waiting wallet order immediately and clears the active cart', async () => {
     const cart = [{product, quantity: 1}];
     const {screen, setCart, createOrder, cancelOrder} = setup({cart});
     const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
@@ -278,15 +278,28 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({paymentMethod: 'gcash'}));
 
     await pressByLabel(screen, 'Cancel pending order');
-    const cancelAction = alertSpy.mock.calls.at(-1)[2].find(button => button.style === 'destructive');
-    await ReactTestRenderer.act(async () => {
-      await cancelAction.onPress();
-    });
-
+    expect(alertSpy).not.toHaveBeenCalled();
     expect(cancelOrder).toHaveBeenCalledWith(41, expect.objectContaining({payment_not_received: true}));
-    expect(setCart).toHaveBeenCalledWith([{product: {...product}, quantity: 1}]);
-    expect(screen.root.findAllByType(Modal).filter(modal => modal.props.visible)).toHaveLength(1);
-    expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Select Cash payment method')).toBe(true);
+    expect(setCart).toHaveBeenCalledWith([]);
+    expect(screen.root.findAllByType(Modal).filter(modal => modal.props.visible)).toHaveLength(0);
+
+    alertSpy.mockRestore();
+  });
+
+  it('keeps the waiting order and cart when the server rejects cancellation', async () => {
+    const cart = [{product, quantity: 1}];
+    const {screen, setCart, cancelOrder} = setup({cart});
+    cancelOrder.mockRejectedValueOnce(new Error('The order is already completed.'));
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GCash');
+    await pressByLabel(screen, 'Cancel pending order');
+
+    expect(alertSpy).toHaveBeenCalledWith('Order not cancelled', expect.any(String));
+    expect(setCart).not.toHaveBeenCalledWith([]);
+    expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(true);
 
     alertSpy.mockRestore();
   });
@@ -323,6 +336,34 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(false);
   });
 
+  it('reviews an unlabelled GCash remittance detail without inventing a sender', async () => {
+    scanReceipt.mockResolvedValue({
+      success: true,
+      text: 'Transaction Details\nInternational Remittance\nAmount\n+85.00\nDate & Time\nNov 19, 2026 4:30 PM\nReference Number\n1047445192527',
+    });
+    const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
+    const alertSpy = jest.spyOn(AppAlert, 'alert').mockImplementation(() => {});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GCash');
+    await pressByLabel(screen, 'Payment received');
+    await pressByLabel(screen, 'Choose payment screenshot from gallery');
+
+    const inputs = screen.root.findAllByType(TextInput);
+    expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet sender name').props.value).toBe('');
+    expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet payment date').props.value).toBe('2026-11-19');
+    expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet transaction reference').props.value).toBe('1047445192527');
+    expect(screen.root.findAllByType(Text).some(node =>
+      Array.isArray(node.props.children) && node.props.children.join('') === 'Selected wallet (not detected in image): GCash')).toBe(true);
+    await pressByLabel(screen, 'Confirm payment received');
+    const confirmAction = alertSpy.mock.calls.at(-1)[2].find(button => button.text === 'Confirm payment');
+    await ReactTestRenderer.act(async () => confirmAction.onPress());
+    expect(confirmPayment).toHaveBeenCalledWith(41, expect.objectContaining({
+      amount: 85, reference: '1047445192527', sender_name: null, received_on: '2026-11-19',
+    }));
+  });
+
   it('does not offer confirmation for a screenshot with the wrong payment app', async () => {
     const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
     scanReceipt.mockResolvedValue({success: true, text: 'Maya\nAmount received: PHP 85.00\nRef No: MAYA-1234'});
@@ -333,6 +374,27 @@ describe('OrderQueueScreen ordering flow', () => {
     await pressByLabel(screen, 'Choose payment screenshot from gallery');
     expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Confirm payment received')).toBe(false);
     expect(confirmPayment).not.toHaveBeenCalled();
+  });
+
+  it('accepts a matching transfer detail with the selected wallet as destination', async () => {
+    scanReceipt.mockResolvedValue({
+      success: true,
+      text: 'Transaction Details\nFrom\nJamie Cruz\nGCash\nTo\nTaylor Reyes\nMariBank: 1234567890\nTransfer Amount\nPHP 85.00\nReference Number\n009354\nTransaction Date & Time\n01 Nov 2026, 22:21',
+    });
+    const {screen} = setup({cart: [{product, quantity: 1}]});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose MariBank');
+    await pressByLabel(screen, 'Payment received');
+    await pressByLabel(screen, 'Choose payment screenshot from gallery');
+
+    const inputs = screen.root.findAllByType(TextInput);
+    expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet sender name').props.value).toBe('Jamie Cruz');
+    expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet payment date').props.value).toBe('2026-11-01');
+    expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet transaction reference').props.value).toBe('009354');
+    expect(screen.root.findAllByType(Text).some(node =>
+      Array.isArray(node.props.children) && node.props.children.join('') === 'Receiving wallet: MariBank')).toBe(true);
   });
 
   it('returns directly to wallet selection and switches the same pending order', async () => {

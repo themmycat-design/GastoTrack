@@ -496,7 +496,7 @@ class OrderController extends Controller
                     ->where('payment_method', $orderForValidation->payment_method)
                     ->ignore($orderForValidation->id),
             ],
-            'sender_name' => ['required', 'string', 'max:160'],
+            'sender_name' => ['nullable', 'string', 'max:160'],
             'received_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now(config('business.timezone'))->toDateString()],
         ]);
 
@@ -525,7 +525,7 @@ class OrderController extends Controller
                 $order->update([
                     'payment_status' => 'confirmed',
                     'payment_reference' => $validated['reference'],
-                    'payment_sender_name' => trim($validated['sender_name']),
+                    'payment_sender_name' => trim($validated['sender_name'] ?? '') ?: null,
                     'payment_received_on' => $validated['received_on'],
                     'payment_confirmed_by' => $request->user()->id,
                     'payment_confirmed_at' => $now,
@@ -548,7 +548,7 @@ class OrderController extends Controller
                     details: [
                         'confirmation_method' => 'staff_manual_provider_app_check',
                         'provider_api_verified' => false,
-                        'sender_name' => trim($validated['sender_name']),
+                        'sender_name' => trim($validated['sender_name'] ?? '') ?: null,
                         'received_on' => $validated['received_on'],
                         'legacy_financials_preserved' => (bool) $order->financials_committed_at,
                     ]
@@ -732,7 +732,7 @@ class OrderController extends Controller
                 details: [
                     'financials_were_previously_committed' => $legacyCommittedSale,
                     'payment_not_received' => true,
-                    'confirmation_method' => 'staff_wallet_account_check',
+                    'confirmation_method' => 'staff_cancel_action',
                     'restocked' => (bool) ($validated['restock'] ?? false),
                 ]
             );
