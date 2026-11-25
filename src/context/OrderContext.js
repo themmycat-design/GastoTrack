@@ -436,7 +436,8 @@ export const OrderProvider = ({children}) => {
   }, [attemptStorageKey, cartStorageKey, mergeOrder, refreshOrderRelatedData, offlineAccount]);
 
   const postOrderAction = useCallback(async (orderId, path, body = {}, options = {}) => {
-    const response = await api.post(`/orders/${orderId}/${path}`, body);
+    const response = await api.post(`/orders/${orderId}/${path}`, body,
+      body instanceof FormData ? {headers: {'Content-Type': 'multipart/form-data'}, timeout: 60000} : undefined);
     const order = mergeOrder(response.data.order);
     await refreshOrderRelatedData({financialsChanged: Boolean(options.financialsChanged)});
     return {order, message: response.data.message, data: response.data};
@@ -448,8 +449,22 @@ export const OrderProvider = ({children}) => {
   const confirmPaymentFromNotification = useCallback((orderId, signal) =>
     postOrderAction(orderId, 'payments/confirm-notification', signal, {financialsChanged: true}), [postOrderAction]);
 
-  const confirmPayment = useCallback((orderId, paymentDetails) =>
-    postOrderAction(orderId, 'payments/confirm', paymentDetails, {financialsChanged: true}), [postOrderAction]);
+  const confirmPayment = useCallback((orderId, paymentDetails) => {
+    const {screenshot, ...fields} = paymentDetails;
+    if (!screenshot?.uri) {
+      return postOrderAction(orderId, 'payments/confirm', fields, {financialsChanged: true});
+    }
+    const form = new FormData();
+    Object.entries(fields).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) form.append(key, String(value));
+    });
+    form.append('screenshot', {
+      uri: screenshot.uri,
+      name: screenshot.fileName || `wallet-payment-${orderId}.jpg`,
+      type: screenshot.type || 'image/jpeg',
+    });
+    return postOrderAction(orderId, 'payments/confirm', form, {financialsChanged: true});
+  }, [postOrderAction]);
 
   const markPaymentFailed = useCallback((orderId, reason) =>
     postOrderAction(orderId, 'payments/fail', typeof reason === 'string'

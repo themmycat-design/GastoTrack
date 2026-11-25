@@ -8,9 +8,22 @@ use App\Models\WalletNotificationCapture;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use App\Models\WalletNotificationCapture as WalletCapture;
 
 class TransactionController extends Controller
 {
+    public function walletScreenshot(Request $request, WalletCapture $capture)
+    {
+        abort_unless($capture->business_id === $request->user()->business_id && $capture->screenshot_path, 404);
+        abort_unless(Storage::disk('local')->exists($capture->screenshot_path), 404);
+
+        return Storage::disk('local')->response($capture->screenshot_path, null, [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     /**
      * Display a listing of the resource.
      */

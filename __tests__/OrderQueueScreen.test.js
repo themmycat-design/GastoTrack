@@ -50,6 +50,7 @@ beforeEach(() => {
   launchImageLibrary.mockResolvedValue({assets: [{uri: 'file:///payment-screenshot.png'}]});
   scanReceipt.mockResolvedValue({success: true, text: 'GCash\nAmount received: PHP 85.00\nFrom: Wallet Customer\nDate: Oct 12, 2026\nRef No: GCASH-1234'});
   jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-10-12T12:00:00'));
 });
 
 afterEach(() => {
@@ -332,11 +333,13 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(confirmPayment).toHaveBeenCalledWith(41, expect.objectContaining({
       amount: 85, currency: 'PHP', reference: 'GCASH-1234', sender_name: 'Wallet Customer',
       received_on: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      screenshot: expect.objectContaining({uri: 'file:///payment-screenshot.png'}),
     }));
     expect(screen.root.findAllByType(Modal).some(modal => modal.props.visible)).toBe(false);
   });
 
   it('reviews an unlabelled GCash remittance detail without inventing a sender', async () => {
+    jest.setSystemTime(new Date('2026-11-19T12:00:00'));
     scanReceipt.mockResolvedValue({
       success: true,
       text: 'Transaction Details\nInternational Remittance\nAmount\n+85.00\nDate & Time\nNov 19, 2026 4:30 PM\nReference Number\n1047445192527',
@@ -377,6 +380,7 @@ describe('OrderQueueScreen ordering flow', () => {
   });
 
   it('accepts a matching transfer detail with the selected wallet as destination', async () => {
+    jest.setSystemTime(new Date('2026-11-01T12:00:00'));
     scanReceipt.mockResolvedValue({
       success: true,
       text: 'Transaction Details\nFrom\nJamie Cruz\nGCash\nTo\nTaylor Reyes\nMariBank: 1234567890\nTransfer Amount\nPHP 85.00\nReference Number\n009354\nTransaction Date & Time\n01 Nov 2026, 22:21',
@@ -395,6 +399,43 @@ describe('OrderQueueScreen ordering flow', () => {
     expect(inputs.find(input => input.props.accessibilityLabel === 'Wallet transaction reference').props.value).toBe('009354');
     expect(screen.root.findAllByType(Text).some(node =>
       Array.isArray(node.props.children) && node.props.children.join('') === 'Receiving wallet: MariBank')).toBe(true);
+  });
+
+  it('rejects an older payment screenshot even when its wallet and amount match', async () => {
+    scanReceipt.mockResolvedValue({
+      success: true,
+      text: 'MariBank\nTransaction Details\nTransfer Amount\nPHP 85.00\nReference Number\nREF-123456\nTransaction Date & Time\n01 Nov 2026, 22:21',
+    });
+    const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose MariBank');
+    await pressByLabel(screen, 'Payment received');
+    await pressByLabel(screen, 'Choose payment screenshot from gallery');
+
+    expect(screen.root.findAllByType(Text).some(node =>
+      String(node.props.children).includes('Only transactions dated today'))).toBe(true);
+    expect(screen.root.findAllByType(TouchableOpacity).some(button => button.props.accessibilityLabel === 'Confirm payment received')).toBe(false);
+    expect(confirmPayment).not.toHaveBeenCalled();
+  });
+
+  it('rejects a screenshot of money sent from the selected wallet to a different receiver', async () => {
+    scanReceipt.mockResolvedValue({
+      success: true,
+      text: 'GoTyme Bank\nTransferred ₱ 85.00\nTo\nCustomer\nG-Xchange, Inc (GCash)\nFrom\nGoTyme Bank\nReference No. ITO-123456\nDate\nOct 12 2026',
+    });
+    const {screen, confirmPayment} = setup({cart: [{product, quantity: 1}]});
+
+    await pressByLabel(screen, 'View your cart');
+    await pressByLabel(screen, 'Select Cashless payment method');
+    await pressByLabel(screen, 'Choose GoTyme');
+    await pressByLabel(screen, 'Payment received');
+    await pressByLabel(screen, 'Choose payment screenshot from gallery');
+
+    expect(screen.root.findAllByType(Text).some(node =>
+      String(node.props.children).includes('shows GCash as the receiving wallet'))).toBe(true);
+    expect(confirmPayment).not.toHaveBeenCalled();
   });
 
   it('returns directly to wallet selection and switches the same pending order', async () => {

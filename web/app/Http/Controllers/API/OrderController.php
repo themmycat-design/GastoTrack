@@ -10,12 +10,14 @@ use App\Models\StockItem;
 use App\Models\StockMovement;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\WalletNotificationCapture;
 use App\Services\NotificationService;
 use App\Services\OrderNumberAllocator;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
@@ -486,6 +488,7 @@ class OrderController extends Controller
     {
         $this->staffOnly($request);
         $orderForValidation = Order::where('business_id', $request->user()->business_id)->findOrFail($id);
+        $today = now(config('business.timezone'))->toDateString();
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
             'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
@@ -497,11 +500,22 @@ class OrderController extends Controller
                     ->ignore($orderForValidation->id),
             ],
             'sender_name' => ['nullable', 'string', 'max:160'],
-            'received_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now(config('business.timezone'))->toDateString()],
+            'received_on' => ['required', 'date_format:Y-m-d', Rule::in([$today])],
+            // Older APKs send details only. New builds include the image so
+            // the owner can review exactly what staff used to confirm payment.
+            'screenshot' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ], [
+            'received_on.in' => 'The wallet payment date must be today ('.$today.'). Choose a current transaction detail.',
         ]);
 
+        $screenshotPath = $request->file('screenshot')?->store('wallet-payments/'.$request->user()->business_id, 'local');
+        if ($request->hasFile('screenshot') && ! $screenshotPath) {
+            abort(500, 'Could not save the payment screenshot. The order remains pending.');
+        }
+
+        $captureSaved = false;
         try {
-            $order = DB::transaction(function () use ($request, $id, $validated): Order {
+            $order = DB::transaction(function () use ($request, $id, $validated, $screenshotPath): Order {
                 $order = $this->lockBusinessOrder($request, $id);
                 abort_unless($order->payment_type === 'cashless', 409, 'Manual wallet confirmation is only for cashless orders.');
                 abort_unless($this->amountsMatch($validated['amount'], $order->total), 422, 'The confirmed amount must exactly match the server-calculated order total.');
@@ -532,6 +546,42 @@ class OrderController extends Controller
                     'status' => 'completed',
                     'completed_at' => $order->completed_at ?: $now,
                 ]);
+                if ($screenshotPath) {
+                    // A notification for this payment may already be in Raw.
+                    // Attach the image to it instead of listing one sale twice.
+                    $existingCapture = WalletNotificationCapture::where('business_id', $order->business_id)
+                        ->where('source', $order->payment_method)
+                        ->where('direction', 'received')
+                        ->where('reference', $validated['reference'])
+                        ->where('amount', $validated['amount'])
+                        ->whereNull('used_order_id')
+                        ->lockForUpdate()->first();
+                    if ($existingCapture) {
+                        $existingCapture->update([
+                            'used_order_id' => $order->id,
+                            'screenshot_path' => $screenshotPath,
+                            'capture_method' => 'notification_with_screenshot',
+                        ]);
+                    } else {
+                        WalletNotificationCapture::create([
+                            'client_id' => (string) Str::uuid(),
+                            'business_id' => $order->business_id,
+                            'user_id' => $request->user()->id,
+                            'source' => $order->payment_method,
+                            'direction' => 'received',
+                            'amount' => $validated['amount'],
+                            'currency' => $validated['currency'],
+                            'merchant' => trim($validated['sender_name'] ?? '') ?: null,
+                            'counterparty_name' => trim($validated['sender_name'] ?? '') ?: null,
+                            'reference' => $validated['reference'],
+                            'message' => 'Payment received (staff-confirmed screenshot)',
+                            'captured_at' => $now,
+                            'used_order_id' => $order->id,
+                            'capture_method' => 'staff_screenshot',
+                            'screenshot_path' => $screenshotPath,
+                        ]);
+                    }
+                }
                 app(NotificationService::class)->resolveOrderIssueNotifications($order, 'confirmed');
 
                 $this->recordEvent(
@@ -560,10 +610,14 @@ class OrderController extends Controller
 
                 return $order->load('items');
             });
+            $captureSaved = $screenshotPath && WalletNotificationCapture::where('used_order_id', $order->id)
+                ->where('screenshot_path', $screenshotPath)->exists();
         } catch (QueryException $exception) {
             return response()->json([
                 'message' => 'This payment reference is already linked to another order, or the payment update conflicted. Verify the order before retrying.',
             ], 409);
+        } finally {
+            if ($screenshotPath && ! $captureSaved) Storage::disk('local')->delete($screenshotPath);
         }
 
         return response()->json([

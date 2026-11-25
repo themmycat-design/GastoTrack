@@ -277,6 +277,10 @@ class SuperAdminController extends Controller
             $subscriptionProofPaths = DB::table('subscription_requests')
                 ->where('business_id', $record->id)
                 ->pluck('proof_path');
+            $walletScreenshotPaths = DB::table('wallet_notification_captures')
+                ->where('business_id', $record->id)
+                ->whereNotNull('screenshot_path')
+                ->pluck('screenshot_path');
 
             // Clear restrictive child references before the business cascade
             // removes its products, orders, and stock items.
@@ -309,9 +313,10 @@ class SuperAdminController extends Controller
 
             $this->audit('business.permanently_deleted', $record);
 
-            DB::afterCommit(function () use ($record, $bugScreenshotPaths, $subscriptionProofPaths, $staffIds): void {
+            DB::afterCommit(function () use ($record, $bugScreenshotPaths, $subscriptionProofPaths, $walletScreenshotPaths, $staffIds): void {
                 Storage::disk('local')->delete($bugScreenshotPaths->all());
                 Storage::disk('local')->delete($subscriptionProofPaths->all());
+                Storage::disk('local')->delete($walletScreenshotPaths->all());
                 foreach ($staffIds as $staffId) {
                     Storage::disk('local')->deleteDirectory('profile-photos/'.$staffId);
                 }

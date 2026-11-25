@@ -76,6 +76,8 @@ Route::middleware(['auth', 'verified', 'owner', 'owner.security', 'owner.subscri
     Route::post('/goals', [OwnerGoalController::class, 'store'])->name('goals.store');
     // Transactions (Read-only for owners)
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
+    Route::get('/transactions/raw/{capture}/screenshot', [TransactionController::class, 'walletScreenshot'])
+        ->whereNumber('capture')->name('transactions.wallet-screenshot');
     Route::get('/transactions/categories', [TransactionController::class, 'categories'])->name('transactions.categories');
     
     // Stock CRUD

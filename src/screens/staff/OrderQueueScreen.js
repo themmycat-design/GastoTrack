@@ -494,6 +494,7 @@ const OrderQueueScreen = ({navigation, route}) => {
 
   const submitManualPayment = () => {
     if (!paymentOrder?.id || isPlacingOrder || isCheckingWalletPayment || paymentSignalDetected) return;
+    const today = staffDayKey();
     if (!paymentScreenshot || paymentScreenshot.source.toLowerCase() !== selectedEwallet?.toLowerCase()
       || Math.round(Number(paymentScreenshot.amount) * 100) !== Math.round(Number(paymentOrder.total) * 100)) {
       Alert.alert('Screenshot does not match', 'Choose a screenshot showing the selected receiving wallet or GCash remittance details and the exact order amount.');
@@ -502,8 +503,12 @@ const OrderQueueScreen = ({navigation, route}) => {
     const reference = manualPaymentReference.trim();
     const sender = manualPaymentSender.trim();
     const receivedOn = manualPaymentDate.trim();
-    if (!reference || !/^\d{4}-\d{2}-\d{2}$/.test(receivedOn)) {
-      Alert.alert('Payment details required', `Enter the payment date (YYYY-MM-DD) and transaction reference shown in the ${selectedEwallet} app.`);
+    if (paymentScreenshot.date !== today || receivedOn !== today) {
+      Alert.alert('Payment date does not match', `Choose a transaction detail dated today (${today}). An older screenshot cannot confirm this order.`);
+      return;
+    }
+    if (!reference) {
+      Alert.alert('Payment reference required', `Choose a screenshot with a complete ${selectedEwallet} transaction reference.`);
       return;
     }
     Alert.alert(
@@ -520,6 +525,7 @@ const OrderQueueScreen = ({navigation, route}) => {
               reference,
               sender_name: sender || null,
               received_on: receivedOn,
+              screenshot: paymentScreenshot.image,
             });
             setQrPaymentModalVisible(false);
             setManualPaymentVisible(false);
@@ -574,21 +580,31 @@ const OrderQueueScreen = ({navigation, route}) => {
         setPaymentScreenshotError(`This screenshot shows ${receivingWallet} as the receiving wallet, but the order is waiting for ${selectedEwallet}. Choose the correct screenshot or go back to change the payment app.`);
         return;
       }
+      const today = staffDayKey();
+      if (!details.date) {
+        setPaymentScreenshotError('The transaction date could not be read. Choose a clearer screenshot showing today\'s payment date.');
+        return;
+      }
+      if (details.date !== today) {
+        setPaymentScreenshotError(`This screenshot is dated ${details.date}. Only transactions dated today (${today}) can confirm an order.`);
+        return;
+      }
       if (details.amount === null) {
-        setPaymentScreenshotError('The received amount is missing or ambiguous. Choose a screenshot that clearly shows one payment amount.');
+        setPaymentScreenshotError('The payment amount is missing or ambiguous. Choose a screenshot showing the exact transfer amount.');
         return;
       }
       if (Math.round(details.amount * 100) !== Math.round(Number(paymentOrder?.total) * 100)) {
         setPaymentScreenshotError(`The screenshot shows ₱${details.amount.toFixed(2)}, but this order is ₱${Number(paymentOrder?.total || 0).toFixed(2)}. Check the payment before continuing.`);
         return;
       }
-      setPaymentScreenshot({...details, source: receivingWallet, sourceInferred: inferredGCash});
+      if (!details.reference) {
+        setPaymentScreenshotError('The unique wallet transaction reference is unreadable or masked. Choose a clearer transaction detail screenshot.');
+        return;
+      }
+      setPaymentScreenshot({...details, source: receivingWallet, sourceInferred: inferredGCash, image: result.assets[0]});
       setManualPaymentReference(details.reference);
       setManualPaymentSender(details.sender);
       setManualPaymentDate(details.date);
-      if (!details.reference || !details.date) {
-        setPaymentScreenshotError('Some details could not be read. Check the official payment app and fill the missing fields before confirming.');
-      }
     } catch {
       setPaymentScreenshotError('Could not read the screenshot. Check photo access and try again.');
     } finally {
@@ -1172,7 +1188,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                   <Text style={styles.qrAmountLabel}>Order total</Text>
                   <Text style={styles.qrAmountValue}>₱{Number(paymentOrder?.total || 0).toFixed(2)}</Text>
                 </View>
-                <Text style={styles.qrInstructionText}>Choose a screenshot of the received transaction from the official {selectedEwallet} app. GastoTrack will read its details on this device.</Text>
+                <Text style={styles.qrInstructionText}>Choose today's transaction detail from the official {selectedEwallet} receiving account. GastoTrack reads the amount, date, and reference on this device.</Text>
                 <TouchableOpacity
                   style={styles.paymentScreenshotButton}
                   onPress={choosePaymentScreenshot}
@@ -1190,7 +1206,7 @@ const OrderQueueScreen = ({navigation, route}) => {
                       <Text style={styles.paymentScreenshotSummaryText}>{paymentScreenshot.sourceInferred ? 'Selected wallet (not detected in image)' : 'Receiving wallet'}: {paymentScreenshot.source}</Text>
                       <Text style={styles.paymentScreenshotSummaryText}>Detected amount: ₱{paymentScreenshot.amount.toFixed(2)}</Text>
                     </View>
-                    <Text style={styles.qrInstructionText}>Check the received payment in the official {selectedEwallet} app. Review the date and reference; enter the sender only if it is shown.</Text>
+                    <Text style={styles.qrInstructionText}>Check the payment in the official {selectedEwallet} account. Enter the sender only if it is shown.</Text>
                 <TextInput
                   style={styles.manualPaymentInput}
                   value={manualPaymentSender}
@@ -1203,11 +1219,10 @@ const OrderQueueScreen = ({navigation, route}) => {
                 <TextInput
                   style={styles.manualPaymentInput}
                   value={manualPaymentDate}
-                  onChangeText={setManualPaymentDate}
                   placeholder="Payment date (YYYY-MM-DD)"
                   placeholderTextColor={COLORS.placeholder}
                   maxLength={10}
-                  keyboardType="numbers-and-punctuation"
+                  editable={false}
                   accessibilityLabel="Wallet payment date"
                 />
                 <TextInput

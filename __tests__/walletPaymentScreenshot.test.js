@@ -42,4 +42,29 @@ describe('payment screenshot extraction', () => {
     expect(isUnlabelledGCashRemittance(detail, parsed)).toBe(true);
     expect(isUnlabelledGCashRemittance(detail.replace('+1,000.00', 'PHP 1,000.00'), parsed)).toBe(false);
   });
+
+  it('reads a GoTyme transfer to GCash without treating the sending app as the receiver', () => {
+    const detail = 'Transferred\n₱ 100.00\ninstaPay\nTo\nMasked customer\nG-Xchange, Inc (GCash)\n'
+      + 'From\n**** 3097\nGoTyme Bank\nFee\n₱ 0.00\nTotal\n₱ 100.00\n'
+      + 'Reference No.\nITO240412104948002\nTrace ID\n948002\nDate\nApril 12 2024 at 06:49:49 PM';
+    expect(parseWalletPaymentScreenshot(detail)).toEqual({
+      source: 'GCash', amount: 100, sender: '', date: '2024-04-12', reference: 'ITO240412104948002',
+    });
+  });
+
+  it('reads a complete Maya payment reference without using its reusable merchant reference', () => {
+    const detail = 'Maya | Payment Received\nmaya BUSINESS\n20 Feb 2024, 3:38PM (PHT)\n'
+      + 'Amount received\n₱ 68,740.00\nMerchant Reference No.\ntraveldealsph\n'
+      + 'Maya Transaction No.\nMAYA-20240220-12345\nMaya Receipt No.\n405107123456';
+    expect(parseWalletPaymentScreenshot(detail)).toEqual({
+      source: 'Maya', amount: 68740, sender: '', date: '2024-02-20', reference: 'MAYA-20240220-12345',
+    });
+  });
+
+  it('rejects a masked Maya transaction reference rather than using a merchant reference', () => {
+    const detail = 'Maya | Payment Received\nAmount received\n₱ 68,740.00\n'
+      + 'Merchant Reference No.\ntraveldealsph\nMaya Transaction No.\nc502-2007-3850-****\n'
+      + 'Maya Receipt No.\n405107...';
+    expect(parseWalletPaymentScreenshot(detail).reference).toBe('');
+  });
 });
